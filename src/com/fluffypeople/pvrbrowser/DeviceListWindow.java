@@ -94,10 +94,10 @@ public class DeviceListWindow extends DefaultRegistryListener implements ListSel
 
         if (cmd == null) {
             return;
-        }else if (cmd.equals(openString)) {
+        } else if (cmd.equals(openString)) {
 
             DeviceListEntry e = listModel.get(list.getSelectedIndex());
-            DeviceBrowserWindow win = new DeviceBrowserWindow(service, e.getDevice());
+//            DeviceBrowserWindow win = new DeviceBrowserWindow(service, e.getDevice());
 
         } else if (cmd.equals(chooseString)) {
 

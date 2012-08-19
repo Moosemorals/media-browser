@@ -23,10 +23,10 @@ public class Main2 {
 
         UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
 
-        final DeviceListWindow win = new DeviceListWindow();
+        final DeviceBrowserWindow win = new DeviceBrowserWindow();
         final UpnpService upnpService = new UpnpServiceImpl(win);
 
-        win.setService(upnpService);
+        win.setUpnpService(upnpService);
 
         upnpService.getControlPoint().search(new STAllHeader());
 

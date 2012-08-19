@@ -7,19 +7,22 @@ package com.fluffypeople.pvrbrowser;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.File;
 import javax.swing.*;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.TreeExpansionEvent;
+import javax.swing.event.TreeWillExpandListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.ExpandVetoException;
 import javax.swing.tree.TreePath;
 import org.apache.log4j.Logger;
 import org.teleal.cling.UpnpService;
 import org.teleal.cling.model.action.ActionInvocation;
 import org.teleal.cling.model.message.UpnpResponse;
 import org.teleal.cling.model.meta.RemoteDevice;
+import org.teleal.cling.model.meta.Service;
 import org.teleal.cling.model.types.UDAServiceType;
+import org.teleal.cling.registry.DefaultRegistryListener;
+import org.teleal.cling.registry.Registry;
 import org.teleal.cling.support.contentdirectory.callback.Browse;
 import org.teleal.cling.support.model.BrowseFlag;
 import org.teleal.cling.support.model.DIDLContent;
@@ -30,37 +33,36 @@ import org.teleal.cling.support.model.item.Item;
  *
  * @author Osric
  */
-public class DeviceBrowserWindow implements TreeSelectionListener, ActionListener {
+public class DeviceBrowserWindow extends DefaultRegistryListener implements TreeWillExpandListener, ActionListener {
 
     private static final Logger log = Logger.getLogger(DeviceBrowserWindow.class);
-    private final RemoteDevice target;
-    private final UpnpService service;
+    private UpnpService upnp;
     private final JTree tree;
     private final DefaultTreeModel treeModel;
     private final JButton downloadButton;
     private final JFrame frame;
     private static final String downloadString = "Download";
     private DownloadForm downloadForm = null;
+    private final DefaultMutableTreeNode rootNode;
 
-    public DeviceBrowserWindow(UpnpService service, RemoteDevice target) {
-        this.target = target;
-        this.service = service;
+    public DeviceBrowserWindow() {
 
-        DefaultMutableTreeNode rootNode = new DefaultMutableTreeNode(target.getDisplayString());
+        rootNode = new DefaultMutableTreeNode("Devices");
         treeModel = new DefaultTreeModel(rootNode);
 
-        service.getControlPoint().execute(new DeviceBrowse("0", rootNode));
-
-        frame = new JFrame(target.getDisplayString());
-        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
+        frame = new JFrame("Media Browser");
         tree = new JTree(treeModel);
+        downloadButton = new JButton(downloadString);
+    }
+
+    public void createAndDisplayGUI() {
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
         tree.setShowsRootHandles(true);
-        tree.addTreeSelectionListener(this);
+        // tree.addTreeWillExpandListener(this);
 
         JScrollPane treeScrollPane = new JScrollPane(tree);
 
-        downloadButton = new JButton(downloadString);
         downloadButton.addActionListener(this);
         downloadButton.setEnabled(true);
 
@@ -71,11 +73,11 @@ public class DeviceBrowserWindow implements TreeSelectionListener, ActionListene
         frame.pack();
         frame.setSize(400, 600);
         frame.setVisible(true);
+
     }
 
-    @Override
-    public void valueChanged(TreeSelectionEvent tse) {
-        // do nothing
+    public void setUpnpService(UpnpService upnpService) {
+        this.upnp = upnpService;
     }
 
     @Override
@@ -110,24 +112,62 @@ public class DeviceBrowserWindow implements TreeSelectionListener, ActionListene
         }
     }
 
+    @Override
+    public void treeWillExpand(TreeExpansionEvent tee) throws ExpandVetoException {
+        TreePath tp = tee.getPath();
+        Object[] path = tp.getPath();
+
+        for (int i = 0; i < path.length; i++) {
+            log.debug("Path: " + i + ": " + path[0].getClass().toString());
+        }
+
+        /*
+        if (path.length == 1) {
+            // Node hasn't expanded yet
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) path[0];
+            RemoteDevice device = (RemoteDevice) node.getUserObject();
+            populateTree(device, node);
+        }
+        *
+        */
+    }
+
+    private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
+        Service service = device.findService(new UDAServiceType("ContentDirectory"));
+        upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
+    }
+
+    @Override
+    public void treeWillCollapse(TreeExpansionEvent tee) throws ExpandVetoException {
+        // ignored
+    }
+
+    @Override
+    public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
+        DefaultMutableTreeNode node = new DefaultMutableTreeNode(device.getDisplayString());
+        treeModel.insertNodeInto(node, rootNode, rootNode.getChildCount());
+        populateTree(device, node);
+    }
+
     private class DeviceBrowse extends Browse {
 
         private final DefaultMutableTreeNode parent;
+        private final Service service;
 
-        public DeviceBrowse(String id, DefaultMutableTreeNode parent) {
-            super(target.findService(new UDAServiceType("ContentDirectory")), id, BrowseFlag.DIRECT_CHILDREN);
+        public DeviceBrowse(Service service, String id, DefaultMutableTreeNode parent) {
+            super(service, id, BrowseFlag.DIRECT_CHILDREN);
             this.parent = parent;
+            this.service = service;
         }
 
         @Override
         public void received(ActionInvocation actionInvocation, DIDLContent didl) {
             for (Container c : didl.getContainers()) {
                 //       System.out.println("Container : " + c.getId() + c.getTitle());
-
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new TreeItemHolder(c, TreeItemHolder.Type.CONTAINER));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
 
-                service.getControlPoint().execute(new DeviceBrowse(c.getId(), childNode));
+                upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
             }
             for (Item i : didl.getItems()) {
                 //           System.out.println("Item: " + i.getId() + i.getTitle());
