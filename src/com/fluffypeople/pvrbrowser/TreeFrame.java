@@ -4,12 +4,14 @@
  */
 package com.fluffypeople.pvrbrowser;
 
-import java.awt.BorderLayout;
 import java.io.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.swing.*;
+import javax.swing.DefaultListModel;
+import javax.swing.JFileChooser;
+import javax.swing.SwingUtilities;
+import javax.swing.UIManager;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -45,7 +47,7 @@ public class TreeFrame extends javax.swing.JFrame {
     private static final Logger log = Logger.getLogger(TreeFrame.class);
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
-    private final DefaultListModel downloadListModel;
+    private final DownloadListModel downloadListModel;
     private final UpnpService upnp;
     private File downloadFolder = null;
     private final DownloadThread dlManager;
@@ -74,7 +76,7 @@ public class TreeFrame extends javax.swing.JFrame {
 
         upnp = new UpnpServiceImpl(upnpListener);
 
-        downloadListModel = new DefaultListModel();
+        downloadListModel = new DownloadListModel();
         dlManager = new DownloadThread();
         dlManager.start();
 
@@ -97,7 +99,7 @@ public class TreeFrame extends javax.swing.JFrame {
         allFiles = new javax.swing.JProgressBar();
         currentFile = new javax.swing.JProgressBar();
         jScrollPane3 = new javax.swing.JScrollPane();
-        downloadList = new javax.swing.JList();
+        downloadList = new javax.swing.JList<DownloadQueueItem>();
         jScrollPane4 = new javax.swing.JScrollPane();
         displayTree = new javax.swing.JTree();
         statusLabel = new javax.swing.JLabel();
@@ -273,7 +275,7 @@ public class TreeFrame extends javax.swing.JFrame {
 
     private class DownloadThread implements Runnable {
 
-        private final BlockingQueue<Item> queue = new LinkedBlockingQueue<>();
+        private final BlockingQueue<DownloadQueueItem> queue = new LinkedBlockingQueue<>();
         private final AtomicBoolean running = new AtomicBoolean(false);
         private final HttpClient client = new DefaultHttpClient();
 
@@ -287,7 +289,7 @@ public class TreeFrame extends javax.swing.JFrame {
         @Override
         public void run() {
             while (running.get()) {
-                Item target;
+                DownloadQueueItem target;
                 try {
                     target = queue.take();
                 } catch (InterruptedException ex) {
@@ -296,9 +298,11 @@ public class TreeFrame extends javax.swing.JFrame {
                     return;
                 }
 
-                log.debug("Downloading " + target.getTitle());
+                Item item = target.getTarget();
+                log.debug("Downloading " + item.getTitle());
+                target.setState(DownloadQueueItem.State.DOWNLOADING);
                 try {
-                    final HttpGet request = new HttpGet(target.getFirstResource().getValue());
+                    final HttpGet request = new HttpGet(item.getFirstResource().getValue());
                     final HttpResponse response = client.execute(request);
 
                     final StatusLine result = response.getStatusLine();
@@ -320,7 +324,7 @@ public class TreeFrame extends javax.swing.JFrame {
                     }
 
                     final InputStream in = body.getContent();
-                    final File downloadTarget = new File(downloadFolder, target.getTitle());
+                    final File downloadTarget = new File(downloadFolder, item.getTitle());
 
                     log.debug("Filename " + downloadTarget.getAbsolutePath());
 
@@ -332,7 +336,13 @@ public class TreeFrame extends javax.swing.JFrame {
                     while (-1 != (n = in.read(buffer))) {
                         out.write(buffer, 0, n);
                         count += n;
-                        currentFile.setValue((int) count);
+                        final int transfer = (int)count;
+                        SwingUtilities.invokeLater(new Runnable() {
+                            public void run() {
+                                currentFile.setValue(transfer);
+                            }
+                        });
+
                     }
 
                     in.close();
@@ -341,7 +351,7 @@ public class TreeFrame extends javax.swing.JFrame {
                     currentFile.setIndeterminate(false);
                     currentFile.setValue(currentFile.getMaximum());
 
-                    downloadListModel.removeElement(target.getTitle());
+                    target.setState(DownloadQueueItem.State.COMPLETED);
                 } catch (IOException ex) {
                     log.error("IOExcption", ex);
                 }
@@ -349,9 +359,10 @@ public class TreeFrame extends javax.swing.JFrame {
         }
 
         public void addTarget(Item target) {
-            downloadListModel.addElement(target.getTitle());
+            DownloadQueueItem i = new DownloadQueueItem(target);
+            downloadListModel.add(i);
             allFiles.setMaximum(downloadListModel.getSize());
-            queue.add(target);
+            queue.add(i);
         }
     }
 
@@ -399,7 +410,7 @@ public class TreeFrame extends javax.swing.JFrame {
     private javax.swing.JProgressBar currentFile;
     private javax.swing.JTree displayTree;
     private javax.swing.JButton downloadButton;
-    private javax.swing.JList downloadList;
+    private javax.swing.JList<DownloadQueueItem> downloadList;
     private javax.swing.JMenu jMenu1;
     private javax.swing.JMenuBar jMenuBar1;
     private javax.swing.JPanel jPanel1;
