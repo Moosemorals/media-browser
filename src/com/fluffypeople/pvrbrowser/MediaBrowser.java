@@ -6,6 +6,9 @@ package com.fluffypeople.pvrbrowser;
 
 import java.awt.BorderLayout;
 import java.io.*;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -288,14 +291,32 @@ public class MediaBrowser extends javax.swing.JFrame {
 
         @Override
         public void received(ActionInvocation actionInvocation, DIDLContent didl) {
-            for (Container c : didl.getContainers()) {
+            List<Container> containers = didl.getContainers();
+             Collections.sort(containers, new Comparator<Container>() {
+
+                @Override
+                public int compare(Container t, Container t1) {
+                    return t.getTitle().compareTo(t1.getTitle());
+                }
+
+            });
+            for (Container c : containers) {
                 //       System.out.println("Container : " + c.getId() + c.getTitle());
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new TreeItemHolder(c, TreeItemHolder.Type.CONTAINER));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
 
                 upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
             }
-            for (Item i : didl.getItems()) {
+            List<Item> items = didl.getItems();
+             Collections.sort(items, new Comparator<Item>() {
+
+                @Override
+                public int compare(Item t, Item t1) {
+                    return t.getTitle().compareTo(t1.getTitle());
+                }
+
+            });
+            for (Item i : items) {
                 //           System.out.println("Item: " + i.getId() + i.getTitle());
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new TreeItemHolder(i, TreeItemHolder.Type.ITEM));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
