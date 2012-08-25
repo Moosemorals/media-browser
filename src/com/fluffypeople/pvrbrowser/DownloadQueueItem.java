@@ -19,10 +19,13 @@ public class DownloadQueueItem {
 
     public static enum State {READY, DOWNLOADING, PAUSED, COMPLETED, ERROR};
 
-    private final List<StateChangeListener> listeners = new ArrayList<>();
+    private final List<StateChangeListener> stateListeners = new ArrayList<>();
+    private final List<DownloadListener> downloadListeners = new ArrayList<>();
 
     private final Item target;
     private State state;
+    private int size;
+    private int downloaded;
 
     public DownloadQueueItem(Item target) {
         this.target = target;
@@ -30,13 +33,17 @@ public class DownloadQueueItem {
     }
 
     public void addStateChangeListener(StateChangeListener l) {
-        listeners.add(l);
+        stateListeners.add(l);
+    }
+
+    public void addDownloadListener(DownloadListener l) {
+        downloadListeners.add(l);
     }
 
     public void setState(State newState) {
         log.debug("State changed to " + newState);
         this.state = newState;
-        notifyListeners();
+        notifyStateListeners();
     }
 
     public State getState() {
@@ -45,6 +52,15 @@ public class DownloadQueueItem {
 
     public Item getTarget() {
         return target;
+    }
+
+    public void setSize(int size) {
+        this.size = size;
+    }
+
+    public void setDownloaded(int downloaded) {
+        this.downloaded = downloaded;
+        notifyDownloadListners();
     }
 
     @Override
@@ -96,10 +112,15 @@ public class DownloadQueueItem {
         return hash;
     }
 
-    private void notifyListeners() {
-        for (StateChangeListener l : listeners) {
+    private void notifyStateListeners() {
+        for (StateChangeListener l : stateListeners) {
             l.stateChanged(this);
         }
     }
 
+    private void notifyDownloadListners() {
+        for (DownloadListener l : downloadListeners) {
+            l.updateDownload(size,downloaded);
+        }
+    }
 }

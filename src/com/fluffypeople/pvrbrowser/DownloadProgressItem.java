@@ -5,15 +5,18 @@
 package com.fluffypeople.pvrbrowser;
 
 import java.awt.BorderLayout;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JProgressBar;
+import java.awt.Dimension;
+import java.awt.event.ActionListener;
+import javax.swing.*;
+import org.apache.log4j.Logger;
 
 /**
  *
  * @author Osric
  */
-public class DownloadProgressItem extends JPanel implements StateChangeListener {
+public class DownloadProgressItem extends JPanel implements StateChangeListener, DownloadListener{
+
+    private static final Logger log = Logger.getLogger(DownloadProgressItem.class);
 
     private final JLabel filename;
     private final JProgressBar progress;
@@ -30,15 +33,44 @@ public class DownloadProgressItem extends JPanel implements StateChangeListener 
 
         setLayout(new BorderLayout());
         add(filename, BorderLayout.LINE_START);
+        add(Box.createRigidArea(new Dimension(5, 0)));
         add(progress, BorderLayout.LINE_END);
     }
 
-    public void updateProgress(int value) {
-        progress.setValue(value);
+    @Override
+    public void updateDownload(final int total,final int done) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                progress.setMaximum(total);
+                progress.setValue(done);
+            }
+        });
+
     }
 
     @Override
     public void stateChanged(DownloadQueueItem source) {
         repaint();
     }
+
+
+    @Override
+    public Dimension getMinimumSize() {
+        Dimension f = filename.getPreferredSize();
+        Dimension p = progress.getPreferredSize();
+
+        return new Dimension(f.width + p.width + 5, f.height > p.height ? f.height : p.height);
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        return getMinimumSize();
+    }
+
+    @Override
+    public Dimension getMaximumSize() {
+        return new Dimension(Short.MAX_VALUE, Short.MAX_VALUE);
+    }
+
 }
