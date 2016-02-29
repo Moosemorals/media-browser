@@ -46,7 +46,7 @@ import org.slf4j.LoggerFactory;
  */
 public class MediaBrowser extends javax.swing.JFrame {
 
-    private static final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
+    private final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
 
@@ -64,16 +64,6 @@ public class MediaBrowser extends javax.swing.JFrame {
         }
     };
 
-    private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
-        Service service = device.findService(new UDAServiceType("ContentDirectory"));
-        if (service != null) {
-            upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
-        }
-    }
-
-    /**
-     * Creates new form TreeFrame
-     */
     public MediaBrowser() {
 
         upnp = new UpnpServiceImpl(upnpListener);
@@ -84,12 +74,12 @@ public class MediaBrowser extends javax.swing.JFrame {
         rootNode = new DefaultMutableTreeNode("Devices");
         treeModel = new DefaultTreeModel(rootNode);
 
-        initComponents2();
+        initComponents();
         setStatus("Looking for media servers");
         upnp.getControlPoint().search(new STAllHeader());
     }
 
-    private void initComponents2() {
+    private void initComponents() {
         listScrollPane = new javax.swing.JScrollPane();
         downloadList = new DownloadProgressPanel();
 
@@ -174,22 +164,6 @@ public class MediaBrowser extends javax.swing.JFrame {
         }
     }
 
-    public static void main(String args[]) {
-        try {
-            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-        } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | javax.swing.UnsupportedLookAndFeelException ex) {
-            log.error("Can't change look and feel", ex);
-        }
-
-        java.awt.EventQueue.invokeLater(new Runnable() {
-
-            @Override
-            public void run() {
-                new MediaBrowser().setVisible(true);
-            }
-        });
-    }
-
     private void setStatus(final String status) {
         SwingUtilities.invokeLater(new Runnable() {
 
@@ -198,6 +172,13 @@ public class MediaBrowser extends javax.swing.JFrame {
                 statusLabel.setText(status);
             }
         });
+    }
+
+    private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
+        Service service = device.findService(new UDAServiceType("ContentDirectory"));
+        if (service != null) {
+            upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
+        }
     }
 
     private class DownloadThread implements Runnable {
