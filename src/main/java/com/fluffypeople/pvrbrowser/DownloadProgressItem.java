@@ -38,12 +38,18 @@ public class DownloadProgressItem extends JPanel implements StateChangeListener,
     }
 
     @Override
-    public void updateDownload(final int total, final int done) {
+    public void updateDownload(final long total, final long done) {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                progress.setMaximum(total);
-                progress.setValue(done);
+                if (total > Integer.MAX_VALUE) {
+                    log.debug("Shrinking total as {} bigger than {}", total, Integer.MAX_VALUE);
+                    progress.setMaximum((int) (total / (1024 * 1024)));
+                    progress.setValue((int) (done / (1024 * 1024)));
+                } else {
+                    progress.setMaximum((int) total);
+                    progress.setValue((int) done);
+                }
             }
         });
 

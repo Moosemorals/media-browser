@@ -28,8 +28,8 @@ public class DownloadQueueItem {
 
     private final Item target;
     private State state;
-    private int size;
-    private int downloaded;
+    private long size;
+    private long downloaded;
 
     public DownloadQueueItem(Item target) {
         this.target = target;
@@ -58,11 +58,11 @@ public class DownloadQueueItem {
         return target;
     }
 
-    public void setSize(int size) {
+    public void setSize(long size) {
         this.size = size;
     }
 
-    public void setDownloaded(int downloaded) {
+    public void setDownloaded(long downloaded) {
         this.downloaded = downloaded;
         notifyDownloadListners();
     }
@@ -103,10 +103,7 @@ public class DownloadQueueItem {
             return false;
         }
         final DownloadQueueItem other = (DownloadQueueItem) obj;
-        if (!Objects.equals(this.target, other.target)) {
-            return false;
-        }
-        return true;
+        return this.target.equals(other.target);
     }
 
     @Override

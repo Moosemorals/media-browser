@@ -10,6 +10,6 @@ package com.fluffypeople.pvrbrowser;
  */
 public interface DownloadListener {
 
-    public void updateDownload(final int total, final int done);
+    public void updateDownload(final long total, final long done);
 
 }

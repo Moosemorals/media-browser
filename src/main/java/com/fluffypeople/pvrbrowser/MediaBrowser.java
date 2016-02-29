@@ -53,7 +53,7 @@ public class MediaBrowser extends javax.swing.JFrame {
     private final UpnpService upnp;
     private File downloadFolder = null;
     private final DownloadThread dlManager;
-    private DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
+    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
 
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
@@ -113,6 +113,7 @@ public class MediaBrowser extends javax.swing.JFrame {
 
         chooserButton.setText("Set Download Folder");
         chooserButton.addActionListener(new java.awt.event.ActionListener() {
+            @Override
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 chooserButtonActionPerformed(evt);
             }
@@ -120,6 +121,7 @@ public class MediaBrowser extends javax.swing.JFrame {
 
         downloadButton.setText("Download Selected");
         downloadButton.addActionListener(new java.awt.event.ActionListener() {
+            @Override
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 downloadButtonActionPerformed(evt);
             }
@@ -152,11 +154,11 @@ public class MediaBrowser extends javax.swing.JFrame {
         }
     }
 
-    private void chooserButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_chooserButtonActionPerformed
+    private void chooserButtonActionPerformed(java.awt.event.ActionEvent evt) {
         chooseDownloadFolder();
     }
 
-    private void downloadButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_downloadButtonActionPerformed
+    private void downloadButtonActionPerformed(java.awt.event.ActionEvent evt) {
         while (downloadFolder == null) {
             chooseDownloadFolder();
         }
@@ -237,29 +239,24 @@ public class MediaBrowser extends javax.swing.JFrame {
                     }
 
                     long len = Long.parseLong(response.getFirstHeader("Content-Length").getValue(), 10);
-                    target.setSize((int) len);
+                    target.setSize(len);
                     final HttpEntity body = response.getEntity();
 
                     log.debug("Downloading " + len + " bytes");
 
-                    final InputStream in = body.getContent();
                     final File downloadTarget = new File(downloadFolder, item.getTitle());
-
                     log.debug("Filename " + downloadTarget.getAbsolutePath());
 
-                    final OutputStream out = new FileOutputStream(downloadTarget);
-
-                    byte[] buffer = new byte[1024 * 4];
-                    long count = 0;
-                    int n = 0;
-                    while (-1 != (n = in.read(buffer))) {
-                        out.write(buffer, 0, n);
-                        count += n;
-                        target.setDownloaded((int) count);
+                    try (InputStream in = body.getContent(); OutputStream out = new FileOutputStream(downloadTarget)) {
+                        byte[] buffer = new byte[1024 * 4];
+                        long count = 0;
+                        int n = 0;
+                        while (-1 != (n = in.read(buffer))) {
+                            out.write(buffer, 0, n);
+                            count += n;
+                            target.setDownloaded(count);
+                        }
                     }
-
-                    in.close();
-                    out.close();
 
                     target.setState(DownloadQueueItem.State.COMPLETED);
                 } catch (IOException ex) {
@@ -331,8 +328,6 @@ public class MediaBrowser extends javax.swing.JFrame {
             //    log.debug("Failure: " + defaultMsg);
         }
     }
-    // Variables declaration - do not modify//GEN-BEGIN:variables
-
     private javax.swing.JButton chooserButton;
 
     private javax.swing.JTree displayTree;
@@ -341,5 +336,5 @@ public class MediaBrowser extends javax.swing.JFrame {
     private javax.swing.JScrollPane listScrollPane;
     private javax.swing.JScrollPane treeScrollPane;
     private javax.swing.JLabel statusLabel;
-    // End of variables declaration//GEN-END:variables
+
 }
