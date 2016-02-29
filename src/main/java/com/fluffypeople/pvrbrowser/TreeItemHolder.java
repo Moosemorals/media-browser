@@ -4,12 +4,11 @@
  */
 package com.fluffypeople.pvrbrowser;
 
-
 import java.net.URI;
-import org.teleal.cling.support.model.DIDLObject;
-import org.teleal.cling.support.model.Res;
-import org.teleal.cling.support.model.container.Container;
-import org.teleal.cling.support.model.item.Item;
+import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.container.Container;
+import org.fourthline.cling.support.model.item.Item;
 
 /**
  *
@@ -17,12 +16,12 @@ import org.teleal.cling.support.model.item.Item;
  */
 public class TreeItemHolder {
 
-    public enum Type { ITEM, CONTAINER };
-
+    public enum Type {
+        ITEM, CONTAINER
+    };
 
     private final DIDLObject payload;
     private final Type type;
-
 
     public TreeItemHolder(DIDLObject payload, Type type) {
         this.payload = payload;
@@ -30,11 +29,11 @@ public class TreeItemHolder {
     }
 
     public Item getItem() {
-        return (Item)payload;
+        return (Item) payload;
     }
 
     public Container getContainer() {
-        return (Container)payload;
+        return (Container) payload;
     }
 
     @Override

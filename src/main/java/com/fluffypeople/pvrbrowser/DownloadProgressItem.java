@@ -6,17 +6,17 @@ package com.fluffypeople.pvrbrowser;
 
 import java.awt.BorderLayout;
 import java.awt.Dimension;
-import java.awt.event.ActionListener;
 import javax.swing.*;
-import org.apache.log4j.Logger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Osric
  */
-public class DownloadProgressItem extends JPanel implements StateChangeListener, DownloadListener{
+public class DownloadProgressItem extends JPanel implements StateChangeListener, DownloadListener {
 
-    private static final Logger log = Logger.getLogger(DownloadProgressItem.class);
+    private static final Logger log = LoggerFactory.getLogger(DownloadProgressItem.class);
 
     private final JLabel filename;
     private final JProgressBar progress;
@@ -38,7 +38,7 @@ public class DownloadProgressItem extends JPanel implements StateChangeListener,
     }
 
     @Override
-    public void updateDownload(final int total,final int done) {
+    public void updateDownload(final int total, final int done) {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
@@ -53,7 +53,6 @@ public class DownloadProgressItem extends JPanel implements StateChangeListener,
     public void stateChanged(DownloadQueueItem source) {
         repaint();
     }
-
 
     @Override
     public Dimension getMinimumSize() {

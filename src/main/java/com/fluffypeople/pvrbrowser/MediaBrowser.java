@@ -22,22 +22,23 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.log4j.Logger;
-import org.teleal.cling.UpnpService;
-import org.teleal.cling.UpnpServiceImpl;
-import org.teleal.cling.model.action.ActionInvocation;
-import org.teleal.cling.model.message.UpnpResponse;
-import org.teleal.cling.model.message.header.STAllHeader;
-import org.teleal.cling.model.meta.RemoteDevice;
-import org.teleal.cling.model.meta.Service;
-import org.teleal.cling.model.types.UDAServiceType;
-import org.teleal.cling.registry.DefaultRegistryListener;
-import org.teleal.cling.registry.Registry;
-import org.teleal.cling.support.contentdirectory.callback.Browse;
-import org.teleal.cling.support.model.BrowseFlag;
-import org.teleal.cling.support.model.DIDLContent;
-import org.teleal.cling.support.model.container.Container;
-import org.teleal.cling.support.model.item.Item;
+import org.fourthline.cling.UpnpService;
+import org.fourthline.cling.UpnpServiceImpl;
+import org.fourthline.cling.model.action.ActionInvocation;
+import org.fourthline.cling.model.message.UpnpResponse;
+import org.fourthline.cling.model.message.header.STAllHeader;
+import org.fourthline.cling.model.meta.RemoteDevice;
+import org.fourthline.cling.model.meta.Service;
+import org.fourthline.cling.model.types.UDAServiceType;
+import org.fourthline.cling.registry.DefaultRegistryListener;
+import org.fourthline.cling.registry.Registry;
+import org.fourthline.cling.support.contentdirectory.callback.Browse;
+import org.fourthline.cling.support.model.BrowseFlag;
+import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.container.Container;
+import org.fourthline.cling.support.model.item.Item;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
@@ -45,7 +46,7 @@ import org.teleal.cling.support.model.item.Item;
  */
 public class MediaBrowser extends javax.swing.JFrame {
 
-    private static final Logger log = Logger.getLogger(MediaBrowser.class);
+    private static final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
 
@@ -77,7 +78,6 @@ public class MediaBrowser extends javax.swing.JFrame {
 
         upnp = new UpnpServiceImpl(upnpListener);
 
-
         dlManager = new DownloadThread();
         dlManager.start();
 
@@ -88,7 +88,6 @@ public class MediaBrowser extends javax.swing.JFrame {
         setStatus("Looking for media servers");
         upnp.getControlPoint().search(new STAllHeader());
     }
-
 
     private void initComponents2() {
         listScrollPane = new javax.swing.JScrollPane();
@@ -130,7 +129,6 @@ public class MediaBrowser extends javax.swing.JFrame {
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
         buttonPanel.add(downloadButton, BorderLayout.LINE_END);
         buttonPanel.add(chooserButton, BorderLayout.LINE_START);
-
 
         java.awt.Container cp = getContentPane();
         cp.setLayout(new BoxLayout(cp, BoxLayout.PAGE_AXIS));
@@ -239,7 +237,7 @@ public class MediaBrowser extends javax.swing.JFrame {
                     }
 
                     long len = Long.parseLong(response.getFirstHeader("Content-Length").getValue(), 10);
-                    target.setSize((int)len);
+                    target.setSize((int) len);
                     final HttpEntity body = response.getEntity();
 
                     log.debug("Downloading " + len + " bytes");
@@ -257,7 +255,7 @@ public class MediaBrowser extends javax.swing.JFrame {
                     while (-1 != (n = in.read(buffer))) {
                         out.write(buffer, 0, n);
                         count += n;
-                        target.setDownloaded((int)count);
+                        target.setDownloaded((int) count);
                     }
 
                     in.close();
@@ -292,7 +290,7 @@ public class MediaBrowser extends javax.swing.JFrame {
         @Override
         public void received(ActionInvocation actionInvocation, DIDLContent didl) {
             List<Container> containers = didl.getContainers();
-             Collections.sort(containers, new Comparator<Container>() {
+            Collections.sort(containers, new Comparator<Container>() {
 
                 @Override
                 public int compare(Container t, Container t1) {
@@ -308,7 +306,7 @@ public class MediaBrowser extends javax.swing.JFrame {
                 upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
             }
             List<Item> items = didl.getItems();
-             Collections.sort(items, new Comparator<Item>() {
+            Collections.sort(items, new Comparator<Item>() {
 
                 @Override
                 public int compare(Item t, Item t1) {

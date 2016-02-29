@@ -7,17 +7,21 @@ package com.fluffypeople.pvrbrowser;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import org.apache.log4j.Logger;
-import org.teleal.cling.support.model.item.Item;
+import org.fourthline.cling.support.model.item.Item;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  *
  * @author Osric
  */
 public class DownloadQueueItem {
-    private static final Logger log = Logger.getLogger(DownloadQueueItem.class);
 
-    public static enum State {READY, DOWNLOADING, PAUSED, COMPLETED, ERROR};
+    private static final Logger log = LoggerFactory.getLogger(DownloadQueueItem.class);
+
+    public static enum State {
+        READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
+    };
 
     private final List<StateChangeListener> stateListeners = new ArrayList<>();
     private final List<DownloadListener> downloadListeners = new ArrayList<>();
@@ -120,7 +124,7 @@ public class DownloadQueueItem {
 
     private void notifyDownloadListners() {
         for (DownloadListener l : downloadListeners) {
-            l.updateDownload(size,downloaded);
+            l.updateDownload(size, downloaded);
         }
     }
 }
