@@ -39,6 +39,7 @@ public class RemoteItem {
     private State state;
     private long size;
     private long downloaded;
+    private String downloadPath;
 
     public RemoteItem(DIDLObject payload, Type type) {
         this.payload = payload;
@@ -78,6 +79,14 @@ public class RemoteItem {
         return (Container) payload;
     }
 
+    public void setDownloadPath(String path) {
+        this.downloadPath = path;
+    }
+
+    public String getDownloadPath() {
+        return downloadPath;
+    }
+
     public DIDLObject getPayload() {
         return payload;
     }
@@ -111,7 +120,7 @@ public class RemoteItem {
                 result.append(humanReadableSize(size)).append(" Queued");
                 break;
             case DOWNLOADING:
-                result.append(String.format("%s of %s (%3.0f%%) Dowloading", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                result.append(String.format("%s of %s (%3.0f%%) Downloading", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                 break;
             case PAUSED:
                 result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
@@ -123,6 +132,8 @@ public class RemoteItem {
                 result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                 break;
         }
+
+        result.append(" (").append(downloadPath).append(")");
 
         return result.toString();
     }

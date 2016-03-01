@@ -22,13 +22,13 @@ public class Main {
 
         final Preferences prefs = Preferences.userNodeForPackage(Main.class);
 
-        log.debug("Download directory {}", prefs.get(MediaBrowser.DOWNLOAD_DIRECTORY_KEY, "Uknown"));
+        log.debug("Download directory {}", prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, "Uknown"));
 
         java.awt.EventQueue.invokeLater(new Runnable() {
 
             @Override
             public void run() {
-                new MediaBrowser(prefs).setVisible(true);
+                new UI(prefs).setVisible(true);
             }
         });
     }

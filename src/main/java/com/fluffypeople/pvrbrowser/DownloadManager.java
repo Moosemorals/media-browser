@@ -54,8 +54,10 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
     }
 
     public void addTarget(Item target) {
+        RemoteItem item = new RemoteItem(target);
+        item.setDownloadPath(getDownloadPath().getPath());
         synchronized (queue) {
-            queue.add(new RemoteItem(target));
+            queue.add(item);
             log.debug("addTarget: Queue length: {}", queue.size());
             queue.notifyAll();
         }
@@ -102,7 +104,7 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
 
                 log.debug("Downloading " + len + " bytes");
 
-                final File downloadTarget = new File(getDownloadFolder(), item.getTitle());
+                final File downloadTarget = new File(getDownloadPath(), item.getTitle());
                 log.debug("Filename " + downloadTarget.getAbsolutePath());
 
                 try (InputStream in = body.getContent(); OutputStream out = new FileOutputStream(downloadTarget)) {
@@ -125,16 +127,16 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
         }
     }
 
-    public File getDownloadFolder() {
-        return new File(prefs.get(MediaBrowser.DOWNLOAD_DIRECTORY_KEY, System.getProperty("user.home")));
+    public File getDownloadPath() {
+        return new File(prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, System.getProperty("user.home")));
     }
 
-    public boolean isDownloadFolderSet() {
-        return prefs.get(MediaBrowser.DOWNLOAD_DIRECTORY_KEY, null) != null;
+    public boolean isDownloadPathSet() {
+        return prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, null) != null;
     }
 
-    public void setDownloadFolder(File path) {
-        prefs.put(MediaBrowser.DOWNLOAD_DIRECTORY_KEY, path.getPath());
+    public void setDownloadPath(File path) {
+        prefs.put(UI.DOWNLOAD_DIRECTORY_KEY, path.getPath());
     }
 
     @Override

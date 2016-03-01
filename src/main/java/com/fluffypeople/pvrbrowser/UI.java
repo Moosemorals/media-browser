@@ -20,11 +20,11 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class MediaBrowser extends JFrame {
+public class UI extends JFrame {
 
     public static final String DOWNLOAD_DIRECTORY_KEY = "download_directory";
 
-    private final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
+    private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager dlManager;
     private final UpnpRemote upnpRemote;
 
@@ -34,26 +34,18 @@ public class MediaBrowser extends JFrame {
     private JLabel statusLabel;
     private JTree displayTree;
 
-    public MediaBrowser(Preferences prefs) {
-
+    public UI(Preferences prefs) {
         upnpRemote = new UpnpRemote(this);
+
         dlManager = new DownloadManager(prefs);
         initComponents();
-        setStatus("Looking for media servers");
-
+        upnpRemote.start();
     }
 
     private void initComponents() {
 
-        JList downloadList = new JList(dlManager);
-
-        displayTree = new JTree();
-
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setTitle("Media Browser");
-
-        displayTree.setModel(upnpRemote.getTreeModel());
-        displayTree.setShowsRootHandles(true);
 
         statusLabel = new JLabel();
         statusLabel.setFocusable(false);
@@ -68,7 +60,7 @@ public class MediaBrowser extends JFrame {
         });
 
         downloadButton = new JButton();
-        downloadButton.setText("Download Selected");
+        downloadButton.setText("Queue Selected");
         downloadButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent evt) {
@@ -92,6 +84,13 @@ public class MediaBrowser extends JFrame {
         buttonPanel.add(startButton);
         buttonPanel.add(statusLabel);
 
+        JList downloadList = new JList(dlManager);
+
+        displayTree = new JTree();
+        displayTree.setModel(upnpRemote.getTreeModel());
+        displayTree.setRootVisible(false);
+        displayTree.setShowsRootHandles(true);
+
         java.awt.Container cp = getContentPane();
         cp.setLayout(new BorderLayout());
         cp.add(new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList)), BorderLayout.CENTER);
@@ -100,16 +99,21 @@ public class MediaBrowser extends JFrame {
         pack();
     }
 
+    void expandTreeRoot(DefaultMutableTreeNode root) {
+        log.debug("Expanding {}", root);
+        displayTree.expandPath(new TreePath(root.getPath()));
+    }
+
     private boolean chooseDownloadFolder() {
 
-        File downloadDir = dlManager.getDownloadFolder();
+        File downloadDir = dlManager.getDownloadPath();
 
         final JFileChooser fc = new JFileChooser(downloadDir);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
         int returnVal = fc.showOpenDialog(this);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
-            dlManager.setDownloadFolder(fc.getSelectedFile());
+            dlManager.setDownloadPath(fc.getSelectedFile());
 
             return true;
         } else {
@@ -122,7 +126,7 @@ public class MediaBrowser extends JFrame {
     }
 
     private void downloadButtonActionPerformed(ActionEvent evt) {
-        while (!dlManager.isDownloadFolderSet()) {
+        while (!dlManager.isDownloadPathSet()) {
             chooseDownloadFolder();
         }
 

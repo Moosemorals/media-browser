@@ -55,26 +55,35 @@ public class UpnpRemote {
 
     private final Logger log = LoggerFactory.getLogger(UpnpRemote.class);
 
+    private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
+
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
     private final UpnpService upnp;
-    private final MediaBrowser parent;
+    private final UI parent;
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
 
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
-            parent.setStatus("Found device:" + device.getDisplayString());
-            DefaultMutableTreeNode node = new DefaultMutableTreeNode(device.getDisplayString());
-            treeModel.insertNodeInto(node, rootNode, rootNode.getChildCount());
-            populateTree(device, node);
+            if (DEVICE_NAME.equals(device.getDisplayString())) {
+                //DefaultMutableTreeNode node = new DefaultMutableTreeNode(device.getDisplayString());
+                //treeModel.insertNodeInto(node, rootNode, rootNode.getChildCount());
+                populateTree(device, rootNode);
+            } else {
+                log.info("Skiping device {} ", device.getDisplayString());
+            }
         }
     };
 
-    UpnpRemote(MediaBrowser parent) {
+    UpnpRemote(UI parent) {
         this.parent = parent;
         rootNode = new DefaultMutableTreeNode("Devices");
         treeModel = new DefaultTreeModel(rootNode);
         upnp = new UpnpServiceImpl(upnpListener);
+    }
+
+    public void start() {
+        parent.setStatus("Searching for media servers");
         upnp.getControlPoint().search(new STAllHeader());
     }
 
@@ -85,7 +94,7 @@ public class UpnpRemote {
     private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
-            upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
+            upnp.getControlPoint().execute(new DeviceBrowse(service, "0\\1\\2", parentNode));
         }
     }
 
@@ -104,15 +113,13 @@ public class UpnpRemote {
         public void received(ActionInvocation actionInvocation, DIDLContent didl) {
             List<Container> containers = didl.getContainers();
             Collections.sort(containers, new Comparator<Container>() {
-
                 @Override
                 public int compare(Container t, Container t1) {
                     return t.getTitle().compareTo(t1.getTitle());
                 }
-
             });
+
             for (Container c : containers) {
-                //       System.out.println("Container : " + c.getId() + c.getTitle());
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(c, RemoteItem.Type.CONTAINER));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
 
@@ -127,22 +134,30 @@ public class UpnpRemote {
                 }
 
             });
+
             for (Item i : items) {
-                //           System.out.println("Item: " + i.getId() + i.getTitle());
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(i, RemoteItem.Type.ITEM));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
+            }
+
+            if (parent == rootNode) {
+                expandTreeRoot();
             }
         }
 
         @Override
         public void updateStatus(Browse.Status status) {
-            //     log.debug("Status: " + status.getDefaultMessage());
+
         }
 
         @Override
         public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-            //    log.debug("Failure: " + defaultMsg);
+
         }
+    }
+
+    private void expandTreeRoot() {
+        parent.expandTreeRoot(rootNode);
     }
 
 }
