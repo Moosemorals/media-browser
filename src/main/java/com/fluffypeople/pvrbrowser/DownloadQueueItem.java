@@ -19,6 +19,11 @@ public class DownloadQueueItem {
 
     private static final Logger log = LoggerFactory.getLogger(DownloadQueueItem.class);
 
+    public static final double KILO = 1024;
+    public static final double MEGA = KILO * 1024;
+    public static final double GIGA = MEGA * 1024;
+    public static final double TERA = GIGA * 1024;
+
     public static enum State {
         READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
     };
@@ -64,7 +69,7 @@ public class DownloadQueueItem {
 
     public void setDownloaded(long downloaded) {
         this.downloaded = downloaded;
-        notifyDownloadListners();
+        notifyDownloadListeners();
     }
 
     @Override
@@ -75,19 +80,19 @@ public class DownloadQueueItem {
         result.append(": ");
         switch (state) {
             case READY:
-                result.append("Queued");
+                result.append(humanReadableSize(size)).append(" Queued");
                 break;
             case DOWNLOADING:
-                result.append("Downloading");
+                result.append(String.format("%s of %s (%3.0f%%) Dowloading", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
                 break;
             case PAUSED:
-                result.append("Paused");
+                result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
                 break;
             case COMPLETED:
-                result.append("Done");
+                result.append(humanReadableSize(downloaded)).append(" Completed");
                 break;
             case ERROR:
-                result.append("Broken");
+                result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
                 break;
         }
 
@@ -119,9 +124,25 @@ public class DownloadQueueItem {
         }
     }
 
-    private void notifyDownloadListners() {
+    private void notifyDownloadListeners() {
         for (DownloadListener l : downloadListeners) {
             l.updateDownload(size, downloaded);
         }
+    }
+
+    public static String humanReadableSize(long size) {
+
+        if (size > TERA) {
+            return String.format("% 5.2fTb", (double) size / TERA);
+        } else if (size > GIGA) {
+            return String.format("% 5.2fGb", (double) size / GIGA);
+        } else if (size > MEGA) {
+            return String.format("% 5.2fMb", (double) size / MEGA);
+        } else if (size > KILO) {
+            return String.format("% 5.2fkb", (double) size / MEGA);
+        } else {
+            return String.format("% 5db", size);
+        }
+
     }
 }

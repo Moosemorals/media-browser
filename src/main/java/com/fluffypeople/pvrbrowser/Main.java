@@ -1,5 +1,6 @@
 package com.fluffypeople.pvrbrowser;
 
+import java.util.prefs.Preferences;
 import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +20,15 @@ public class Main {
             log.error("Can't change look and feel", ex);
         }
 
+        final Preferences prefs = Preferences.userNodeForPackage(Main.class);
+
+        log.debug("Download directory {}", prefs.get(MediaBrowser.DOWNLOAD_DIRECTORY_KEY, "Uknown"));
+
         java.awt.EventQueue.invokeLater(new Runnable() {
 
             @Override
             public void run() {
-                new MediaBrowser().setVisible(true);
+                new MediaBrowser(prefs).setVisible(true);
             }
         });
     }

@@ -5,23 +5,17 @@
 package com.fluffypeople.pvrbrowser;
 
 import java.awt.BorderLayout;
-import java.io.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.prefs.Preferences;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
-import org.apache.http.HttpEntity;
-import org.apache.http.HttpResponse;
-import org.apache.http.StatusLine;
-import org.apache.http.client.HttpClient;
-import org.apache.http.client.methods.HttpGet;
-import org.apache.http.impl.client.DefaultHttpClient;
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceImpl;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -44,15 +38,16 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class MediaBrowser extends javax.swing.JFrame {
+public class MediaBrowser extends JFrame {
+
+    public static final String DOWNLOAD_DIRECTORY_KEY = "download_directory";
 
     private final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
-
     private final UpnpService upnp;
-    private File downloadFolder = null;
-    private final DownloadThread dlManager;
+    private final Preferences prefs;
+    private final DownloadManager dlManager;
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
 
         @Override
@@ -64,12 +59,18 @@ public class MediaBrowser extends javax.swing.JFrame {
         }
     };
 
-    public MediaBrowser() {
+    private JButton chooserButton;
+    private JButton downloadButton;
+    private JButton startButton;
+    private JLabel statusLabel;
+    private JTree displayTree;
+
+    public MediaBrowser(Preferences prefs) {
+        this.prefs = prefs;
 
         upnp = new UpnpServiceImpl(upnpListener);
 
-        dlManager = new DownloadThread();
-        dlManager.start();
+        dlManager = new DownloadManager(prefs);
 
         rootNode = new DefaultMutableTreeNode("Devices");
         treeModel = new DefaultTreeModel(rootNode);
@@ -80,76 +81,85 @@ public class MediaBrowser extends javax.swing.JFrame {
     }
 
     private void initComponents() {
-        listScrollPane = new javax.swing.JScrollPane();
-        downloadList = new DownloadProgressPanel();
 
-        treeScrollPane = new javax.swing.JScrollPane();
-        displayTree = new javax.swing.JTree();
-        statusLabel = new javax.swing.JLabel();
+        JList downloadList = new JList(dlManager);
 
-        chooserButton = new javax.swing.JButton();
-        downloadButton = new javax.swing.JButton();
+        displayTree = new JTree();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setTitle("Media Browser");
-
-        listScrollPane.setViewportView(downloadList);
 
         displayTree.setModel(treeModel);
         displayTree.setShowsRootHandles(true);
-        treeScrollPane.setViewportView(displayTree);
 
+        statusLabel = new JLabel();
         statusLabel.setFocusable(false);
 
+        chooserButton = new JButton();
         chooserButton.setText("Set Download Folder");
-        chooserButton.addActionListener(new java.awt.event.ActionListener() {
+        chooserButton.addActionListener(new ActionListener() {
             @Override
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+            public void actionPerformed(ActionEvent evt) {
                 chooserButtonActionPerformed(evt);
             }
         });
 
+        downloadButton = new JButton();
         downloadButton.setText("Download Selected");
-        downloadButton.addActionListener(new java.awt.event.ActionListener() {
+        downloadButton.addActionListener(new ActionListener() {
             @Override
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
+            public void actionPerformed(ActionEvent evt) {
                 downloadButtonActionPerformed(evt);
+            }
+        });
+
+        startButton = new JButton();
+        startButton.setText("Start Downloads");
+        startButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dlManager.start();
             }
         });
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
-        buttonPanel.add(downloadButton, BorderLayout.LINE_END);
-        buttonPanel.add(chooserButton, BorderLayout.LINE_START);
+        buttonPanel.add(downloadButton);
+        buttonPanel.add(chooserButton);
+        buttonPanel.add(startButton);
+        buttonPanel.add(statusLabel);
 
         java.awt.Container cp = getContentPane();
-        cp.setLayout(new BoxLayout(cp, BoxLayout.PAGE_AXIS));
-        cp.add(treeScrollPane);
-        cp.add(listScrollPane);
-        cp.add(buttonPanel);
+        cp.setLayout(new BorderLayout());
+        cp.add(new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList)), BorderLayout.CENTER);
+        cp.add(buttonPanel, BorderLayout.SOUTH);
 
         pack();
     }
 
     private boolean chooseDownloadFolder() {
-        final JFileChooser fc = new JFileChooser();
+
+        File downloadDir = dlManager.getDownloadFolder();
+
+        final JFileChooser fc = new JFileChooser(downloadDir);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
 
         int returnVal = fc.showOpenDialog(this);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
-            downloadFolder = fc.getSelectedFile();
+            dlManager.setDownloadFolder(fc.getSelectedFile());
+
             return true;
         } else {
             return false;
         }
     }
 
-    private void chooserButtonActionPerformed(java.awt.event.ActionEvent evt) {
+    private void chooserButtonActionPerformed(ActionEvent evt) {
         chooseDownloadFolder();
     }
 
-    private void downloadButtonActionPerformed(java.awt.event.ActionEvent evt) {
-        while (downloadFolder == null) {
+    private void downloadButtonActionPerformed(ActionEvent evt) {
+        while (!dlManager.isDownloadFolderSet()) {
             chooseDownloadFolder();
         }
 
@@ -178,79 +188,6 @@ public class MediaBrowser extends javax.swing.JFrame {
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
             upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
-        }
-    }
-
-    private class DownloadThread implements Runnable {
-
-        private final BlockingQueue<DownloadQueueItem> queue = new LinkedBlockingQueue<>();
-        private final AtomicBoolean running = new AtomicBoolean(false);
-        private final HttpClient client = new DefaultHttpClient();
-
-        public void start() {
-            if (running.compareAndSet(false, true)) {
-                Thread t = new Thread(this, "Download");
-                t.start();
-            }
-        }
-
-        @Override
-        public void run() {
-            while (running.get()) {
-                DownloadQueueItem target;
-                try {
-                    target = queue.take();
-                } catch (InterruptedException ex) {
-                    log.error("Unexpected Iterruption", ex);
-                    running.set(false);
-                    return;
-                }
-
-                Item item = target.getTarget();
-                log.debug("Downloading " + item.getTitle());
-                target.setState(DownloadQueueItem.State.DOWNLOADING);
-                try {
-                    final HttpGet request = new HttpGet(item.getFirstResource().getValue());
-                    final HttpResponse response = client.execute(request);
-
-                    final StatusLine result = response.getStatusLine();
-                    if (result.getStatusCode() != 200) {
-                        log.error("Can't download item");
-                        continue;
-                    }
-
-                    long len = Long.parseLong(response.getFirstHeader("Content-Length").getValue(), 10);
-                    target.setSize(len);
-                    final HttpEntity body = response.getEntity();
-
-                    log.debug("Downloading " + len + " bytes");
-
-                    final File downloadTarget = new File(downloadFolder, item.getTitle());
-                    log.debug("Filename " + downloadTarget.getAbsolutePath());
-
-                    try (InputStream in = body.getContent(); OutputStream out = new FileOutputStream(downloadTarget)) {
-                        byte[] buffer = new byte[1024 * 4];
-                        long count = 0;
-                        int n = 0;
-                        while (-1 != (n = in.read(buffer))) {
-                            out.write(buffer, 0, n);
-                            count += n;
-                            target.setDownloaded(count);
-                        }
-                    }
-
-                    target.setState(DownloadQueueItem.State.COMPLETED);
-                } catch (IOException ex) {
-                    log.error("IOExcption", ex);
-                }
-            }
-        }
-
-        public void addTarget(Item target) {
-            DownloadQueueItem i = new DownloadQueueItem(target);
-            downloadList.add(i);
-            // allFiles.setMaximum(downloadList.getSize());
-            queue.add(i);
         }
     }
 
@@ -309,13 +246,5 @@ public class MediaBrowser extends javax.swing.JFrame {
             //    log.debug("Failure: " + defaultMsg);
         }
     }
-    private javax.swing.JButton chooserButton;
-
-    private javax.swing.JTree displayTree;
-    private javax.swing.JButton downloadButton;
-    private DownloadProgressPanel downloadList;
-    private javax.swing.JScrollPane listScrollPane;
-    private javax.swing.JScrollPane treeScrollPane;
-    private javax.swing.JLabel statusLabel;
 
 }
