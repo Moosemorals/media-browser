@@ -8,28 +8,10 @@ import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
 import java.util.prefs.Preferences;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
-import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
-import org.fourthline.cling.UpnpService;
-import org.fourthline.cling.UpnpServiceImpl;
-import org.fourthline.cling.model.action.ActionInvocation;
-import org.fourthline.cling.model.message.UpnpResponse;
-import org.fourthline.cling.model.message.header.STAllHeader;
-import org.fourthline.cling.model.meta.RemoteDevice;
-import org.fourthline.cling.model.meta.Service;
-import org.fourthline.cling.model.types.UDAServiceType;
-import org.fourthline.cling.registry.DefaultRegistryListener;
-import org.fourthline.cling.registry.Registry;
-import org.fourthline.cling.support.contentdirectory.callback.Browse;
-import org.fourthline.cling.support.model.BrowseFlag;
-import org.fourthline.cling.support.model.DIDLContent;
-import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,21 +25,8 @@ public class MediaBrowser extends JFrame {
     public static final String DOWNLOAD_DIRECTORY_KEY = "download_directory";
 
     private final Logger log = LoggerFactory.getLogger(MediaBrowser.class);
-    private final DefaultTreeModel treeModel;
-    private final DefaultMutableTreeNode rootNode;
-    private final UpnpService upnp;
-    private final Preferences prefs;
     private final DownloadManager dlManager;
-    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
-
-        @Override
-        public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
-            setStatus("Found device:" + device.getDisplayString());
-            DefaultMutableTreeNode node = new DefaultMutableTreeNode(device.getDisplayString());
-            treeModel.insertNodeInto(node, rootNode, rootNode.getChildCount());
-            populateTree(device, node);
-        }
-    };
+    private final UpnpRemote upnpRemote;
 
     private JButton chooserButton;
     private JButton downloadButton;
@@ -66,18 +35,12 @@ public class MediaBrowser extends JFrame {
     private JTree displayTree;
 
     public MediaBrowser(Preferences prefs) {
-        this.prefs = prefs;
 
-        upnp = new UpnpServiceImpl(upnpListener);
-
+        upnpRemote = new UpnpRemote(this);
         dlManager = new DownloadManager(prefs);
-
-        rootNode = new DefaultMutableTreeNode("Devices");
-        treeModel = new DefaultTreeModel(rootNode);
-
         initComponents();
         setStatus("Looking for media servers");
-        upnp.getControlPoint().search(new STAllHeader());
+
     }
 
     private void initComponents() {
@@ -89,7 +52,7 @@ public class MediaBrowser extends JFrame {
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
         setTitle("Media Browser");
 
-        displayTree.setModel(treeModel);
+        displayTree.setModel(upnpRemote.getTreeModel());
         displayTree.setShowsRootHandles(true);
 
         statusLabel = new JLabel();
@@ -174,7 +137,7 @@ public class MediaBrowser extends JFrame {
         }
     }
 
-    private void setStatus(final String status) {
+    public void setStatus(final String status) {
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override
@@ -182,69 +145,6 @@ public class MediaBrowser extends JFrame {
                 statusLabel.setText(status);
             }
         });
-    }
-
-    private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
-        Service service = device.findService(new UDAServiceType("ContentDirectory"));
-        if (service != null) {
-            upnp.getControlPoint().execute(new DeviceBrowse(service, "0", parentNode));
-        }
-    }
-
-    private class DeviceBrowse extends Browse {
-
-        private final DefaultMutableTreeNode parent;
-        private final Service service;
-
-        public DeviceBrowse(Service service, String id, DefaultMutableTreeNode parent) {
-            super(service, id, BrowseFlag.DIRECT_CHILDREN);
-            this.parent = parent;
-            this.service = service;
-        }
-
-        @Override
-        public void received(ActionInvocation actionInvocation, DIDLContent didl) {
-            List<Container> containers = didl.getContainers();
-            Collections.sort(containers, new Comparator<Container>() {
-
-                @Override
-                public int compare(Container t, Container t1) {
-                    return t.getTitle().compareTo(t1.getTitle());
-                }
-
-            });
-            for (Container c : containers) {
-                //       System.out.println("Container : " + c.getId() + c.getTitle());
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(c, RemoteItem.Type.CONTAINER));
-                treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
-
-                upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
-            }
-            List<Item> items = didl.getItems();
-            Collections.sort(items, new Comparator<Item>() {
-
-                @Override
-                public int compare(Item t, Item t1) {
-                    return t.getTitle().compareTo(t1.getTitle());
-                }
-
-            });
-            for (Item i : items) {
-                //           System.out.println("Item: " + i.getId() + i.getTitle());
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(i, RemoteItem.Type.ITEM));
-                treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
-            }
-        }
-
-        @Override
-        public void updateStatus(Browse.Status status) {
-            //     log.debug("Status: " + status.getDefaultMessage());
-        }
-
-        @Override
-        public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-            //    log.debug("Failure: " + defaultMsg);
-        }
     }
 
 }
