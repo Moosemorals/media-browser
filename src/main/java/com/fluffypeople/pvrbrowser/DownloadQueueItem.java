@@ -4,8 +4,6 @@
  */
 package com.fluffypeople.pvrbrowser;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
@@ -28,9 +26,6 @@ public class DownloadQueueItem {
         READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
     };
 
-    private final List<StateChangeListener> stateListeners = new ArrayList<>();
-    private final List<DownloadListener> downloadListeners = new ArrayList<>();
-
     private final Item target;
     private State state;
     private long size;
@@ -41,18 +36,9 @@ public class DownloadQueueItem {
         state = State.READY;
     }
 
-    public void addStateChangeListener(StateChangeListener l) {
-        stateListeners.add(l);
-    }
-
-    public void addDownloadListener(DownloadListener l) {
-        downloadListeners.add(l);
-    }
-
     public void setState(State newState) {
         log.debug("State changed to " + newState);
         this.state = newState;
-        notifyStateListeners();
     }
 
     public State getState() {
@@ -69,7 +55,6 @@ public class DownloadQueueItem {
 
     public void setDownloaded(long downloaded) {
         this.downloaded = downloaded;
-        notifyDownloadListeners();
     }
 
     @Override
@@ -83,16 +68,16 @@ public class DownloadQueueItem {
                 result.append(humanReadableSize(size)).append(" Queued");
                 break;
             case DOWNLOADING:
-                result.append(String.format("%s of %s (%3.0f%%) Dowloading", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
+                result.append(String.format("%s of %s (%3.0f%%) Dowloading", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                 break;
             case PAUSED:
-                result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
+                result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                 break;
             case COMPLETED:
                 result.append(humanReadableSize(downloaded)).append(" Completed");
                 break;
             case ERROR:
-                result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), (double) downloaded / (double) size));
+                result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                 break;
         }
 
@@ -116,18 +101,6 @@ public class DownloadQueueItem {
         int hash = 5;
         hash = 11 * hash + Objects.hashCode(this.target);
         return hash;
-    }
-
-    private void notifyStateListeners() {
-        for (StateChangeListener l : stateListeners) {
-            l.stateChanged(this);
-        }
-    }
-
-    private void notifyDownloadListeners() {
-        for (DownloadListener l : downloadListeners) {
-            l.updateDownload(size, downloaded);
-        }
     }
 
     public static String humanReadableSize(long size) {

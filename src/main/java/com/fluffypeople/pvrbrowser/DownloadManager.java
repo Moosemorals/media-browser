@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class DownloadManager implements ListModel<DownloadQueueItem>, StateChangeListener, Runnable {
+public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
@@ -149,11 +149,6 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, StateChang
         synchronized (queue) {
             return queue.get(i);
         }
-    }
-
-    @Override
-    public void stateChanged(DownloadQueueItem source) {
-        notifyListeners();
     }
 
     @Override
