@@ -164,8 +164,8 @@ public class MediaBrowser extends JFrame {
         }
 
         for (TreePath p : displayTree.getSelectionPaths()) {
-            TreeItemHolder item = (TreeItemHolder) ((DefaultMutableTreeNode) p.getLastPathComponent()).getUserObject();
-            if (item.getType() == TreeItemHolder.Type.ITEM) {
+            RemoteItem item = (RemoteItem) ((DefaultMutableTreeNode) p.getLastPathComponent()).getUserObject();
+            if (item.getType() == RemoteItem.Type.ITEM) {
                 String url = item.getPayload().getFirstResource().getValue();
                 log.debug("Download URL " + url);
                 dlManager.addTarget((Item) item.getPayload());
@@ -215,7 +215,7 @@ public class MediaBrowser extends JFrame {
             });
             for (Container c : containers) {
                 //       System.out.println("Container : " + c.getId() + c.getTitle());
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new TreeItemHolder(c, TreeItemHolder.Type.CONTAINER));
+                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(c, RemoteItem.Type.CONTAINER));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
 
                 upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
@@ -231,7 +231,7 @@ public class MediaBrowser extends JFrame {
             });
             for (Item i : items) {
                 //           System.out.println("Item: " + i.getId() + i.getTitle());
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new TreeItemHolder(i, TreeItemHolder.Type.ITEM));
+                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(i, RemoteItem.Type.ITEM));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
             }
         }

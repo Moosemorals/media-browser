@@ -4,7 +4,11 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.net.URI;
 import java.util.Objects;
+import org.fourthline.cling.support.model.DIDLObject;
+import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,9 +17,9 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class DownloadQueueItem {
+public class RemoteItem {
 
-    private static final Logger log = LoggerFactory.getLogger(DownloadQueueItem.class);
+    private static final Logger log = LoggerFactory.getLogger(RemoteItem.class);
 
     public static final double KILO = 1024;
     public static final double MEGA = KILO * 1024;
@@ -26,13 +30,26 @@ public class DownloadQueueItem {
         READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
     };
 
-    private final Item target;
+    public enum Type {
+        ITEM, CONTAINER
+    };
+
+    private final DIDLObject payload;
+    private final Type type;
     private State state;
     private long size;
     private long downloaded;
 
-    public DownloadQueueItem(Item target) {
-        this.target = target;
+    public RemoteItem(DIDLObject payload, Type type) {
+        this.payload = payload;
+        this.type = type;
+
+        state = State.READY;
+    }
+
+    public RemoteItem(Item target) {
+        this.payload = target;
+        this.type = Type.ITEM;
         state = State.READY;
     }
 
@@ -46,7 +63,7 @@ public class DownloadQueueItem {
     }
 
     public Item getTarget() {
-        return target;
+        return (Item) payload;
     }
 
     public void setSize(long size) {
@@ -57,11 +74,37 @@ public class DownloadQueueItem {
         this.downloaded = downloaded;
     }
 
+    public Container getContainer() {
+        return (Container) payload;
+    }
+
+    public DIDLObject getPayload() {
+        return payload;
+    }
+
+    public Type getType() {
+        return type;
+    }
+
+    public String getUrl() {
+        Res res = payload.getFirstResource();
+        if (res != null) {
+            URI uri = res.getImportUri();
+            if (uri != null) {
+                return uri.toASCIIString();
+            } else {
+                return "[No URI]";
+            }
+        } else {
+            return "[No resource: " + payload.getClass() + "]";
+        }
+    }
+
     @Override
     public String toString() {
         StringBuilder result = new StringBuilder();
 
-        result.append(target.getTitle());
+        result.append(payload.getTitle());
         result.append(": ");
         switch (state) {
             case READY:
@@ -92,14 +135,14 @@ public class DownloadQueueItem {
         if (getClass() != obj.getClass()) {
             return false;
         }
-        final DownloadQueueItem other = (DownloadQueueItem) obj;
-        return this.target.equals(other.target);
+        final RemoteItem other = (RemoteItem) obj;
+        return this.payload.equals(other.payload);
     }
 
     @Override
     public int hashCode() {
         int hash = 5;
-        hash = 11 * hash + Objects.hashCode(this.target);
+        hash = 11 * hash + Objects.hashCode(this.payload);
         return hash;
     }
 

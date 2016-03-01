@@ -28,11 +28,11 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
+public class DownloadManager implements ListModel<RemoteItem>, Runnable {
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
-    private final List<DownloadQueueItem> queue;
+    private final List<RemoteItem> queue;
     private final AtomicBoolean running;
     private final HttpClient client;
     private final Set<ListDataListener> listDataListeners;
@@ -55,7 +55,7 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
 
     public void addTarget(Item target) {
         synchronized (queue) {
-            queue.add(new DownloadQueueItem(target));
+            queue.add(new RemoteItem(target));
             log.debug("addTarget: Queue length: {}", queue.size());
             queue.notifyAll();
         }
@@ -65,7 +65,7 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
     @Override
     public void run() {
         while (running.get()) {
-            DownloadQueueItem target;
+            RemoteItem target;
 
             synchronized (queue) {
                 while (pointer == queue.size()) {
@@ -83,7 +83,7 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
 
             Item item = target.getTarget();
             log.debug("Downloading " + item.getTitle());
-            target.setState(DownloadQueueItem.State.DOWNLOADING);
+            target.setState(RemoteItem.State.DOWNLOADING);
             notifyListeners();
             try {
 
@@ -117,7 +117,7 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
                     }
                 }
 
-                target.setState(DownloadQueueItem.State.COMPLETED);
+                target.setState(RemoteItem.State.COMPLETED);
                 notifyListeners();
             } catch (IOException ex) {
                 log.error("IOExcption", ex);
@@ -145,7 +145,7 @@ public class DownloadManager implements ListModel<DownloadQueueItem>, Runnable {
     }
 
     @Override
-    public DownloadQueueItem getElementAt(int i) {
+    public RemoteItem getElementAt(int i) {
         synchronized (queue) {
             return queue.get(i);
         }
