@@ -23,6 +23,7 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +42,8 @@ public class FTPRemote {
 
     private final Logger log = LoggerFactory.getLogger(FTPRemote.class);
 
+    private static final String BASE_DIR = "/My Video/";
+
     private final FTPClient ftp;
     private final String hostname;
 
@@ -54,8 +57,7 @@ public class FTPRemote {
         ftp.configure(config);
     }
 
-    public void browse(DownloadManager dlManager) throws IOException {
-
+    public void browse() throws IOException {
         ftp.connect(hostname);
         int reply = ftp.getReplyCode();
 
@@ -67,14 +69,19 @@ public class FTPRemote {
             throw new IOException("Can't login to FTP");
         }
 
+        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
+            throw new IOException("Can't set binary transfer");
+        }
+
         List<String> queue = new ArrayList<>();
 
-        queue.add("/");
-        while (!queue.isEmpty()) {
-            String target = queue.remove(0);
+        queue.add(BASE_DIR);
 
-            if (!ftp.changeWorkingDirectory(target)) {
-                throw new IOException("Can't change FTP directory to " + target);
+        while (!queue.isEmpty()) {
+            String directory = queue.remove(0);
+
+            if (!ftp.changeWorkingDirectory(directory)) {
+                throw new IOException("Can't change FTP directory to " + directory);
             }
 
             for (FTPFile f : ftp.listFiles()) {
@@ -82,18 +89,43 @@ public class FTPRemote {
                     // skip
                     continue;
                 }
-                if (f.isDirectory()) {
-                    StringBuilder nextTarget = new StringBuilder();
-                    nextTarget.append(target);
-                    if (!target.endsWith("/")) {
-                        nextTarget.append("/");
-                    }
-                    nextTarget.append(f.getName());
 
-                    queue.add(nextTarget.toString());
+                StringBuilder targetBuilder = new StringBuilder();
+                targetBuilder.append(directory);
+                if (!directory.endsWith("/")) {
+                    targetBuilder.append("/");
+                }
+                targetBuilder.append(f.getName());
+
+                String target = targetBuilder.toString();
+
+                if (f.isDirectory()) {
+                    queue.add(target);
+                } else if (f.isFile()) {
+                    if (target.endsWith(".hmt")) {
+
+                        if (f.getSize() > Integer.MAX_VALUE) {
+                            throw new IOException("Can't download " + target + ": Bigger than MAX_INT");
+                        }
+
+                        ByteArrayOutputStream out = new ByteArrayOutputStream((int) f.getSize());
+
+                        if (!ftp.retrieveFile(target, out)) {
+                            throw new IOException("Can't download " + target + ": Unknown reason");
+                        }
+
+                        HMTFile hmt = new HMTFile(out.toByteArray());
+
+                        log.debug("File: [{}] [{}] [{}]",
+                                target,
+                                hmt.getRecordingTitle(),
+                                hmt.getTitle()
+                        );
+
+                    }
                 }
 
-                log.debug("{} - {} - {}", target, f.getName(), f.getSize());
+                //     log.debug("{} - {} - {}", directory, f.getName(), f.getSize());
             }
         }
 

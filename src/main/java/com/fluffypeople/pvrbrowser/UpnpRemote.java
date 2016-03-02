@@ -23,12 +23,12 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import com.fluffypeople.pvrbrowser.PVR.PVRFile;
+import com.fluffypeople.pvrbrowser.PVR.PVRFolder;
+import com.fluffypeople.pvrbrowser.PVR.PVRItem;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeModel;
 import org.fourthline.cling.UpnpService;
@@ -44,6 +44,7 @@ import org.fourthline.cling.registry.Registry;
 import org.fourthline.cling.support.contentdirectory.callback.Browse;
 import org.fourthline.cling.support.model.BrowseFlag;
 import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
@@ -61,17 +62,21 @@ public class UpnpRemote implements Runnable {
 
     private final Object flag = new Object();
     private final DefaultTreeModel treeModel;
-    private final DefaultMutableTreeNode rootNode;
+
     private final UpnpService upnp;
     private final UI parent;
     private final List<DeviceBrowse> queue;
     private final AtomicBoolean running;
     private int completed = 0;
+
+    private final PVRFolder rootFolder = new PVRFolder("", "/");
+
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
             if (DEVICE_NAME.equals(device.getDisplayString())) {
-                populateTree(device, rootNode);
+                log.debug("Found {}", DEVICE_NAME);
+                populateTree(device);
             } else {
                 log.info("Skiping device {} ", device.getDisplayString());
             }
@@ -80,8 +85,8 @@ public class UpnpRemote implements Runnable {
 
     UpnpRemote(UI parent) {
         this.parent = parent;
-        rootNode = new DefaultMutableTreeNode("Devices");
-        treeModel = new DefaultTreeModel(rootNode);
+
+        treeModel = new DefaultTreeModel(null);
         upnp = new UpnpServiceImpl(upnpListener);
         queue = new ArrayList<>();
         running = new AtomicBoolean(false);
@@ -99,11 +104,11 @@ public class UpnpRemote implements Runnable {
         return treeModel;
     }
 
-    private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
+    private void populateTree(RemoteDevice device) {
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
             synchronized (queue) {
-                queue.add(new DeviceBrowse(service, "0\\1\\2", parentNode));
+                queue.add(new DeviceBrowse(service, "0\\1\\2", rootFolder));
                 queue.notifyAll();
             }
         }
@@ -131,23 +136,35 @@ public class UpnpRemote implements Runnable {
                     if (queue.isEmpty()) {
                         log.info("Browse complete");
                         running.set(false);
-                        return;
+                        break;
                     }
                 }
             } catch (InterruptedException ex) {
                 running.set(false);
                 return;
             }
+        }
+        walkTree(rootFolder);
+        System.exit(0);
+    }
 
+    private void walkTree(PVRFolder folder) {
+        for (PVRItem child : folder.getChildren()) {
+            if (child.isFolder()) {
+                log.debug("Folder : [{}] - [{}]", child.getPath(), child.getName());
+                walkTree((PVRFolder) child);
+            } else {
+                log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getName(), ((PVRFile) child).getDownloadURL());
+            }
         }
     }
 
     private class DeviceBrowse extends Browse {
 
-        private final DefaultMutableTreeNode parent;
+        private final PVRFolder parent;
         private final Service service;
 
-        public DeviceBrowse(Service service, String id, DefaultMutableTreeNode parent) {
+        public DeviceBrowse(Service service, String id, PVRFolder parent) {
             super(service, id, BrowseFlag.DIRECT_CHILDREN);
             this.parent = parent;
             this.service = service;
@@ -156,41 +173,31 @@ public class UpnpRemote implements Runnable {
         @Override
         public void received(ActionInvocation actionInvocation, DIDLContent didl) {
             List<Container> containers = didl.getContainers();
-            Collections.sort(containers, new Comparator<Container>() {
-                @Override
-                public int compare(Container t, Container t1) {
-                    return t.getTitle().compareTo(t1.getTitle());
-                }
-            });
 
             for (Container c : containers) {
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(c, RemoteItem.Type.CONTAINER));
-                treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
+
+                log.debug("Found folder: {} - {}", c.getTitle(), parent.getPath());
+                PVRFolder folder = new PVRFolder(c.getTitle(), parent.getPath() + c.getTitle() + "/");
+                parent.addChild(folder);
 
                 synchronized (queue) {
-                    queue.add(new DeviceBrowse(service, c.getId(), childNode));
+                    queue.add(new DeviceBrowse(service, c.getId(), folder));
                     queue.notifyAll();
                 }
             }
             List<Item> items = didl.getItems();
-            Collections.sort(items, new Comparator<Item>() {
-
-                @Override
-                public int compare(Item t, Item t1) {
-                    return t.getTitle().compareTo(t1.getTitle());
-                }
-
-            });
 
             for (Item i : items) {
-                DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(i, RemoteItem.Type.ITEM));
-                treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
-            }
+                log.debug("Found file  : {} - {}", i.getTitle(), parent.getPath());
+                PVRFile file = new PVRFile(i.getTitle(), parent.getPath() + i.getTitle());
 
-            if (parent == rootNode) {
-                expandTreeRoot();
-            }
+                Res res = i.getFirstResource();
+                if (res != null) {
+                    file.setDownloadURL(res.getValue());
+                }
 
+                parent.addChild(file);
+            }
             synchronized (flag) {
                 flag.notifyAll();
             }
@@ -206,9 +213,4 @@ public class UpnpRemote implements Runnable {
 
         }
     }
-
-    private void expandTreeRoot() {
-        parent.expandTreeRoot(rootNode);
-    }
-
 }

@@ -31,7 +31,7 @@ public class RemoteItem {
     };
 
     public enum Type {
-        ITEM, CONTAINER
+        File, Folder
     };
 
     private final DIDLObject payload;
@@ -50,7 +50,7 @@ public class RemoteItem {
 
     public RemoteItem(Item target) {
         this.payload = target;
-        this.type = Type.ITEM;
+        this.type = Type.File;
         state = State.READY;
     }
 

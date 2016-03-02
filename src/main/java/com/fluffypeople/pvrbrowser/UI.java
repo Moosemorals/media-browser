@@ -132,7 +132,7 @@ public class UI extends JFrame {
 
         for (TreePath p : displayTree.getSelectionPaths()) {
             RemoteItem item = (RemoteItem) ((DefaultMutableTreeNode) p.getLastPathComponent()).getUserObject();
-            if (item.getType() == RemoteItem.Type.ITEM) {
+            if (item.getType() == RemoteItem.Type.File) {
                 String url = item.getPayload().getFirstResource().getValue();
                 log.debug("Download URL " + url);
                 dlManager.addTarget((Item) item.getPayload());
