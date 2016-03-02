@@ -23,9 +23,11 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreeModel;
@@ -51,23 +53,24 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-public class UpnpRemote {
+public class UpnpRemote implements Runnable {
 
     private final Logger log = LoggerFactory.getLogger(UpnpRemote.class);
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
 
+    private final Object flag = new Object();
     private final DefaultTreeModel treeModel;
     private final DefaultMutableTreeNode rootNode;
     private final UpnpService upnp;
     private final UI parent;
+    private final List<DeviceBrowse> queue;
+    private final AtomicBoolean running;
+    private int completed = 0;
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
-
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
             if (DEVICE_NAME.equals(device.getDisplayString())) {
-                //DefaultMutableTreeNode node = new DefaultMutableTreeNode(device.getDisplayString());
-                //treeModel.insertNodeInto(node, rootNode, rootNode.getChildCount());
                 populateTree(device, rootNode);
             } else {
                 log.info("Skiping device {} ", device.getDisplayString());
@@ -80,11 +83,16 @@ public class UpnpRemote {
         rootNode = new DefaultMutableTreeNode("Devices");
         treeModel = new DefaultTreeModel(rootNode);
         upnp = new UpnpServiceImpl(upnpListener);
+        queue = new ArrayList<>();
+        running = new AtomicBoolean(false);
     }
 
     public void start() {
-        parent.setStatus("Searching for media servers");
-        upnp.getControlPoint().search(new STAllHeader());
+        if (running.compareAndSet(false, true)) {
+            parent.setStatus("Searching for media servers");
+            upnp.getControlPoint().search(new STAllHeader());
+            new Thread(this, "BrowseQueue").start();
+        }
     }
 
     public TreeModel getTreeModel() {
@@ -94,7 +102,43 @@ public class UpnpRemote {
     private void populateTree(RemoteDevice device, DefaultMutableTreeNode parentNode) {
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
-            upnp.getControlPoint().execute(new DeviceBrowse(service, "0\\1\\2", parentNode));
+            synchronized (queue) {
+                queue.add(new DeviceBrowse(service, "0\\1\\2", parentNode));
+                queue.notifyAll();
+            }
+        }
+    }
+
+    @Override
+    public void run() {
+        while (running.get()) {
+            DeviceBrowse next;
+
+            try {
+                synchronized (queue) {
+                    while (queue.isEmpty()) {
+                        queue.wait();
+                    }
+                    next = queue.remove(0);
+                }
+
+                upnp.getControlPoint().execute(next);
+                synchronized (flag) {
+                    flag.wait();
+                }
+
+                synchronized (queue) {
+                    if (queue.isEmpty()) {
+                        log.info("Browse complete");
+                        running.set(false);
+                        return;
+                    }
+                }
+            } catch (InterruptedException ex) {
+                running.set(false);
+                return;
+            }
+
         }
     }
 
@@ -123,7 +167,10 @@ public class UpnpRemote {
                 DefaultMutableTreeNode childNode = new DefaultMutableTreeNode(new RemoteItem(c, RemoteItem.Type.CONTAINER));
                 treeModel.insertNodeInto(childNode, parent, parent.getChildCount());
 
-                upnp.getControlPoint().execute(new DeviceBrowse(service, c.getId(), childNode));
+                synchronized (queue) {
+                    queue.add(new DeviceBrowse(service, c.getId(), childNode));
+                    queue.notifyAll();
+                }
             }
             List<Item> items = didl.getItems();
             Collections.sort(items, new Comparator<Item>() {
@@ -142,6 +189,10 @@ public class UpnpRemote {
 
             if (parent == rootNode) {
                 expandTreeRoot();
+            }
+
+            synchronized (flag) {
+                flag.notifyAll();
             }
         }
 
