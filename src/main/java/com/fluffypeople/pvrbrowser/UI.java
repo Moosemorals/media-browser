@@ -8,7 +8,6 @@ import com.fluffypeople.pvrbrowser.PVR.PVRFile;
 import com.fluffypeople.pvrbrowser.PVR.PVRItem;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.io.File;
 import java.util.prefs.Preferences;
 import javax.swing.*;
@@ -35,6 +34,50 @@ public class UI extends JFrame {
     private JLabel statusLabel;
     private JTree displayTree;
 
+    private final Action startStopAction = new AbstractAction("Start downloading") {
+
+        private boolean downloading = false;
+
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            if (downloading) {
+                // dlManager.stop();
+                putValue(NAME, "Stop downloading");
+                downloading = false;
+            } else {
+                dlManager.start();
+                putValue(NAME, "Start downloading");
+                downloading = true;
+            }
+        }
+    };
+
+    private final Action queueAction = new AbstractAction("Queue selected") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            while (!dlManager.isDownloadPathSet()) {
+                chooseDownloadFolder();
+            }
+
+            for (TreePath p : displayTree.getSelectionPaths()) {
+                PVRItem item = (PVRItem) p.getLastPathComponent();
+
+                if (item.isFile()) {
+                    log.debug("Queuing {}", item);
+                    dlManager.addTarget((PVRFile) item);
+                }
+            }
+        }
+    };
+
+    private final Action chooseAction = new AbstractAction("Choose download folder") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            chooseDownloadFolder();
+        }
+
+    };
+
     public UI(Preferences prefs) {
 
         pvr = new PVR();
@@ -52,32 +95,9 @@ public class UI extends JFrame {
         statusLabel = new JLabel();
         statusLabel.setFocusable(false);
 
-        chooserButton = new JButton();
-        chooserButton.setText("Set Download Folder");
-        chooserButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                chooserButtonActionPerformed(evt);
-            }
-        });
-
-        downloadButton = new JButton();
-        downloadButton.setText("Queue Selected");
-        downloadButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent evt) {
-                downloadButtonActionPerformed(evt);
-            }
-        });
-
-        startButton = new JButton();
-        startButton.setText("Start Downloads");
-        startButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                dlManager.start();
-            }
-        });
+        chooserButton = new JButton(chooseAction);
+        downloadButton = new JButton(queueAction);
+        startButton = new JButton(startStopAction);
 
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
@@ -122,27 +142,6 @@ public class UI extends JFrame {
             return true;
         } else {
             return false;
-        }
-    }
-
-    private void chooserButtonActionPerformed(ActionEvent evt) {
-        chooseDownloadFolder();
-    }
-
-    private void downloadButtonActionPerformed(ActionEvent evt) {
-        while (!dlManager.isDownloadPathSet()) {
-            chooseDownloadFolder();
-        }
-
-        for (TreePath p : displayTree.getSelectionPaths()) {
-
-            PVRItem item = (PVRItem) p.getLastPathComponent();
-
-            if (item.isFile()) {
-                log.debug("Queuing {}", item);
-                dlManager.addTarget((PVRFile) item);
-
-            }
         }
     }
 
