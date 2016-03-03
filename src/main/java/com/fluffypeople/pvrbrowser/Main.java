@@ -1,5 +1,6 @@
 package com.fluffypeople.pvrbrowser;
 
+import java.awt.EventQueue;
 import java.util.prefs.Preferences;
 import javax.swing.UIManager;
 import org.slf4j.Logger;
@@ -24,7 +25,7 @@ public class Main {
 
         log.debug("Download directory {}", prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, "Uknown"));
 
-        java.awt.EventQueue.invokeLater(new Runnable() {
+        EventQueue.invokeLater(new Runnable() {
 
             @Override
             public void run() {

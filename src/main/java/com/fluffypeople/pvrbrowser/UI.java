@@ -113,6 +113,7 @@ public class UI extends JFrame {
 
         displayTree = new JTree();
         displayTree.setModel(pvr);
+        displayTree.setCellRenderer(pvr);
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
 

@@ -23,16 +23,23 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.awt.Component;
+import java.awt.EventQueue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.swing.JLabel;
+import javax.swing.JTree;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.TreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import org.apache.commons.net.PrintCommandListener;
@@ -67,7 +74,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVR implements TreeModel, Runnable {
+public class PVR implements TreeModel, Runnable, TreeCellRenderer {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
     private static final String FTP_ROOT = "/My Video/";
@@ -82,6 +89,7 @@ public class PVR implements TreeModel, Runnable {
     private final UpnpService upnp;
     private final List<DeviceBrowse> upnpQueue;
     private final AtomicBoolean running;
+    private final DefaultTreeCellRenderer defaultTreeCellRenderer;
 
     private String hostname = null;
 
@@ -99,20 +107,12 @@ public class PVR implements TreeModel, Runnable {
         upnp = new UpnpServiceImpl(upnpListener);
         upnpQueue = new ArrayList<>();
         running = new AtomicBoolean(false);
+
+        defaultTreeCellRenderer = new DefaultTreeCellRenderer();
     }
 
     public void setHostname(String hostname) {
         this.hostname = hostname;
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    scrapeFTP();
-                } catch (IOException ex) {
-                    throw new RuntimeException(ex);
-                }
-            }
-        }, "FTPScrape").start();
     }
 
     public String getHostname() {
@@ -177,7 +177,7 @@ public class PVR implements TreeModel, Runnable {
             PVRFolder folder = new PVRFolder(parent, parent.getPath() + folderName + "/", folderName);
             parent.addChild(folder);
 
-            notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
+            notifyListenersInsert(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
             return folder;
         }
     }
@@ -197,7 +197,7 @@ public class PVR implements TreeModel, Runnable {
             PVRFile file = new PVRFile(parent, parent.getPath() + filename, filename);
             parent.addChild(file);
 
-            notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
+            notifyListenersInsert(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
 
             return file;
         }
@@ -234,15 +234,52 @@ public class PVR implements TreeModel, Runnable {
         }
     }
 
-    private void notifyListeners(TreeModelEvent e) {
-        synchronized (treeModelListeners) {
-            for (TreeModelListener l : treeModelListeners) {
-                l.treeNodesInserted(e);
+    private void notifyListenersInsert(final TreeModelEvent e) {
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (treeModelListeners) {
+                    for (final TreeModelListener l : treeModelListeners) {
+                        l.treeNodesInserted(e);
+                    }
+                }
             }
-        }
+        });
     }
 
-    public void scrapeFTP() throws IOException {
+    private void notifyListenersUpdate(final TreeModelEvent e) {
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (treeModelListeners) {
+                    for (final TreeModelListener l : treeModelListeners) {
+                        l.treeStructureChanged(e);
+                    }
+                }
+            }
+        });
+    }
+
+    private void startFTP() {
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    scrapeFTP();
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+
+                TreeModelEvent e = new TreeModelEvent(rootFolder, rootFolder.getTreePath());
+                notifyListenersUpdate(e);
+
+            }
+        }, "FTPScrape").start();
+    }
+
+    private void scrapeFTP() throws IOException {
+        log.info("Connecting to FTP");
+
         ftp.connect(getHostname());
         int reply = ftp.getReplyCode();
 
@@ -279,16 +316,18 @@ public class PVR implements TreeModel, Runnable {
                     PVRFolder next = addFolder(directory, f.getName());
                     queue.add(next);
                 } else if (f.isFile() && f.getName().endsWith(".ts")) {
-
                     PVRFile file = addFile(directory, f.getName());
-                    file.setSize(f.getSize());
                     HMTFile hmt = getHMTForTs(file);
+                    file.setSize(f.getSize());
                     file.setDescription(hmt.getDesc());
-
+                    file.setTitle(hmt.getRecordingTitle());
+                    file.setStart(new Date(hmt.getStartTimestamp() * 1000));
+                    file.setEnd(new Date(hmt.getEndTimestamp() * 1000));
                 }
             }
         }
         ftp.disconnect();
+        log.info("Disconnected from FTP");
     }
 
     private HMTFile getHMTForTs(PVRFile file) throws IOException {
@@ -306,7 +345,7 @@ public class PVR implements TreeModel, Runnable {
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
             if (DEVICE_NAME.equals(device.getDisplayString())) {
-                log.debug("Found {}", DEVICE_NAME);
+                log.debug("Found {} in thread {}", DEVICE_NAME, Thread.currentThread().getName());
                 setHostname(device.getIdentity().getDescriptorURL().getHost());
                 populateTree(device);
             } else {
@@ -353,6 +392,7 @@ public class PVR implements TreeModel, Runnable {
                 synchronized (upnpQueue) {
                     if (upnpQueue.isEmpty()) {
                         log.info("Browse complete");
+                        startFTP();
                         running.set(false);
                         break;
                     }
@@ -362,6 +402,31 @@ public class PVR implements TreeModel, Runnable {
                 return;
             }
         }
+    }
+
+    @Override
+    public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+
+        JLabel fish = new JLabel();
+
+        if (leaf) {
+            fish.setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
+        } else if (expanded) {
+            fish.setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
+        } else {
+            fish.setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
+        }
+
+        PVRItem item = (PVRItem) value;
+        if (item.isFile()) {
+            PVRFile file = (PVRFile) item;
+            fish.setText(file.getTitle() + ": " + file.getStart());
+        } else {
+            PVRFolder folder = (PVRFolder) item;
+            fish.setText(folder.getFilename());
+        }
+
+        return fish;
     }
 
     private class DeviceBrowse extends Browse {
@@ -527,6 +592,8 @@ public class PVR implements TreeModel, Runnable {
         private String description = "";
         private String title;
         private String downloadPath;
+        private Date start;
+        private Date end;
 
         private PVRFile(PVRItem parent, String path, String filename) {
             super(parent, path, filename);
@@ -598,6 +665,22 @@ public class PVR implements TreeModel, Runnable {
 
         public void setRemoteURL(String remoteURL) {
             this.remoteURL = remoteURL;
+        }
+
+        public Date getStart() {
+            return start;
+        }
+
+        public void setStart(Date start) {
+            this.start = start;
+        }
+
+        public Date getEnd() {
+            return end;
+        }
+
+        public void setEnd(Date end) {
+            this.end = end;
         }
 
         @Override

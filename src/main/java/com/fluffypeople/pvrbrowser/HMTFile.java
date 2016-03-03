@@ -73,6 +73,28 @@ public class HMTFile {
         return nullTerminated(0x0617, 255);
     }
 
+    public long getStartTimestamp() {
+        // http://stackoverflow.com/a/362390/195833
+
+        long l = (long) raw[0x280] & 0xFF;
+        l += ((long) raw[0x281] & 0xFF) << 8;
+        l += ((long) raw[0x282] & 0xFF) << 16;
+        l += ((long) raw[0x283] & 0xFF) << 24;
+
+        return l;
+    }
+
+    public long getEndTimestamp() {
+        // http://stackoverflow.com/a/362390/195833
+
+        long l = (long) raw[0x284] & 0xFF;
+        l += ((long) raw[0x285] & 0xFF) << 8;
+        l += ((long) raw[0x286] & 0xFF) << 16;
+        l += ((long) raw[0x287] & 0xFF) << 24;
+
+        return l;
+    }
+
     private String nullTerminated(int offset, int length) {
 
         int i = 0;
@@ -80,8 +102,14 @@ public class HMTFile {
             i += 1;
         }
 
-        return new String(raw, offset, i, charset);
+        String result = new String(raw, offset, i, charset);
 
+        // I don't know whats up with this.
+        if (result.startsWith("i7")) {
+            return result.substring(2);
+        } else {
+            return result;
+        }
     }
 
 }
