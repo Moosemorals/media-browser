@@ -1,5 +1,6 @@
 package com.fluffypeople.pvrbrowser;
 
+import com.fluffypeople.pvrbrowser.PVR.PVRFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -20,7 +21,6 @@ import org.apache.http.StatusLine;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -28,11 +28,11 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric
  */
-public class DownloadManager implements ListModel<RemoteItem>, Runnable {
+public class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
-    private final List<RemoteItem> queue;
+    private final List<PVRFile> queue;
     private final AtomicBoolean running;
     private final HttpClient client;
     private final Set<ListDataListener> listDataListeners;
@@ -53,11 +53,11 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
         }
     }
 
-    public void addTarget(Item target) {
-        RemoteItem item = new RemoteItem(target);
-        item.setDownloadPath(getDownloadPath().getPath());
+    public void addTarget(PVRFile target) {
+
+        target.setDownloadPath(getDownloadPath().getPath());
         synchronized (queue) {
-            queue.add(item);
+            queue.add(target);
             log.debug("addTarget: Queue length: {}", queue.size());
             queue.notifyAll();
         }
@@ -67,7 +67,7 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
     @Override
     public void run() {
         while (running.get()) {
-            RemoteItem target;
+            PVRFile target;
 
             synchronized (queue) {
                 while (pointer == queue.size()) {
@@ -83,13 +83,12 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
                 target = queue.get(pointer++);
             }
 
-            Item item = target.getTarget();
-            log.debug("Downloading " + item.getTitle());
-            target.setState(RemoteItem.State.DOWNLOADING);
+            log.debug("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
+            target.setState(PVRFile.State.DOWNLOADING);
             notifyListeners();
             try {
 
-                final HttpGet request = new HttpGet(item.getFirstResource().getValue());
+                final HttpGet request = new HttpGet(target.getRemoteURL());
                 final HttpResponse response = client.execute(request);
 
                 final StatusLine result = response.getStatusLine();
@@ -104,7 +103,7 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
 
                 log.debug("Downloading " + len + " bytes");
 
-                final File downloadTarget = new File(getDownloadPath(), item.getTitle());
+                final File downloadTarget = new File(getDownloadPath(), target.getFilename());
                 log.debug("Filename " + downloadTarget.getAbsolutePath());
 
                 try (InputStream in = body.getContent(); OutputStream out = new FileOutputStream(downloadTarget)) {
@@ -119,7 +118,7 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
                     }
                 }
 
-                target.setState(RemoteItem.State.COMPLETED);
+                target.setState(PVRFile.State.COMPLETED);
                 notifyListeners();
             } catch (IOException ex) {
                 log.error("IOExcption", ex);
@@ -147,7 +146,7 @@ public class DownloadManager implements ListModel<RemoteItem>, Runnable {
     }
 
     @Override
-    public RemoteItem getElementAt(int i) {
+    public PVRFile getElementAt(int i) {
         synchronized (queue) {
             return queue.get(i);
         }

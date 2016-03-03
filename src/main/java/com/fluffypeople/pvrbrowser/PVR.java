@@ -25,6 +25,7 @@ package com.fluffypeople.pvrbrowser;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -34,6 +35,7 @@ import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
+import org.apache.commons.net.PrintCommandListener;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPClientConfig;
 import org.apache.commons.net.ftp.FTPFile;
@@ -68,7 +70,7 @@ import org.slf4j.LoggerFactory;
 public class PVR implements TreeModel, Runnable {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
-    private static final String FTP_ROOT = "/My Video";
+    private static final String FTP_ROOT = "/My Video/";
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
@@ -88,6 +90,9 @@ public class PVR implements TreeModel, Runnable {
 
         ftp = new FTPClient();
         ftp.configure(config);
+        if (log.isDebugEnabled()) {
+            ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out), true));
+        }
 
         upnp = new UpnpServiceImpl(upnpListener);
         upnpQueue = new ArrayList<>();
@@ -155,19 +160,19 @@ public class PVR implements TreeModel, Runnable {
         return -1;
     }
 
-    public PVRFolder addFolder(PVRFolder parent, String name) {
+    public PVRFolder addFolder(PVRFolder parent, String folderName) {
         synchronized (parent.children) {
             for (PVRItem child : parent.children) {
-                if (child.getName().equals(name)) {
+                if (child.getFilename().equals(folderName)) {
                     if (child.isFolder()) {
                         return (PVRFolder) child;
                     } else {
-                        throw new RuntimeException("Can't add file [" + name + "] to " + parent.path + ": Already exists as folder");
+                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.path + ": Already exists as folder");
                     }
                 }
             }
 
-            PVRFolder folder = new PVRFolder(parent, name, parent.getPath() + name + "/");
+            PVRFolder folder = new PVRFolder(parent, parent.getPath() + folderName + "/", folderName);
             parent.addChild(folder);
 
             notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
@@ -175,19 +180,19 @@ public class PVR implements TreeModel, Runnable {
         }
     }
 
-    public PVRFile addFile(PVRFolder parent, String name) {
+    public PVRFile addFile(PVRFolder parent, String filename) {
         synchronized (parent.children) {
             for (PVRItem child : parent.children) {
-                if (child.getName().equals(name)) {
+                if (child.getFilename().equals(filename)) {
                     if (child.isFile()) {
                         return (PVRFile) child;
                     } else {
-                        throw new RuntimeException("Can't add folder [" + name + "] to " + parent.path + ": Already exists as file");
+                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.path + ": Already exists as file");
                     }
                 }
             }
 
-            PVRFile file = new PVRFile(parent, name, parent.getPath() + name);
+            PVRFile file = new PVRFile(parent, parent.getPath() + filename, filename);
             parent.addChild(file);
 
             notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
@@ -204,10 +209,10 @@ public class PVR implements TreeModel, Runnable {
         synchronized (folder.children) {
             for (PVRItem child : folder.children) {
                 if (child.isFolder()) {
-                    log.debug("Folder : [{}] - [{}]", child.getPath(), child.getName());
+                    log.debug("Folder : [{}] - [{}]", child.getPath(), child.getFilename());
                     dumpTree((PVRFolder) child);
                 } else {
-                    log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getName(), ((PVRFile) child).getDownloadURL());
+                    log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getFilename(), ((PVRFile) child).getRemoteURL());
                 }
             }
         }
@@ -258,13 +263,14 @@ public class PVR implements TreeModel, Runnable {
         while (!queue.isEmpty()) {
             PVRFolder directory = queue.remove(0);
 
+            log.debug("Changing directory to {}{}", FTP_ROOT, directory.getPath());
             if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getPath())) {
-                throw new IOException("Can't change FTP directory to " + directory);
+                throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getPath());
             }
 
             for (FTPFile f : ftp.listFiles()) {
                 if (f.getName().equals(".") || f.getName().equals("..")) {
-                    // skip
+                    // skip entries for this directory and parent directory
                     continue;
                 }
 
@@ -274,11 +280,8 @@ public class PVR implements TreeModel, Runnable {
                 } else if (f.isFile() && f.getName().endsWith(".ts")) {
 
                     PVRFile file = addFile(directory, f.getName());
-
                     file.setSize(f.getSize());
-
                     HMTFile hmt = getHMTForTs(file);
-
                     file.setDescription(hmt.getDesc());
 
                 }
@@ -288,7 +291,7 @@ public class PVR implements TreeModel, Runnable {
     }
 
     private HMTFile getHMTForTs(PVRFile file) throws IOException {
-        String target = file.getName().replaceAll("\\.ts$", ".hmt");
+        String target = file.getFilename().replaceAll("\\.ts$", ".hmt");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         if (!ftp.retrieveFile(target, out)) {
@@ -358,7 +361,6 @@ public class PVR implements TreeModel, Runnable {
                 return;
             }
         }
-        dumpTree();
     }
 
     private class DeviceBrowse extends Browse {
@@ -390,7 +392,7 @@ public class PVR implements TreeModel, Runnable {
 
                 Res res = i.getFirstResource();
                 if (res != null) {
-                    file.setDownloadURL(res.getValue());
+                    file.setRemoteURL(res.getValue());
                 }
 
             }
@@ -412,15 +414,15 @@ public class PVR implements TreeModel, Runnable {
 
     public static abstract class PVRItem implements Comparable<PVRItem> {
 
-        protected final String name;
+        protected final String filename;
         protected final String path;
         protected final PVRItem parent;
         protected final TreePath treePath;
 
         @SuppressWarnings("LeakingThisInConstructor")
-        private PVRItem(PVRItem parent, String name, String path) {
+        private PVRItem(PVRItem parent, String path, String filename) {
             this.parent = parent;
-            this.name = name;
+            this.filename = filename;
             this.path = path;
             if (parent != null) {
                 Object[] parentPath = parent.getTreePath().getPath();
@@ -442,7 +444,7 @@ public class PVR implements TreeModel, Runnable {
             } else if (isFile() && o.isFolder()) {
                 return 1;
             } else {
-                return getName().compareTo(o.getName());
+                return getFilename().compareTo(o.getFilename());
             }
         }
 
@@ -450,8 +452,8 @@ public class PVR implements TreeModel, Runnable {
 
         public abstract boolean isFolder();
 
-        public String getName() {
-            return name;
+        public String getFilename() {
+            return filename;
         }
 
         public String getPath() {
@@ -468,7 +470,7 @@ public class PVR implements TreeModel, Runnable {
 
         @Override
         public String toString() {
-            return name;
+            return filename;
         }
     }
 
@@ -476,8 +478,8 @@ public class PVR implements TreeModel, Runnable {
 
         private final List<PVRItem> children;
 
-        private PVRFolder(PVRItem parent, String path, String name) {
-            super(parent, path, name);
+        private PVRFolder(PVRItem parent, String path, String filename) {
+            super(parent, path, filename);
             this.children = new ArrayList<>();
         }
 
@@ -506,10 +508,55 @@ public class PVR implements TreeModel, Runnable {
 
     public static class PVRFile extends PVRItem {
 
+        private final Logger log = LoggerFactory.getLogger(PVRFile.class);
+
+        public static final double KILO = 1024;
+        public static final double MEGA = KILO * 1024;
+        public static final double GIGA = MEGA * 1024;
+        public static final double TERA = GIGA * 1024;
+
+        public static enum State {
+            READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
+        };
+
+        private State state;
         private long size = -1;
         private long downloaded = -1;
-        private String downloadURL = null;
+        private String remoteURL = null;
         private String description = "";
+        private String title;
+        private String downloadPath;
+
+        private PVRFile(PVRItem parent, String path, String filename) {
+            super(parent, path, filename);
+            state = State.READY;
+            title = filename;
+        }
+
+        public void setState(State newState) {
+            log.debug("{}: State changed to ", path, newState);
+            this.state = newState;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public String getTitle() {
+            return title;
+        }
+
+        public void setDownloadPath(String downloadPath) {
+            this.downloadPath = downloadPath;
+        }
+
+        public String getDownloadPath() {
+            return downloadPath;
+        }
+
+        public State getState() {
+            return state;
+        }
 
         @Override
         public boolean isFolder() {
@@ -519,10 +566,6 @@ public class PVR implements TreeModel, Runnable {
         @Override
         public boolean isFile() {
             return true;
-        }
-
-        private PVRFile(PVRItem parent, String path, String name) {
-            super(parent, path, name);
         }
 
         public long getSize() {
@@ -549,12 +592,54 @@ public class PVR implements TreeModel, Runnable {
             this.description = description;
         }
 
-        public String getDownloadURL() {
-            return downloadURL;
+        public String getRemoteURL() {
+            return remoteURL;
         }
 
-        public void setDownloadURL(String downloadURL) {
-            this.downloadURL = downloadURL;
+        public void setRemoteURL(String remoteURL) {
+            this.remoteURL = remoteURL;
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder result = new StringBuilder();
+
+            result.append(title);
+            result.append(": ");
+            switch (state) {
+                case READY:
+                    result.append(humanReadableSize(size)).append(" Queued");
+                    break;
+                case DOWNLOADING:
+                    result.append(String.format("%s of %s (%3.0f%%) Downloading", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    break;
+                case PAUSED:
+                    result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    break;
+                case COMPLETED:
+                    result.append(humanReadableSize(downloaded)).append(" Completed");
+                    break;
+                case ERROR:
+                    result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    break;
+            }
+            return result.toString();
+        }
+
+        public static String humanReadableSize(long size) {
+
+            if (size > TERA) {
+                return String.format("% 5.2fTb", (double) size / TERA);
+            } else if (size > GIGA) {
+                return String.format("% 5.2fGb", (double) size / GIGA);
+            } else if (size > MEGA) {
+                return String.format("% 5.2fMb", (double) size / MEGA);
+            } else if (size > KILO) {
+                return String.format("% 5.2fkb", (double) size / MEGA);
+            } else {
+                return String.format("% 5db", size);
+            }
+
         }
 
     }

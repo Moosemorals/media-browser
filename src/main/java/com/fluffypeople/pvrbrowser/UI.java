@@ -4,6 +4,8 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import com.fluffypeople.pvrbrowser.PVR.PVRFile;
+import com.fluffypeople.pvrbrowser.PVR.PVRItem;
 import java.awt.BorderLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -12,7 +14,6 @@ import java.util.prefs.Preferences;
 import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
-import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -134,11 +135,12 @@ public class UI extends JFrame {
         }
 
         for (TreePath p : displayTree.getSelectionPaths()) {
-            RemoteItem item = (RemoteItem) ((DefaultMutableTreeNode) p.getLastPathComponent()).getUserObject();
-            if (item.getType() == RemoteItem.Type.File) {
-                String url = item.getPayload().getFirstResource().getValue();
-                log.debug("Download URL " + url);
-                dlManager.addTarget((Item) item.getPayload());
+
+            PVRItem item = (PVRItem) p.getLastPathComponent();
+
+            if (item.isFile()) {
+                log.debug("Queuing {}", item);
+                dlManager.addTarget((PVRFile) item);
 
             }
         }
