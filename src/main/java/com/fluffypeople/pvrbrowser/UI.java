@@ -26,7 +26,6 @@ public class UI extends JFrame {
 
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager dlManager;
-    private final UpnpRemote upnpRemote;
     private final PVR pvr;
 
     private JButton chooserButton;
@@ -38,11 +37,10 @@ public class UI extends JFrame {
     public UI(Preferences prefs) {
 
         pvr = new PVR();
-        upnpRemote = new UpnpRemote(pvr);
 
         dlManager = new DownloadManager(prefs);
         initComponents();
-        upnpRemote.start();
+        pvr.start();
     }
 
     private void initComponents() {

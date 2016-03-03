@@ -23,15 +23,37 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
+import org.apache.commons.net.ftp.FTPClient;
+import org.apache.commons.net.ftp.FTPClientConfig;
+import org.apache.commons.net.ftp.FTPFile;
+import org.apache.commons.net.ftp.FTPReply;
+import org.fourthline.cling.UpnpService;
+import org.fourthline.cling.UpnpServiceImpl;
+import org.fourthline.cling.model.action.ActionInvocation;
+import org.fourthline.cling.model.message.UpnpResponse;
+import org.fourthline.cling.model.message.header.STAllHeader;
+import org.fourthline.cling.model.meta.RemoteDevice;
+import org.fourthline.cling.model.meta.Service;
+import org.fourthline.cling.model.types.UDAServiceType;
+import org.fourthline.cling.registry.DefaultRegistryListener;
+import org.fourthline.cling.registry.Registry;
+import org.fourthline.cling.support.contentdirectory.callback.Browse;
+import org.fourthline.cling.support.model.BrowseFlag;
+import org.fourthline.cling.support.model.DIDLContent;
+import org.fourthline.cling.support.model.Res;
+import org.fourthline.cling.support.model.container.Container;
+import org.fourthline.cling.support.model.item.Item;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,12 +65,34 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVR implements TreeModel {
+public class PVR implements TreeModel, Runnable {
+
+    private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
+    private static final String FTP_ROOT = "/My Video";
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
+    private final FTPClient ftp;
+    private final Object flag = new Object();
+    private final UpnpService upnp;
+    private final List<DeviceBrowse> upnpQueue;
+    private final AtomicBoolean running;
+
     private String hostname = null;
+
+    public PVR() {
+        FTPClientConfig config = new FTPClientConfig();
+        config.setServerTimeZoneId("Europe/London");
+        config.setServerLanguageCode("EN");
+
+        ftp = new FTPClient();
+        ftp.configure(config);
+
+        upnp = new UpnpServiceImpl(upnpListener);
+        upnpQueue = new ArrayList<>();
+        running = new AtomicBoolean(false);
+    }
 
     public void setHostname(String hostname) {
         this.hostname = hostname;
@@ -56,7 +100,7 @@ public class PVR implements TreeModel {
             @Override
             public void run() {
                 try {
-                    new FTPRemote().scrapeFTP(PVR.this);
+                    scrapeFTP();
                 } catch (IOException ex) {
                     throw new RuntimeException(ex);
                 }
@@ -188,6 +232,181 @@ public class PVR implements TreeModel {
             for (TreeModelListener l : treeModelListeners) {
                 l.treeNodesInserted(e);
             }
+        }
+    }
+
+    public void scrapeFTP() throws IOException {
+        ftp.connect(getHostname());
+        int reply = ftp.getReplyCode();
+
+        if (!FTPReply.isPositiveCompletion(reply)) {
+            ftp.disconnect();
+            throw new IOException("FTP server refused connect");
+        }
+        if (!ftp.login("humaxftp", "0000")) {
+            throw new IOException("Can't login to FTP");
+        }
+
+        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
+            throw new IOException("Can't set binary transfer");
+        }
+
+        List<PVRFolder> queue = new ArrayList<>();
+
+        queue.add((PVRFolder) getRoot());
+
+        while (!queue.isEmpty()) {
+            PVRFolder directory = queue.remove(0);
+
+            if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getPath())) {
+                throw new IOException("Can't change FTP directory to " + directory);
+            }
+
+            for (FTPFile f : ftp.listFiles()) {
+                if (f.getName().equals(".") || f.getName().equals("..")) {
+                    // skip
+                    continue;
+                }
+
+                if (f.isDirectory()) {
+                    PVRFolder next = addFolder(directory, f.getName());
+                    queue.add(next);
+                } else if (f.isFile() && f.getName().endsWith(".ts")) {
+
+                    PVRFile file = addFile(directory, f.getName());
+
+                    file.setSize(f.getSize());
+
+                    HMTFile hmt = getHMTForTs(file);
+
+                    file.setDescription(hmt.getDesc());
+
+                }
+            }
+        }
+        ftp.disconnect();
+    }
+
+    private HMTFile getHMTForTs(PVRFile file) throws IOException {
+        String target = file.getName().replaceAll("\\.ts$", ".hmt");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        if (!ftp.retrieveFile(target, out)) {
+            throw new IOException("Can't download " + file.getPath() + ": Unknown reason");
+        }
+
+        return new HMTFile(out.toByteArray());
+    }
+
+    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
+        @Override
+        public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
+            if (DEVICE_NAME.equals(device.getDisplayString())) {
+                log.debug("Found {}", DEVICE_NAME);
+                setHostname(device.getIdentity().getDescriptorURL().getHost());
+                populateTree(device);
+            } else {
+                log.info("Skiping device {} ", device.getDisplayString());
+            }
+        }
+    };
+
+    public void start() {
+        if (running.compareAndSet(false, true)) {
+            upnp.getControlPoint().search(new STAllHeader());
+            new Thread(this, "BrowseQueue").start();
+        }
+    }
+
+    private void populateTree(RemoteDevice device) {
+        Service service = device.findService(new UDAServiceType("ContentDirectory"));
+        if (service != null) {
+            synchronized (upnpQueue) {
+                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", (PVRFolder) getRoot()));
+                upnpQueue.notifyAll();
+            }
+        }
+    }
+
+    @Override
+    public void run() {
+        while (running.get()) {
+            DeviceBrowse next;
+
+            try {
+                synchronized (upnpQueue) {
+                    while (upnpQueue.isEmpty()) {
+                        upnpQueue.wait();
+                    }
+                    next = upnpQueue.remove(0);
+                }
+
+                upnp.getControlPoint().execute(next);
+                synchronized (flag) {
+                    flag.wait();
+                }
+
+                synchronized (upnpQueue) {
+                    if (upnpQueue.isEmpty()) {
+                        log.info("Browse complete");
+                        running.set(false);
+                        break;
+                    }
+                }
+            } catch (InterruptedException ex) {
+                running.set(false);
+                return;
+            }
+        }
+        dumpTree();
+    }
+
+    private class DeviceBrowse extends Browse {
+
+        private final PVRFolder parent;
+        private final Service service;
+
+        public DeviceBrowse(Service service, String id, PVRFolder parent) {
+            super(service, id, BrowseFlag.DIRECT_CHILDREN);
+            this.parent = parent;
+            this.service = service;
+        }
+
+        @Override
+        public void received(ActionInvocation actionInvocation, DIDLContent didl) {
+            List<Container> containers = didl.getContainers();
+
+            for (Container c : containers) {
+                PVRFolder folder = addFolder(parent, c.getTitle());
+                synchronized (upnpQueue) {
+                    upnpQueue.add(new DeviceBrowse(service, c.getId(), folder));
+                    upnpQueue.notifyAll();
+                }
+            }
+            List<Item> items = didl.getItems();
+
+            for (Item i : items) {
+                PVRFile file = addFile(parent, i.getTitle());
+
+                Res res = i.getFirstResource();
+                if (res != null) {
+                    file.setDownloadURL(res.getValue());
+                }
+
+            }
+            synchronized (flag) {
+                flag.notifyAll();
+            }
+        }
+
+        @Override
+        public void updateStatus(Browse.Status status) {
+
+        }
+
+        @Override
+        public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+
         }
     }
 
