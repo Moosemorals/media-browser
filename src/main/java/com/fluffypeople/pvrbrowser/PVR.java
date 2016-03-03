@@ -72,6 +72,8 @@ public class PVR implements TreeModel, Runnable {
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
     private static final String FTP_ROOT = "/My Video/";
 
+    private final boolean debugFTP = false;
+
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
@@ -90,7 +92,7 @@ public class PVR implements TreeModel, Runnable {
 
         ftp = new FTPClient();
         ftp.configure(config);
-        if (log.isDebugEnabled()) {
+        if (debugFTP) {
             ftp.addProtocolCommandListener(new PrintCommandListener(new PrintWriter(System.out), true));
         }
 
@@ -263,7 +265,6 @@ public class PVR implements TreeModel, Runnable {
         while (!queue.isEmpty()) {
             PVRFolder directory = queue.remove(0);
 
-            log.debug("Changing directory to {}{}", FTP_ROOT, directory.getPath());
             if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getPath())) {
                 throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getPath());
             }
@@ -516,7 +517,7 @@ public class PVR implements TreeModel, Runnable {
         public static final double TERA = GIGA * 1024;
 
         public static enum State {
-            READY, DOWNLOADING, PAUSED, COMPLETED, ERROR
+            Ready, Queued, Downloading, Paused, Completed, Error
         };
 
         private State state;
@@ -529,12 +530,11 @@ public class PVR implements TreeModel, Runnable {
 
         private PVRFile(PVRItem parent, String path, String filename) {
             super(parent, path, filename);
-            state = State.READY;
+            state = State.Ready;
             title = filename;
         }
 
         public void setState(State newState) {
-            log.debug("{}: State changed to ", path, newState);
             this.state = newState;
         }
 
@@ -607,19 +607,22 @@ public class PVR implements TreeModel, Runnable {
             result.append(title);
             result.append(": ");
             switch (state) {
-                case READY:
+                case Ready:
+                    result.append(humanReadableSize(size));
+                    break;
+                case Queued:
                     result.append(humanReadableSize(size)).append(" Queued");
                     break;
-                case DOWNLOADING:
+                case Downloading:
                     result.append(String.format("%s of %s (%3.0f%%) Downloading", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                     break;
-                case PAUSED:
+                case Paused:
                     result.append(String.format("%s of %s (%3.0f%%) Paused", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                     break;
-                case COMPLETED:
+                case Completed:
                     result.append(humanReadableSize(downloaded)).append(" Completed");
                     break;
-                case ERROR:
+                case Error:
                     result.append(String.format("%s of %s (%3.0f%%) Broken", humanReadableSize(downloaded), humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
                     break;
             }

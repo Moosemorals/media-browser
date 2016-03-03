@@ -40,14 +40,17 @@ public class UI extends JFrame {
 
         @Override
         public void actionPerformed(ActionEvent e) {
-            if (downloading) {
-                // dlManager.stop();
-                putValue(NAME, "Stop downloading");
-                downloading = false;
-            } else {
+
+            if (!downloading) {
+                log.debug("Starting downloads");
                 dlManager.start();
-                putValue(NAME, "Start downloading");
+                putValue(NAME, "Stop downloading");
                 downloading = true;
+            } else {
+                log.debug("Stopping downloads");
+                dlManager.stop();
+                putValue(NAME, "Start downloading");
+                downloading = false;
             }
         }
     };
