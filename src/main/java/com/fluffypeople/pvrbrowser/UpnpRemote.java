@@ -29,8 +29,6 @@ import com.fluffypeople.pvrbrowser.PVR.PVRItem;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreeModel;
 import org.fourthline.cling.UpnpService;
 import org.fourthline.cling.UpnpServiceImpl;
 import org.fourthline.cling.model.action.ActionInvocation;
@@ -61,15 +59,10 @@ public class UpnpRemote implements Runnable {
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
 
     private final Object flag = new Object();
-    private final DefaultTreeModel treeModel;
-
     private final UpnpService upnp;
-    private final UI parent;
+    private final PVR pvr;
     private final List<DeviceBrowse> queue;
     private final AtomicBoolean running;
-    private int completed = 0;
-
-    private final PVRFolder rootFolder = new PVRFolder("", "/");
 
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
         @Override
@@ -83,10 +76,8 @@ public class UpnpRemote implements Runnable {
         }
     };
 
-    UpnpRemote(UI parent) {
-        this.parent = parent;
-
-        treeModel = new DefaultTreeModel(null);
+    UpnpRemote(PVR pvr) {
+        this.pvr = pvr;
         upnp = new UpnpServiceImpl(upnpListener);
         queue = new ArrayList<>();
         running = new AtomicBoolean(false);
@@ -94,21 +85,16 @@ public class UpnpRemote implements Runnable {
 
     public void start() {
         if (running.compareAndSet(false, true)) {
-            parent.setStatus("Searching for media servers");
             upnp.getControlPoint().search(new STAllHeader());
             new Thread(this, "BrowseQueue").start();
         }
-    }
-
-    public TreeModel getTreeModel() {
-        return treeModel;
     }
 
     private void populateTree(RemoteDevice device) {
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
             synchronized (queue) {
-                queue.add(new DeviceBrowse(service, "0\\1\\2", rootFolder));
+                queue.add(new DeviceBrowse(service, "0\\1\\2", (PVRFolder) pvr.getRoot()));
                 queue.notifyAll();
             }
         }
@@ -144,8 +130,7 @@ public class UpnpRemote implements Runnable {
                 return;
             }
         }
-        walkTree(rootFolder);
-        System.exit(0);
+        walkTree((PVRFolder) pvr.getRoot());
     }
 
     private void walkTree(PVRFolder folder) {
@@ -175,11 +160,7 @@ public class UpnpRemote implements Runnable {
             List<Container> containers = didl.getContainers();
 
             for (Container c : containers) {
-
-                log.debug("Found folder: {} - {}", c.getTitle(), parent.getPath());
-                PVRFolder folder = new PVRFolder(c.getTitle(), parent.getPath() + c.getTitle() + "/");
-                parent.addChild(folder);
-
+                PVRFolder folder = pvr.addFolder(parent, c.getTitle());
                 synchronized (queue) {
                     queue.add(new DeviceBrowse(service, c.getId(), folder));
                     queue.notifyAll();
@@ -188,15 +169,13 @@ public class UpnpRemote implements Runnable {
             List<Item> items = didl.getItems();
 
             for (Item i : items) {
-                log.debug("Found file  : {} - {}", i.getTitle(), parent.getPath());
-                PVRFile file = new PVRFile(i.getTitle(), parent.getPath() + i.getTitle());
+                PVRFile file = pvr.addFile(parent, i.getTitle());
 
                 Res res = i.getFirstResource();
                 if (res != null) {
                     file.setDownloadURL(res.getValue());
                 }
 
-                parent.addChild(file);
             }
             synchronized (flag) {
                 flag.notifyAll();

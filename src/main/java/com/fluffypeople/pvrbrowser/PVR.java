@@ -24,8 +24,13 @@
 package com.fluffypeople.pvrbrowser;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import javax.swing.event.TreeModelEvent;
+import javax.swing.event.TreeModelListener;
+import javax.swing.tree.TreeModel;
+import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -37,19 +42,109 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVR {
+public class PVR implements TreeModel {
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
+    private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
+    private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
+
+    @Override
+    public Object getRoot() {
+        return rootFolder;
+    }
+
+    @Override
+    public Object getChild(Object parent, int index) {
+        return ((PVRFolder) parent).getChild(index);
+    }
+
+    @Override
+    public int getChildCount(Object parent) {
+        return ((PVRFolder) parent).getChildCount();
+    }
+
+    @Override
+    public boolean isLeaf(Object node) {
+        return ((PVRItem) node).isFile();
+    }
+
+    @Override
+    public void valueForPathChanged(TreePath arg0, Object arg1) {
+        throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+    }
+
+    @Override
+    public int getIndexOfChild(Object parent, Object child) {
+        if (parent != null && parent instanceof PVRFolder && child != null && child instanceof PVRItem) {
+            for (int i = 0; i < ((PVRFolder) parent).getChildCount(); i += 1) {
+                if ((child.equals(((PVRFolder) parent).getChild(i)))) {
+                    return i;
+                }
+            }
+        }
+        return -1;
+    }
+
+    public PVRFolder addFolder(PVRFolder parent, String name) {
+        PVRFolder folder = new PVRFolder(parent, name, parent.getPath() + name + "/");
+        parent.addChild(folder);
+
+        notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
+
+        return folder;
+    }
+
+    public PVRFile addFile(PVRFolder parent, String name) {
+        PVRFile file = new PVRFile(parent, name, parent.getPath() + name);
+        parent.addChild(file);
+        notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
+        return file;
+    }
+
+    @Override
+    public void addTreeModelListener(TreeModelListener l) {
+        synchronized (treeModelListeners) {
+            treeModelListeners.add(l);
+        }
+    }
+
+    @Override
+    public void removeTreeModelListener(TreeModelListener l) {
+        synchronized (treeModelListeners) {
+            treeModelListeners.remove(l);
+        }
+    }
+
+    private void notifyListeners(TreeModelEvent e) {
+        synchronized (treeModelListeners) {
+            for (TreeModelListener l : treeModelListeners) {
+                l.treeNodesInserted(e);
+            }
+        }
+    }
 
     public static abstract class PVRItem implements Comparable<PVRItem> {
 
         protected final String name;
         protected final String path;
+        protected final PVRItem parent;
+        protected final TreePath treePath;
 
-        public PVRItem(String name, String path) {
+        @SuppressWarnings("LeakingThisInConstructor")
+        public PVRItem(PVRItem parent, String name, String path) {
+            this.parent = parent;
             this.name = name;
             this.path = path;
-
+            if (parent != null) {
+                Object[] parentPath = parent.getTreePath().getPath();
+                Object[] myPath = new Object[parentPath.length + 1];
+                System.arraycopy(parentPath, 0, myPath, 0, parentPath.length);
+                myPath[myPath.length - 1] = this;
+                treePath = new TreePath(myPath);
+            } else {
+                // root node;
+                treePath = new TreePath(this);
+            }
         }
 
         @Override
@@ -68,22 +163,25 @@ public class PVR {
 
         public abstract boolean isFolder();
 
-        /**
-         * Get human readable/display name.
-         *
-         * @return
-         */
         public String getName() {
             return name;
         }
 
-        /**
-         * Get path on PVR filesystem
-         *
-         * @return
-         */
         public String getPath() {
             return path;
+        }
+
+        public PVRItem getParent() {
+            return parent;
+        }
+
+        public TreePath getTreePath() {
+            return treePath;
+        }
+
+        @Override
+        public String toString() {
+            return name;
         }
     }
 
@@ -91,8 +189,8 @@ public class PVR {
 
         private final List<PVRItem> children;
 
-        public PVRFolder(String path, String name) {
-            super(path, name);
+        public PVRFolder(PVRItem parent, String path, String name) {
+            super(parent, path, name);
             this.children = new ArrayList<>();
         }
 
@@ -112,10 +210,16 @@ public class PVR {
             }
         }
 
+        public PVRItem getChild(int index) {
+            return children.get(index);
+        }
+
+        public int getChildCount() {
+            return children.size();
+        }
+
         public List<PVRItem> getChildren() {
-            synchronized (children) {
-                return Collections.unmodifiableList(children);
-            }
+            return children;
         }
 
     }
@@ -137,8 +241,8 @@ public class PVR {
             return true;
         }
 
-        public PVRFile(String path, String name) {
-            super(path, name);
+        public PVRFile(PVRItem parent, String path, String name) {
+            super(parent, path, name);
         }
 
         public long getSize() {

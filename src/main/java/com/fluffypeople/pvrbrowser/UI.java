@@ -27,6 +27,7 @@ public class UI extends JFrame {
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager dlManager;
     private final UpnpRemote upnpRemote;
+    private final PVR pvr;
 
     private JButton chooserButton;
     private JButton downloadButton;
@@ -35,7 +36,9 @@ public class UI extends JFrame {
     private JTree displayTree;
 
     public UI(Preferences prefs) {
-        upnpRemote = new UpnpRemote(this);
+
+        pvr = new PVR();
+        upnpRemote = new UpnpRemote(pvr);
 
         dlManager = new DownloadManager(prefs);
         initComponents();
@@ -87,13 +90,15 @@ public class UI extends JFrame {
         JList downloadList = new JList(dlManager);
 
         displayTree = new JTree();
-        displayTree.setModel(upnpRemote.getTreeModel());
+        displayTree.setModel(pvr);
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
 
         java.awt.Container cp = getContentPane();
         cp.setLayout(new BorderLayout());
-        cp.add(new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList)), BorderLayout.CENTER);
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
+        splitPane.setResizeWeight(0.5);
+        cp.add(splitPane, BorderLayout.CENTER);
         cp.add(buttonPanel, BorderLayout.SOUTH);
 
         pack();
