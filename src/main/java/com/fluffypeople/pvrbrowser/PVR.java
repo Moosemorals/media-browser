@@ -23,6 +23,7 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -47,6 +48,25 @@ public class PVR implements TreeModel {
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
+    private String hostname = null;
+
+    public void setHostname(String hostname) {
+        this.hostname = hostname;
+        new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    new FTPRemote().scrapeFTP(PVR.this);
+                } catch (IOException ex) {
+                    throw new RuntimeException(ex);
+                }
+            }
+        }, "FTPScrape").start();
+    }
+
+    public String getHostname() {
+        return hostname;
+    }
 
     @Override
     public Object getRoot() {
@@ -55,12 +75,16 @@ public class PVR implements TreeModel {
 
     @Override
     public Object getChild(Object parent, int index) {
-        return ((PVRFolder) parent).getChild(index);
+        synchronized (((PVRFolder) parent).children) {
+            return ((PVRFolder) parent).getChild(index);
+        }
     }
 
     @Override
     public int getChildCount(Object parent) {
-        return ((PVRFolder) parent).getChildCount();
+        synchronized (((PVRFolder) parent).children) {
+            return ((PVRFolder) parent).getChildCount();
+        }
     }
 
     @Override
@@ -75,10 +99,12 @@ public class PVR implements TreeModel {
 
     @Override
     public int getIndexOfChild(Object parent, Object child) {
-        if (parent != null && parent instanceof PVRFolder && child != null && child instanceof PVRItem) {
-            for (int i = 0; i < ((PVRFolder) parent).getChildCount(); i += 1) {
-                if ((child.equals(((PVRFolder) parent).getChild(i)))) {
-                    return i;
+        synchronized (((PVRFolder) parent).children) {
+            if (parent != null && parent instanceof PVRFolder && child != null && child instanceof PVRItem) {
+                for (int i = 0; i < ((PVRFolder) parent).getChildCount(); i += 1) {
+                    if ((child.equals(((PVRFolder) parent).getChild(i)))) {
+                        return i;
+                    }
                 }
             }
         }
@@ -86,19 +112,61 @@ public class PVR implements TreeModel {
     }
 
     public PVRFolder addFolder(PVRFolder parent, String name) {
-        PVRFolder folder = new PVRFolder(parent, name, parent.getPath() + name + "/");
-        parent.addChild(folder);
+        synchronized (parent.children) {
+            for (PVRItem child : parent.children) {
+                if (child.getName().equals(name)) {
+                    if (child.isFolder()) {
+                        return (PVRFolder) child;
+                    } else {
+                        throw new RuntimeException("Can't add file [" + name + "] to " + parent.path + ": Already exists as folder");
+                    }
+                }
+            }
 
-        notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
+            PVRFolder folder = new PVRFolder(parent, name, parent.getPath() + name + "/");
+            parent.addChild(folder);
 
-        return folder;
+            notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{folder}));
+            return folder;
+        }
     }
 
     public PVRFile addFile(PVRFolder parent, String name) {
-        PVRFile file = new PVRFile(parent, name, parent.getPath() + name);
-        parent.addChild(file);
-        notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
-        return file;
+        synchronized (parent.children) {
+            for (PVRItem child : parent.children) {
+                if (child.getName().equals(name)) {
+                    if (child.isFile()) {
+                        return (PVRFile) child;
+                    } else {
+                        throw new RuntimeException("Can't add folder [" + name + "] to " + parent.path + ": Already exists as file");
+                    }
+                }
+            }
+
+            PVRFile file = new PVRFile(parent, name, parent.getPath() + name);
+            parent.addChild(file);
+
+            notifyListeners(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildCount() - 1}, new Object[]{file}));
+
+            return file;
+        }
+    }
+
+    public void dumpTree() {
+        dumpTree(rootFolder);
+    }
+
+    public void dumpTree(PVRFolder folder) {
+        synchronized (folder.children) {
+            for (PVRItem child : folder.children) {
+                if (child.isFolder()) {
+                    log.debug("Folder : [{}] - [{}]", child.getPath(), child.getName());
+                    dumpTree((PVRFolder) child);
+                } else {
+                    log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getName(), ((PVRFile) child).getDownloadURL());
+                }
+            }
+        }
     }
 
     @Override
@@ -131,7 +199,7 @@ public class PVR implements TreeModel {
         protected final TreePath treePath;
 
         @SuppressWarnings("LeakingThisInConstructor")
-        public PVRItem(PVRItem parent, String name, String path) {
+        private PVRItem(PVRItem parent, String name, String path) {
             this.parent = parent;
             this.name = name;
             this.path = path;
@@ -189,7 +257,7 @@ public class PVR implements TreeModel {
 
         private final List<PVRItem> children;
 
-        public PVRFolder(PVRItem parent, String path, String name) {
+        private PVRFolder(PVRItem parent, String path, String name) {
             super(parent, path, name);
             this.children = new ArrayList<>();
         }
@@ -205,9 +273,7 @@ public class PVR implements TreeModel {
         }
 
         public void addChild(PVRItem child) {
-            synchronized (children) {
-                children.add(child);
-            }
+            children.add(child);
         }
 
         public PVRItem getChild(int index) {
@@ -217,11 +283,6 @@ public class PVR implements TreeModel {
         public int getChildCount() {
             return children.size();
         }
-
-        public List<PVRItem> getChildren() {
-            return children;
-        }
-
     }
 
     public static class PVRFile extends PVRItem {
@@ -241,7 +302,7 @@ public class PVR implements TreeModel {
             return true;
         }
 
-        public PVRFile(PVRItem parent, String path, String name) {
+        private PVRFile(PVRItem parent, String path, String name) {
             super(parent, path, name);
         }
 

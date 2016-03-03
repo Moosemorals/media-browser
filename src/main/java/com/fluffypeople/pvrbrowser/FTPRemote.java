@@ -23,6 +23,8 @@
  */
 package com.fluffypeople.pvrbrowser;
 
+import com.fluffypeople.pvrbrowser.PVR.PVRFile;
+import com.fluffypeople.pvrbrowser.PVR.PVRFolder;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,13 +44,11 @@ public class FTPRemote {
 
     private final Logger log = LoggerFactory.getLogger(FTPRemote.class);
 
-    private static final String BASE_DIR = "/My Video/";
+    private static final String BASE_DIR = "/My Video";
 
     private final FTPClient ftp;
-    private final String hostname;
 
-    public FTPRemote(String hostname) {
-        this.hostname = hostname;
+    public FTPRemote() {
         FTPClientConfig config = new FTPClientConfig();
         config.setServerTimeZoneId("Europe/London");
         config.setServerLanguageCode("EN");
@@ -57,8 +57,8 @@ public class FTPRemote {
         ftp.configure(config);
     }
 
-    public void browse() throws IOException {
-        ftp.connect(hostname);
+    public void scrapeFTP(PVR pvr) throws IOException {
+        ftp.connect(pvr.getHostname());
         int reply = ftp.getReplyCode();
 
         if (!FTPReply.isPositiveCompletion(reply)) {
@@ -73,14 +73,14 @@ public class FTPRemote {
             throw new IOException("Can't set binary transfer");
         }
 
-        List<String> queue = new ArrayList<>();
+        List<PVRFolder> queue = new ArrayList<>();
 
-        queue.add(BASE_DIR);
+        queue.add((PVRFolder) pvr.getRoot());
 
         while (!queue.isEmpty()) {
-            String directory = queue.remove(0);
+            PVRFolder directory = queue.remove(0);
 
-            if (!ftp.changeWorkingDirectory(directory)) {
+            if (!ftp.changeWorkingDirectory(BASE_DIR + directory.getPath())) {
                 throw new IOException("Can't change FTP directory to " + directory);
             }
 
@@ -90,47 +90,46 @@ public class FTPRemote {
                     continue;
                 }
 
-                StringBuilder targetBuilder = new StringBuilder();
-                targetBuilder.append(directory);
-                if (!directory.endsWith("/")) {
-                    targetBuilder.append("/");
-                }
-                targetBuilder.append(f.getName());
-
-                String target = targetBuilder.toString();
-
                 if (f.isDirectory()) {
-                    queue.add(target);
-                } else if (f.isFile()) {
-                    if (target.endsWith(".hmt")) {
+                    PVRFolder next = pvr.addFolder(directory, f.getName());
+                    queue.add(next);
+                } else if (f.isFile() && f.getName().endsWith(".ts")) {
 
-                        if (f.getSize() > Integer.MAX_VALUE) {
-                            throw new IOException("Can't download " + target + ": Bigger than MAX_INT");
-                        }
+                    PVRFile file = pvr.addFile(directory, f.getName());
 
-                        ByteArrayOutputStream out = new ByteArrayOutputStream((int) f.getSize());
+                    file.setSize(f.getSize());
 
-                        if (!ftp.retrieveFile(target, out)) {
-                            throw new IOException("Can't download " + target + ": Unknown reason");
-                        }
+                    HMTFile hmt = getHMTForTs(file);
 
-                        HMTFile hmt = new HMTFile(out.toByteArray());
+                    file.setDescription(hmt.getDesc());
 
-                        log.debug("File: [{}] [{}] [{}]",
-                                target,
-                                hmt.getRecordingTitle(),
-                                hmt.getTitle()
-                        );
-
-                    }
                 }
-
-                //     log.debug("{} - {} - {}", directory, f.getName(), f.getSize());
             }
         }
-
         ftp.disconnect();
+    }
 
+    private HMTFile getHMTForTs(PVRFile file) throws IOException {
+        String target = file.getName().replaceAll("\\.ts$", ".hmt");
+
+        FTPFile[] listFiles = ftp.listFiles(target);
+        if (listFiles.length != 1) {
+            throw new IOException("Unexpected number of hmt files: " + listFiles.length);
+        }
+
+        FTPFile f = listFiles[0];
+
+        if (f.getSize() > Integer.MAX_VALUE) {
+            throw new IOException("Can't download " + file.getPath() + ": Bigger than MAX_INT");
+        }
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream((int) f.getSize());
+
+        if (!ftp.retrieveFile(BASE_DIR + file.getPath(), out)) {
+            throw new IOException("Can't download " + file.getPath() + ": Unknown reason");
+        }
+
+        return new HMTFile(out.toByteArray());
     }
 
 }

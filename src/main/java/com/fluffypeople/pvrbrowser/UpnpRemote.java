@@ -25,7 +25,6 @@ package com.fluffypeople.pvrbrowser;
 
 import com.fluffypeople.pvrbrowser.PVR.PVRFile;
 import com.fluffypeople.pvrbrowser.PVR.PVRFolder;
-import com.fluffypeople.pvrbrowser.PVR.PVRItem;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -69,6 +68,7 @@ public class UpnpRemote implements Runnable {
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
             if (DEVICE_NAME.equals(device.getDisplayString())) {
                 log.debug("Found {}", DEVICE_NAME);
+                pvr.setHostname(device.getIdentity().getDescriptorURL().getHost());
                 populateTree(device);
             } else {
                 log.info("Skiping device {} ", device.getDisplayString());
@@ -130,18 +130,7 @@ public class UpnpRemote implements Runnable {
                 return;
             }
         }
-        walkTree((PVRFolder) pvr.getRoot());
-    }
-
-    private void walkTree(PVRFolder folder) {
-        for (PVRItem child : folder.getChildren()) {
-            if (child.isFolder()) {
-                log.debug("Folder : [{}] - [{}]", child.getPath(), child.getName());
-                walkTree((PVRFolder) child);
-            } else {
-                log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getName(), ((PVRFile) child).getDownloadURL());
-            }
-        }
+        pvr.dumpTree();
     }
 
     private class DeviceBrowse extends Browse {
