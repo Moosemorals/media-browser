@@ -23,23 +23,17 @@
  */
 package com.fluffypeople.pvrbrowser;
 
-import java.awt.Component;
 import java.awt.EventQueue;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
-import javax.swing.JLabel;
-import javax.swing.JTree;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
-import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.TreeCellRenderer;
 import javax.swing.tree.TreeModel;
 import javax.swing.tree.TreePath;
 import org.apache.commons.net.PrintCommandListener;
@@ -63,6 +57,10 @@ import org.fourthline.cling.support.model.DIDLContent;
 import org.fourthline.cling.support.model.Res;
 import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -74,10 +72,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVR implements TreeModel, Runnable, TreeCellRenderer {
+public class PVR implements TreeModel, Runnable {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
     private static final String FTP_ROOT = "/My Video/";
+
+    public static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
+    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH.mm.ss").withZone(DEFAULT_TIMEZONE);
 
     private final boolean debugFTP = false;
 
@@ -89,7 +90,6 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
     private final UpnpService upnp;
     private final List<DeviceBrowse> upnpQueue;
     private final AtomicBoolean running;
-    private final DefaultTreeCellRenderer defaultTreeCellRenderer;
 
     private String hostname = null;
 
@@ -107,8 +107,6 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
         upnp = new UpnpServiceImpl(upnpListener);
         upnpQueue = new ArrayList<>();
         running = new AtomicBoolean(false);
-
-        defaultTreeCellRenderer = new DefaultTreeCellRenderer();
     }
 
     public void setHostname(String hostname) {
@@ -321,8 +319,8 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
                     file.setSize(f.getSize());
                     file.setDescription(hmt.getDesc());
                     file.setTitle(hmt.getRecordingTitle());
-                    file.setStart(new Date(hmt.getStartTimestamp() * 1000));
-                    file.setEnd(new Date(hmt.getEndTimestamp() * 1000));
+                    file.setStart(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
+                    file.setEnd(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
                 }
             }
         }
@@ -402,31 +400,6 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
                 return;
             }
         }
-    }
-
-    @Override
-    public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
-
-        JLabel fish = new JLabel();
-
-        if (leaf) {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
-        } else if (expanded) {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
-        } else {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
-        }
-
-        PVRItem item = (PVRItem) value;
-        if (item.isFile()) {
-            PVRFile file = (PVRFile) item;
-            fish.setText(file.getTitle() + ": " + file.getStart());
-        } else {
-            PVRFolder folder = (PVRFolder) item;
-            fish.setText(folder.getFilename());
-        }
-
-        return fish;
     }
 
     private class DeviceBrowse extends Browse {
@@ -592,8 +565,8 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
         private String description = "";
         private String title;
         private String downloadPath;
-        private Date start;
-        private Date end;
+        private DateTime start;
+        private DateTime end;
 
         private PVRFile(PVRItem parent, String path, String filename) {
             super(parent, path, filename);
@@ -667,19 +640,19 @@ public class PVR implements TreeModel, Runnable, TreeCellRenderer {
             this.remoteURL = remoteURL;
         }
 
-        public Date getStart() {
+        public DateTime getStart() {
             return start;
         }
 
-        public void setStart(Date start) {
+        public void setStart(DateTime start) {
             this.start = start;
         }
 
-        public Date getEnd() {
+        public DateTime getEnd() {
             return end;
         }
 
-        public void setEnd(Date end) {
+        public void setEnd(DateTime end) {
             this.end = end;
         }
 
