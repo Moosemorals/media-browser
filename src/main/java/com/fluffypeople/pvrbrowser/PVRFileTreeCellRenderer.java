@@ -33,6 +33,7 @@ import javax.swing.JLabel;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeCellRenderer;
+import org.joda.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -66,6 +67,8 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
         if (item.isFile()) {
             PVR.PVRFile file = (PVR.PVRFile) item;
 
+            Duration length = new Duration(file.getStart(), file.getEnd());
+
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
@@ -73,7 +76,7 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
                     .append(" ")
                     .append(DATE_FORMAT.print(file.getStart()))
                     .append(" (")
-                    .append(PERIOD_FORMAT.print(file.getLength()))
+                    .append(PERIOD_FORMAT.print(length.toPeriod()))
                     .append(")");
 
             if (file.isHighDef()) {
@@ -91,6 +94,8 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
 
         if (selected) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
+        } else {
+            setBorder(null);
         }
 
         return this;
