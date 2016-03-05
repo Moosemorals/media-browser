@@ -21,10 +21,10 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.fluffypeople.pvrbrowser;
+package com.moosemorals.mediabrowser;
 
-import static com.fluffypeople.pvrbrowser.PVR.DATE_FORMAT;
-import static com.fluffypeople.pvrbrowser.PVR.PERIOD_FORMAT;
+import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
+import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
 import javax.swing.BorderFactory;

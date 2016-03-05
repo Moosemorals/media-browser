@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.fluffypeople.pvrbrowser;
+package com.moosemorals.mediabrowser;
 
 import java.nio.charset.Charset;
 import org.slf4j.Logger;

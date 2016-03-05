@@ -2,10 +2,10 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package com.fluffypeople.pvrbrowser;
+package com.moosemorals.mediabrowser;
 
-import com.fluffypeople.pvrbrowser.PVR.PVRFile;
-import com.fluffypeople.pvrbrowser.PVR.PVRItem;
+import com.moosemorals.mediabrowser.PVR.PVRFile;
+import com.moosemorals.mediabrowser.PVR.PVRItem;
 import java.awt.BorderLayout;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;

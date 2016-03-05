@@ -1,4 +1,4 @@
-package com.fluffypeople.pvrbrowser;
+package com.moosemorals.mediabrowser;
 
 import java.awt.EventQueue;
 import java.util.prefs.Preferences;

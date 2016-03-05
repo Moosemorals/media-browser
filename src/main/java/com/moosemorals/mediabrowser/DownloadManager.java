@@ -1,6 +1,6 @@
-package com.fluffypeople.pvrbrowser;
+package com.moosemorals.mediabrowser;
 
-import com.fluffypeople.pvrbrowser.PVR.PVRFile;
+import com.moosemorals.mediabrowser.PVR.PVRFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
