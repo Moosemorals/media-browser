@@ -239,12 +239,18 @@ public class UI extends JFrame {
 
         JList downloadList = new JList(dlManager);
         downloadList.setCellRenderer(new PVRFileListCellRenderer());
+        downloadList.setDragEnabled(true);
+        downloadList.setDropMode(DropMode.INSERT);
+        downloadList.setTransferHandler(new PVRFileTransferHandler());
 
         displayTree = new JTree();
         displayTree.setModel(pvr);
         displayTree.setCellRenderer(new PVRFileTreeCellRenderer(itemPopup));
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
+        displayTree.setDragEnabled(true);
+        displayTree.setTransferHandler(new PVRFileTransferHandler());
+        displayTree.setDropTarget(null);
 
         displayTree.addMouseListener(new MouseAdapter() {
             @Override

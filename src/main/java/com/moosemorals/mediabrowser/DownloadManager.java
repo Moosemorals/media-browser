@@ -33,6 +33,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -78,7 +79,23 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     public boolean queueFile(PVRFile target) {
+
+        if (!setupForQueue(target)) {
+            return false;
+        }
+
+        synchronized (queue) {
+            queue.add(target);
+            log.debug("addTarget: Queue length: {}", queue.size());
+            queue.notifyAll();
+        }
+        notifyListeners();
+        return true;
+    }
+
+    private boolean setupForQueue(PVRFile target) {
         if (target.getState() != PVRFile.State.Ready) {
+            log.debug("File {} isn't ready, in state {}", target.getTitle(), target.getState());
             return false;
         }
 
@@ -91,14 +108,39 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
             target.setDownloaded(0);
             target.setState(PVRFile.State.Queued);
         }
+        return true;
+    }
 
+    public void dropFiles(int row, List<PVRFile> files) {
         synchronized (queue) {
-            queue.add(target);
-            log.debug("addTarget: Queue length: {}", queue.size());
-            queue.notifyAll();
+            for (PVRFile f : files) {
+                queue.remove(f);
+                queue.add(row, f);
+            }
         }
         notifyListeners();
-        return true;
+    }
+
+    public void insertFiles(int row, List<PVRFile> files) {
+        log.debug("Inserting {} files at row {}", files.size(), row);
+
+        for (Iterator<PVRFile> it = files.iterator(); it.hasNext();) {
+            PVRFile f = it.next();
+            if (!setupForQueue(f)) {
+                it.remove();
+            }
+        }
+
+        if (files.isEmpty()) {
+            log.debug("Nothing left to insert");
+            return;
+        }
+
+        synchronized (queue) {
+            queue.addAll(row, files);
+            queue.notifyAll();
+            notifyListeners();
+        }
     }
 
     @Override

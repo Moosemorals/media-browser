@@ -24,8 +24,10 @@
 package com.moosemorals.mediabrowser;
 
 import com.moosemorals.mediabrowser.PVR.PVRFile;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JLabel;
@@ -93,6 +95,12 @@ public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<
                 .toString();
 
         text.setText(title);
+
+        if (isSelected) {
+            setBorder(BorderFactory.createDashedBorder(Color.BLACK));
+        } else {
+            setBorder(null);
+        }
 
         switch (file.getState()) {
             case Queued:
