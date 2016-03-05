@@ -83,7 +83,7 @@ public class PVR implements TreeModel {
     private static final String FTP_ROOT = "/My Video/";
 
     public static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
-    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH.mm").withZone(DEFAULT_TIMEZONE);
+    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH-mm").withZone(DEFAULT_TIMEZONE);
 
     public static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
             .appendHours()
@@ -351,6 +351,15 @@ public class PVR implements TreeModel {
                     file.setLength(new Duration(hmt.getLength() * 1000));
                     file.setHighDef(hmt.isHighDef());
                     file.setLocked(hmt.isLocked());
+                    file.setChannelName(hmt.getChannelName());
+
+                    file.setDownloadFilename(String.format("%s - %s - [%s - Freview - %s] UNEDITED.ts",
+                            file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
+                            DATE_FORMAT.print(file.getStart()),
+                            file.isHighDef() ? "1920×1080" : "SD",
+                            file.getChannelName()
+                    ));
+
                 }
             }
         }
@@ -677,7 +686,9 @@ public class PVR implements TreeModel {
         private String remoteURL = null;
         private String description = "";
         private String title = "";
+        private String channelName = "Unknown";
         private String downloadPath = null;
+        private String downloadFilename = null;
         private DateTime start;
         private DateTime end;
         private Duration length;
@@ -688,6 +699,7 @@ public class PVR implements TreeModel {
             super(parent, path, filename);
             state = State.Ready;
             title = filename;
+            downloadFilename = filename;
         }
 
         @Override
@@ -703,6 +715,21 @@ public class PVR implements TreeModel {
                     return x;
                 }
             }
+        }
+
+        @Override
+        public boolean isFolder() {
+            return false;
+        }
+
+        @Override
+        public boolean isFile() {
+            return true;
+        }
+
+        @Override
+        public long getSize() {
+            return size;
         }
 
         public void setState(State newState) {
@@ -725,23 +752,16 @@ public class PVR implements TreeModel {
             return downloadPath;
         }
 
+        public String getDownloadFilename() {
+            return downloadFilename;
+        }
+
+        public void setDownloadFilename(String downloadFilename) {
+            this.downloadFilename = downloadFilename;
+        }
+
         public State getState() {
             return state;
-        }
-
-        @Override
-        public boolean isFolder() {
-            return false;
-        }
-
-        @Override
-        public boolean isFile() {
-            return true;
-        }
-
-        @Override
-        public long getSize() {
-            return size;
         }
 
         public void setSize(long size) {
@@ -810,6 +830,14 @@ public class PVR implements TreeModel {
 
         public void setLocked(boolean locked) {
             this.locked = locked;
+        }
+
+        public String getChannelName() {
+            return channelName;
+        }
+
+        public void setChannelName(String channelName) {
+            this.channelName = channelName;
         }
 
         @Override

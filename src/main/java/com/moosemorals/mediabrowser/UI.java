@@ -238,6 +238,7 @@ public class UI extends JFrame {
         statusPanel.add(statusLabel);
 
         JList downloadList = new JList(dlManager);
+        downloadList.setCellRenderer(new PVRFileListCellRenderer());
 
         displayTree = new JTree();
         displayTree.setModel(pvr);
