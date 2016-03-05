@@ -54,9 +54,9 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
     }
 
-    public void addTarget(PVRFile target) {
+    public boolean queueFile(PVRFile target) {
         if (target.getState() != PVRFile.State.Ready) {
-            return;
+            return false;
         }
 
         target.setDownloadPath(getDownloadPath().getPath());
@@ -75,6 +75,7 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
             queue.notifyAll();
         }
         notifyListeners();
+        return true;
     }
 
     @Override
@@ -118,7 +119,7 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
 
                 connection.connect();
 
-                log.debug("Filename " + downloadTarget.getAbsolutePath());
+                long lastCheck = System.currentTimeMillis();
 
                 try (InputStream in = connection.getInputStream(); OutputStream out = new FileOutputStream(downloadTarget, append)) {
                     byte[] buffer = new byte[1024 * 4];
@@ -128,10 +129,16 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
                         out.write(buffer, 0, n);
                         count += n;
                         target.setDownloaded(count);
-                        notifyListeners();
+
+                        if ((System.currentTimeMillis() - lastCheck) > 500) {
+                            lastCheck = System.currentTimeMillis();
+                            notifyListeners();
+                        }
+
                         if (!running.get()) {
                             in.close();
                             target.setState(PVRFile.State.Paused);
+                            notifyListeners();
                             return;
                         }
                     }
@@ -164,15 +171,15 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     public File getDownloadPath() {
-        return new File(prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, System.getProperty("user.home")));
+        return new File(prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
     }
 
     public boolean isDownloadPathSet() {
-        return prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, null) != null;
+        return prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, null) != null;
     }
 
     public void setDownloadPath(File path) {
-        prefs.put(UI.DOWNLOAD_DIRECTORY_KEY, path.getPath());
+        prefs.put(UI.KEY_DOWNLOAD_DIRECTORY, path.getPath());
     }
 
     @Override

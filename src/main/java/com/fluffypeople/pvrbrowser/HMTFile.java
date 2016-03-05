@@ -95,6 +95,11 @@ public class HMTFile {
         return l;
     }
 
+    /**
+     * Don't trust this value!
+     *
+     * @return
+     */
     public long getLength() {
         // http://stackoverflow.com/a/362390/195833
 
@@ -112,6 +117,17 @@ public class HMTFile {
 
     public boolean isLocked() {
         return raw[0x03DC] != 0x04;
+    }
+
+    public void clearLock() {
+        raw[0x03DC] = 0x04;
+    }
+
+    public byte[] getBytes() {
+        byte[] copy = new byte[raw.length];
+
+        System.arraycopy(raw, 0, copy, 0, raw.length);
+        return copy;
     }
 
     private String nullTerminated(int offset, int length) {

@@ -25,11 +25,11 @@ package com.fluffypeople.pvrbrowser;
 
 import static com.fluffypeople.pvrbrowser.PVR.DATE_FORMAT;
 import static com.fluffypeople.pvrbrowser.PVR.PERIOD_FORMAT;
-import com.fluffypeople.pvrbrowser.PVR.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import javax.swing.BorderFactory;
 import javax.swing.JLabel;
+import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeCellRenderer;
@@ -45,11 +45,12 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
     private final DefaultTreeCellRenderer defaultTreeCellRenderer;
+    private final JPopupMenu popup;
 
-    public PVRFileTreeCellRenderer() {
+    public PVRFileTreeCellRenderer(JPopupMenu popup) {
+        this.popup = popup;
         defaultTreeCellRenderer = new DefaultTreeCellRenderer();
 
-        log.debug("Icon is {} x {}", defaultTreeCellRenderer.getDefaultLeafIcon().getIconWidth(), defaultTreeCellRenderer.getDefaultLeafIcon().getIconHeight());
     }
 
     @Override
@@ -72,7 +73,7 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
-                    .append(PVRFile.humanReadableSize(file.getSize()))
+                    .append(PVR.humanReadableSize(file.getSize()))
                     .append(" ")
                     .append(DATE_FORMAT.print(file.getStart()))
                     .append(" (")
@@ -89,7 +90,18 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
             setText(title.toString());
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
-            setText(folder.getFilename());
+
+            StringBuilder title = new StringBuilder()
+                    .append(folder.getFilename())
+                    .append(": ");
+
+            if (folder.getSize() >= 0) {
+                title.append(PVR.humanReadableSize(folder.getSize()));
+            } else {
+                title.append("Checking...");
+            }
+
+            setText(title.toString());
         }
 
         if (selected) {

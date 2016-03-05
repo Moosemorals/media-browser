@@ -23,7 +23,7 @@ public class Main {
 
         final Preferences prefs = Preferences.userNodeForPackage(Main.class);
 
-        log.debug("Download directory {}", prefs.get(UI.DOWNLOAD_DIRECTORY_KEY, "Uknown"));
+        log.debug("Download directory {}", prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, "Uknown"));
 
         EventQueue.invokeLater(new Runnable() {
 
