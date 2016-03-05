@@ -108,7 +108,7 @@ public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer 
         if (selected) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
         } else {
-            setBorder(null);
+            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         }
 
         return this;

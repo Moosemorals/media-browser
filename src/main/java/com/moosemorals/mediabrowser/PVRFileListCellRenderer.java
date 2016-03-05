@@ -28,8 +28,7 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import javax.swing.BorderFactory;
-import javax.swing.Box;
-import javax.swing.BoxLayout;
+import javax.swing.GroupLayout;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JPanel;
@@ -56,24 +55,34 @@ public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<
     public PVRFileListCellRenderer() {
         super();
 
-        setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
-
-        text = new JLabel();
-        add(text);
-
-        add(Box.createHorizontalGlue());
-
-        state = new JLabel();
-        add(state);
-
         progress = new JProgressBar();
 
-        progress.setMinimumSize(progressSize);
-        progress.setMaximumSize(progressSize);
+        progress.setSize(progressSize);
+        progress.setPreferredSize(progressSize);
         progress.setMinimum(0);
         progress.setStringPainted(true);
-        add(progress);
+        state = new JLabel();
+        text = new JLabel();
 
+        GroupLayout group = new GroupLayout(this);
+
+        setLayout(group);
+
+        group.setAutoCreateGaps(true);
+        group.setAutoCreateContainerGaps(false);
+
+        group.setHorizontalGroup(
+                group.createSequentialGroup()
+                .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addComponent(state)
+                .addComponent(text)
+        );
+        group.setVerticalGroup(
+                group.createParallelGroup()
+                .addComponent(progress)
+                .addComponent(state)
+                .addComponent(text)
+        );
     }
 
     @Override
@@ -99,7 +108,7 @@ public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<
         if (isSelected) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
         } else {
-            setBorder(null);
+            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
         }
 
         switch (file.getState()) {
