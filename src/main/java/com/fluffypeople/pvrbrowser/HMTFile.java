@@ -76,10 +76,10 @@ public class HMTFile {
     public long getStartTimestamp() {
         // http://stackoverflow.com/a/362390/195833
 
-        long l = (long) raw[0x280] & 0xFF;
-        l += ((long) raw[0x281] & 0xFF) << 8;
-        l += ((long) raw[0x282] & 0xFF) << 16;
-        l += ((long) raw[0x283] & 0xFF) << 24;
+        long l = (long) raw[0x0280] & 0xFF;
+        l += ((long) raw[0x0281] & 0xFF) << 8;
+        l += ((long) raw[0x0282] & 0xFF) << 16;
+        l += ((long) raw[0x0283] & 0xFF) << 24;
 
         return l;
     }
@@ -87,12 +87,31 @@ public class HMTFile {
     public long getEndTimestamp() {
         // http://stackoverflow.com/a/362390/195833
 
-        long l = (long) raw[0x284] & 0xFF;
-        l += ((long) raw[0x285] & 0xFF) << 8;
-        l += ((long) raw[0x286] & 0xFF) << 16;
-        l += ((long) raw[0x287] & 0xFF) << 24;
+        long l = (long) raw[0x0284] & 0xFF;
+        l += ((long) raw[0x0285] & 0xFF) << 8;
+        l += ((long) raw[0x0286] & 0xFF) << 16;
+        l += ((long) raw[0x0287] & 0xFF) << 24;
 
         return l;
+    }
+
+    public long getLength() {
+        // http://stackoverflow.com/a/362390/195833
+
+        long l = (long) raw[0x04FC] & 0xFF;
+        l += ((long) raw[0x04FD] & 0xFF) << 8;
+        l += ((long) raw[0x04FE] & 0xFF) << 16;
+        l += ((long) raw[0x04FF] & 0xFF) << 24;
+
+        return l;
+    }
+
+    public boolean isHighDef() {
+        return raw[0x04BC] == 0x02;
+    }
+
+    public boolean isLocked() {
+        return raw[0x03DC] != 0x04;
     }
 
     private String nullTerminated(int offset, int length) {

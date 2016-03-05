@@ -59,8 +59,11 @@ import org.fourthline.cling.support.model.container.Container;
 import org.fourthline.cling.support.model.item.Item;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.Period;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
+import org.joda.time.format.PeriodFormatter;
+import org.joda.time.format.PeriodFormatterBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -78,7 +81,15 @@ public class PVR implements TreeModel, Runnable {
     private static final String FTP_ROOT = "/My Video/";
 
     public static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
-    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH.mm.ss").withZone(DEFAULT_TIMEZONE);
+    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH.mm").withZone(DEFAULT_TIMEZONE);
+
+    public static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
+            .appendHours()
+            .appendSeparatorIfFieldsBefore("h")
+            .appendMinutes()
+            .appendSeparatorIfFieldsBefore("m")
+            .appendSeconds()
+            .toFormatter();
 
     private final boolean debugFTP = false;
 
@@ -95,7 +106,7 @@ public class PVR implements TreeModel, Runnable {
 
     public PVR() {
         FTPClientConfig config = new FTPClientConfig();
-        config.setServerTimeZoneId("Europe/London");
+        config.setServerTimeZoneId(DEFAULT_TIMEZONE.getID());
         config.setServerLanguageCode("EN");
 
         ftp = new FTPClient();
@@ -321,6 +332,9 @@ public class PVR implements TreeModel, Runnable {
                     file.setTitle(hmt.getRecordingTitle());
                     file.setStart(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
                     file.setEnd(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
+                    file.setLength(new Period(hmt.getLength() * 1000));
+                    file.setHighDef(hmt.isHighDef());
+                    file.setLocked(hmt.isLocked());
                 }
             }
         }
@@ -563,10 +577,13 @@ public class PVR implements TreeModel, Runnable {
         private long downloaded = -1;
         private String remoteURL = null;
         private String description = "";
-        private String title;
-        private String downloadPath;
+        private String title = "";
+        private String downloadPath = null;
         private DateTime start;
         private DateTime end;
+        private Period length;
+        private boolean highDef = false;
+        private boolean locked = false;
 
         private PVRFile(PVRItem parent, String path, String filename) {
             super(parent, path, filename);
@@ -654,6 +671,30 @@ public class PVR implements TreeModel, Runnable {
 
         public void setEnd(DateTime end) {
             this.end = end;
+        }
+
+        public Period getLength() {
+            return length;
+        }
+
+        public void setLength(Period length) {
+            this.length = length;
+        }
+
+        public boolean isHighDef() {
+            return highDef;
+        }
+
+        public void setHighDef(boolean highDef) {
+            this.highDef = highDef;
+        }
+
+        public boolean isLocked() {
+            return locked;
+        }
+
+        public void setLocked(boolean locked) {
+            this.locked = locked;
         }
 
         @Override

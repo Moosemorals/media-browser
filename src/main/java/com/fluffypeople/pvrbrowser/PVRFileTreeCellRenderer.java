@@ -24,6 +24,8 @@
 package com.fluffypeople.pvrbrowser;
 
 import static com.fluffypeople.pvrbrowser.PVR.DATE_FORMAT;
+import static com.fluffypeople.pvrbrowser.PVR.PERIOD_FORMAT;
+import com.fluffypeople.pvrbrowser.PVR.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import javax.swing.BorderFactory;
@@ -38,7 +40,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-public class PVRFileTreeCellRenderer implements TreeCellRenderer {
+public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
     private final DefaultTreeCellRenderer defaultTreeCellRenderer;
@@ -52,30 +54,46 @@ public class PVRFileTreeCellRenderer implements TreeCellRenderer {
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
 
-        JLabel fish = new JLabel();
-
         if (leaf) {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
+            setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
         } else if (expanded) {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
+            setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
         } else {
-            fish.setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
+            setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
         }
 
         PVR.PVRItem item = (PVR.PVRItem) value;
         if (item.isFile()) {
             PVR.PVRFile file = (PVR.PVRFile) item;
-            fish.setText(file.getTitle() + ": " + DATE_FORMAT.print(file.getStart()));
+
+            StringBuilder title = new StringBuilder()
+                    .append(file.getTitle())
+                    .append(": ")
+                    .append(PVRFile.humanReadableSize(file.getSize()))
+                    .append(" ")
+                    .append(DATE_FORMAT.print(file.getStart()))
+                    .append(" (")
+                    .append(PERIOD_FORMAT.print(file.getLength()))
+                    .append(")");
+
+            if (file.isHighDef()) {
+                title.append(" [HD]");
+            }
+            if (file.isLocked()) {
+                title.append(" [X]");
+            }
+
+            setText(title.toString());
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
-            fish.setText(folder.getFilename());
+            setText(folder.getFilename());
         }
 
         if (selected) {
-            fish.setBorder(BorderFactory.createDashedBorder(Color.BLACK));
+            setBorder(BorderFactory.createDashedBorder(Color.BLACK));
         }
 
-        return fish;
+        return this;
     }
 
 }
