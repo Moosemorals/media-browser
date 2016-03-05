@@ -143,7 +143,6 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
                         }
                     }
                 }
-
                 target.setState(PVRFile.State.Completed);
                 notifyListeners();
             } catch (IOException ex) {
