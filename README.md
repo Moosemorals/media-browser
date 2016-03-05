@@ -7,7 +7,7 @@ Flipping bits in an undocumented, proprietary, and mostly hidden file is
 intrinsically unsafe. This tool comes with **NO WARRANTY** and may cause
 damage including (but not limited to) making a file unreadable, locking your
 PVR, bricking your PVR, setting your PVR on fire, or turning your PVR into an
-artificial intelligence bent on world destruction. *And it would be **your** fault!*
+artificial intelligence bent on world destruction. *And it would be* **your** *fault!*
 
 **Use this tool at your own risk.**
 
