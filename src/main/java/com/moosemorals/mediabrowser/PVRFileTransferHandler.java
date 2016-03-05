@@ -41,10 +41,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Part of the Drag and Drop infrastructure.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson )osric@fluffypeople.com)
  */
-public class PVRFileTransferHandler extends TransferHandler {
+class PVRFileTransferHandler extends TransferHandler {
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTransferHandler.class);
 
@@ -62,24 +63,24 @@ public class PVRFileTransferHandler extends TransferHandler {
             Point dropPoint = info.getDropLocation().getDropPoint();
             int row = list.locationToIndex(dropPoint);
 
+            DownloadManager dlManager = (DownloadManager) list.getModel();
+
             try {
                 List<PVRFile> files = (List<PVRFile>) info.getTransferable().getTransferData(PVRFileTransferable.PVRFileFlavor);
 
-                DownloadManager dlManager = (DownloadManager) list.getModel();
-
                 if (info.getDropAction() == MOVE) {
-                    log.debug("MOVE");
-                    dlManager.dropFiles(row, files);
+                    dlManager.moveFiles(row, files);
                 } else {
-                    log.debug("COPY");
-
                     if (row == -1) {
+                        // Target list is empty, add files at the start
                         row = 0;
                     } else {
+                        // Given the same answer for "Just before the last row"
+                        // and "Anywhere after the last row", so check if the
+                        // point is actualy *within* the last row, and asuume
+                        // that we're dropping after if its not.
                         Rectangle bounds = list.getCellBounds(row, row);
-
                         if (!bounds.contains(dropPoint)) {
-                            log.debug("Dropping after last entry");
                             row += 1;
                         }
                     }
@@ -110,6 +111,7 @@ public class PVRFileTransferHandler extends TransferHandler {
             }
             return new PVRFileTransferable(files);
         } else {
+            log.warn("Unexpected data souce component {}", c);
             return null;
         }
     }

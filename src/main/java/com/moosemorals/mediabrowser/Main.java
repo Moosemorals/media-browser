@@ -30,8 +30,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Entry point for the application.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson )osric@fluffypeople.com)
  */
 public class Main {
 

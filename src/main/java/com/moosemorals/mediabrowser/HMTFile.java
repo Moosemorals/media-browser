@@ -28,8 +28,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Mange the Humax data file format.
+ * <p>
+ * I didn't do any of the research for this. My main source is
+ * <a href="https://myhumax.org/wiki/index.php?title=Humax_PVR_File_Formats">a
+ * post on the 'My Humax' Wiki</a>, as well as
+ * <a href="http://merrickchaffer.blogspot.co.uk/2012/11/how-to-remove-encryption-from-humax-hdr.html">a
+ * blog post</a> that gives details of how to remove the lock.
+ * <p>
+ * This is the part of the code most likley to make your PVR catch fire.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 public class HMTFile {
 

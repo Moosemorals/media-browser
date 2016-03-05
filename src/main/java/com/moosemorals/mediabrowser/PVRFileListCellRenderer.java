@@ -41,7 +41,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Show PVRFile in a JList.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile> {
 

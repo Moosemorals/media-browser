@@ -38,8 +38,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Draw an entry in the tree.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
 

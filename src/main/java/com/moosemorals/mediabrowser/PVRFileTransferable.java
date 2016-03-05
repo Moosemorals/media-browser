@@ -33,8 +33,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Part of the Drag and Drop infrastructure.
+ * <p>
+ * I think this is the actual object that gets passed around, but thats just a
+ * guess.
  *
- * @author Osric Wilkinson <osric@fluffypeople.com>
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 public class PVRFileTransferable implements Transferable {
 

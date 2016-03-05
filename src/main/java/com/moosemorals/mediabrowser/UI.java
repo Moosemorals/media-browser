@@ -51,8 +51,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * The 'View' part of a MVC pattern, if people actually thought like that.,
  *
- * @author Osric
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 public class UI extends JFrame {
 

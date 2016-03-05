@@ -45,10 +45,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Keep track of files that need downloading and their status, and then download
+ * them.
  *
- * @author Osric
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class DownloadManager implements ListModel<PVRFile>, Runnable {
+class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
@@ -111,7 +113,13 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
         return true;
     }
 
-    public void dropFiles(int row, List<PVRFile> files) {
+    /**
+     * Move an (already queued) list of files to (before) the specified row.
+     *
+     * @param row int target row. Files will be inserted before this row.
+     * @param files List&lt;PVRFile&gt; of files already in the list to move.
+     */
+    void moveFiles(int row, List<PVRFile> files) {
         synchronized (queue) {
             for (PVRFile f : files) {
                 queue.remove(f);
@@ -121,7 +129,13 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
         notifyListeners();
     }
 
-    public void insertFiles(int row, List<PVRFile> files) {
+    /**
+     * Queue a list of files not already queued.
+     *
+     * @param row int target row. Files will be inserted before this row.
+     * @param files List&ltPVRFile&gt; of files to be inserted
+     */
+    void insertFiles(int row, List<PVRFile> files) {
         log.debug("Inserting {} files at row {}", files.size(), row);
 
         for (Iterator<PVRFile> it = files.iterator(); it.hasNext();) {
