@@ -78,7 +78,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVR implements TreeModel {
+class PVR implements TreeModel {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
     private static final String FTP_ROOT = "/My Video/";
@@ -104,13 +104,13 @@ public class PVR implements TreeModel {
 
     public static String humanReadableSize(long size) {
         if (size > TERA) {
-            return String.format(SIZE_FORMAT, (double) size / TERA, "T");
+            return String.format(SIZE_FORMAT, size / TERA, "T");
         } else if (size > GIGA) {
-            return String.format(SIZE_FORMAT, (double) size / GIGA, "G");
+            return String.format(SIZE_FORMAT, size / GIGA, "G");
         } else if (size > MEGA) {
-            return String.format(SIZE_FORMAT, (double) size / MEGA, "M");
+            return String.format(SIZE_FORMAT, size / MEGA, "M");
         } else if (size > KILO) {
-            return String.format(SIZE_FORMAT, (double) size / MEGA, "k");
+            return String.format(SIZE_FORMAT, size / MEGA, "k");
         } else {
             return String.format("% 5db", size);
         }
@@ -130,8 +130,20 @@ public class PVR implements TreeModel {
     private Thread upnpThread = null;
     private Thread ftpThread = null;
     private String remoteHostname = null;
+    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
+        @Override
+        public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
+            if (DEVICE_NAME.equals(device.getDisplayString())) {
+                log.debug("Found {} in thread {}", DEVICE_NAME, Thread.currentThread().getName());
+                setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
+                populateTree(device);
+            } else {
+                log.info("Skiping device {} ", device.getDisplayString());
+            }
+        }
+    };
 
-    public PVR() {
+    PVR() {
         FTPClientConfig config = new FTPClientConfig();
         config.setServerTimeZoneId(DEFAULT_TIMEZONE.getID());
         config.setServerLanguageCode("EN");
@@ -427,19 +439,6 @@ public class PVR implements TreeModel {
         return new HMTFile(out.toByteArray());
     }
 
-    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
-        @Override
-        public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
-            if (DEVICE_NAME.equals(device.getDisplayString())) {
-                log.debug("Found {} in thread {}", DEVICE_NAME, Thread.currentThread().getName());
-                setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
-                populateTree(device);
-            } else {
-                log.info("Skiping device {} ", device.getDisplayString());
-            }
-        }
-    };
-
     public void start() {
         if (upnpRunning.compareAndSet(false, true)) {
             upnp.getControlPoint().search(new STAllHeader());
@@ -506,55 +505,6 @@ public class PVR implements TreeModel {
                 upnpRunning.set(false);
                 return;
             }
-        }
-    }
-
-    private class DeviceBrowse extends Browse {
-
-        private final PVRFolder parent;
-        private final Service service;
-
-        public DeviceBrowse(Service service, String id, PVRFolder parent) {
-            super(service, id, BrowseFlag.DIRECT_CHILDREN);
-            this.parent = parent;
-            this.service = service;
-        }
-
-        @Override
-        public void received(ActionInvocation actionInvocation, DIDLContent didl) {
-            List<Container> containers = didl.getContainers();
-
-            for (Container c : containers) {
-                PVRFolder folder = addFolder(parent, c.getTitle());
-                synchronized (upnpQueue) {
-                    upnpQueue.add(new DeviceBrowse(service, c.getId(), folder));
-                    upnpQueue.notifyAll();
-                }
-            }
-            List<Item> items = didl.getItems();
-
-            for (Item i : items) {
-                PVRFile file = addFile(parent, i.getTitle());
-
-                Res res = i.getFirstResource();
-                if (res != null) {
-                    file.setRemoteURL(res.getValue());
-                }
-
-            }
-            synchronized (flag) {
-                flag.notifyAll();
-            }
-        }
-
-        @Override
-        public void updateStatus(Browse.Status status) {
-
-        }
-
-        @Override
-        public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-
         }
     }
 
@@ -676,10 +626,6 @@ public class PVR implements TreeModel {
     public static class PVRFile extends PVRItem {
 
         private final Logger log = LoggerFactory.getLogger(PVRFile.class);
-
-        public static enum State {
-            Ready, Queued, Downloading, Paused, Completed, Error
-        };
 
         private State state;
         private long size = -1;
@@ -855,20 +801,73 @@ public class PVR implements TreeModel {
                     result.append(PVR.humanReadableSize(size)).append(" Queued");
                     break;
                 case Downloading:
-                    result.append(String.format("%s of %s (%3.0f%%) Downloading", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    result.append(String.format("%s of %s (%3.0f%%) Downloading", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
                     break;
                 case Paused:
-                    result.append(String.format("%s of %s (%3.0f%%) Paused", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    result.append(String.format("%s of %s (%3.0f%%) Paused", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
                     break;
                 case Completed:
                     result.append(PVR.humanReadableSize(downloaded)).append(" Completed");
                     break;
                 case Error:
-                    result.append(String.format("%s of %s (%3.0f%%) Broken", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), ((double) downloaded / (double) size) * 100.0));
+                    result.append(String.format("%s of %s (%3.0f%%) Broken", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
                     break;
             }
             return result.toString();
         }
 
+        public static enum State {
+            Ready, Queued, Downloading, Paused, Completed, Error
+        }
+
+    }
+
+    private class DeviceBrowse extends Browse {
+
+        private final PVRFolder parent;
+        private final Service service;
+
+        DeviceBrowse(Service service, String id, PVRFolder parent) {
+            super(service, id, BrowseFlag.DIRECT_CHILDREN);
+            this.parent = parent;
+            this.service = service;
+        }
+
+        @Override
+        public void received(ActionInvocation actionInvocation, DIDLContent didl) {
+            List<Container> containers = didl.getContainers();
+
+            for (Container c : containers) {
+                PVRFolder folder = addFolder(parent, c.getTitle());
+                synchronized (upnpQueue) {
+                    upnpQueue.add(new DeviceBrowse(service, c.getId(), folder));
+                    upnpQueue.notifyAll();
+                }
+            }
+            List<Item> items = didl.getItems();
+
+            for (Item i : items) {
+                PVRFile file = addFile(parent, i.getTitle());
+
+                Res res = i.getFirstResource();
+                if (res != null) {
+                    file.setRemoteURL(res.getValue());
+                }
+
+            }
+            synchronized (flag) {
+                flag.notifyAll();
+            }
+        }
+
+        @Override
+        public void updateStatus(Browse.Status status) {
+
+        }
+
+        @Override
+        public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+
+        }
     }
 }

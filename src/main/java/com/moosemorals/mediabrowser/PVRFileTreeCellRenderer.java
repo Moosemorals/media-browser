@@ -42,13 +42,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
+class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
     private final DefaultTreeCellRenderer defaultTreeCellRenderer;
     private final JPopupMenu popup;
 
-    public PVRFileTreeCellRenderer(JPopupMenu popup) {
+    PVRFileTreeCellRenderer(JPopupMenu popup) {
         this.popup = popup;
         defaultTreeCellRenderer = new DefaultTreeCellRenderer();
 

@@ -57,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class UI extends JFrame implements DownloadStatusListener {
+class UI extends JFrame implements DownloadStatusListener {
 
     public static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
     public static final String KEY_DIVIDER_LOCATION = "divider_location";
@@ -162,7 +162,7 @@ public class UI extends JFrame implements DownloadStatusListener {
         }
     };
 
-    public UI(Preferences prefs) {
+    UI(Preferences prefs) {
         this.preferences = prefs;
 
         pvr = new PVR();
@@ -423,18 +423,18 @@ public class UI extends JFrame implements DownloadStatusListener {
                     PVR.humanReadableSize(totalQueued),
                     PVR.humanReadableSize(totalDownloaded),
                     totalQueued > 0
-                            ? ((double) totalDownloaded / (double) totalQueued) * 100.0
+                            ? (totalDownloaded / (double) totalQueued) * 100.0
                             : 0
             ));
         } else {
             statusLabel.setText(String.format("Total queued %s (Downloaded %s %.0f%%) - Current %s (Downloaded %s %.0f%%) - Rate %s/s",
                     PVR.humanReadableSize(totalQueued),
                     PVR.humanReadableSize(totalDownloaded),
-                    ((double) totalDownloaded / (double) totalQueued) * 100.0,
+                    (totalDownloaded / (double) totalQueued) * 100.0,
                     PVR.humanReadableSize(currentFile),
                     PVR.humanReadableSize(currentDownloaded),
                     currentFile > 0
-                            ? ((double) currentDownloaded / (double) currentFile) * 100.0
+                            ? (currentDownloaded / (double) currentFile) * 100.0
                             : 0,
                     PVR.humanReadableSize((long) rate)
             ));

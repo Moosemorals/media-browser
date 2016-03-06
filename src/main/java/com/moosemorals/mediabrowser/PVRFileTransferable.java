@@ -40,7 +40,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVRFileTransferable implements Transferable {
+class PVRFileTransferable implements Transferable {
 
     public static final DataFlavor PVRFileFlavor = new DataFlavor(PVRFile.class, "java/x-com-moosemorals-mediabrowser-PVRFile");
 
@@ -48,7 +48,7 @@ public class PVRFileTransferable implements Transferable {
 
     List<PVRFile> items;
 
-    public PVRFileTransferable(List<PVRFile> item) {
+    PVRFileTransferable(List<PVRFile> item) {
         this.items = item;
     }
 

@@ -42,17 +42,16 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile> {
-
-    private final Logger log = LoggerFactory.getLogger(PVRFileListCellRenderer.class);
+class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile> {
 
     private static final Dimension progressSize = new Dimension(100, 16);
+    private final Logger log = LoggerFactory.getLogger(PVRFileListCellRenderer.class);
 
     private final JProgressBar progress;
     private final JLabel text;
     private final JLabel state;
 
-    public PVRFileListCellRenderer() {
+    PVRFileListCellRenderer() {
         super();
 
         progress = new JProgressBar();
@@ -93,7 +92,7 @@ public class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<
 
         progress.setMaximum(scaledSize);
         progress.setValue(scaledDownload);
-        progress.setString(String.format("%3.0f%%", ((double) scaledDownload / (double) scaledSize) * 100.0));
+        progress.setString(String.format("%3.0f%%", (scaledDownload / (double) scaledSize) * 100.0));
 
         String title = new StringBuilder()
                 .append(file.getTitle())

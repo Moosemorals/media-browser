@@ -60,7 +60,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     private Thread downloadThread;
     private DownloadStatusListener status;
 
-    public DownloadManager(Preferences prefs) {
+    DownloadManager(Preferences prefs) {
         this.prefs = prefs;
         this.queue = new ArrayList<>();
         this.running = new AtomicBoolean(false);
@@ -140,7 +140,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                         long timeNow = System.currentTimeMillis();
                         if ((timeNow - lastCheck) > 500) {
                             // calculate rate, in bytes/ms
-                            double rate = (double) (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
+                            double rate = (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
                             // Make it bytes/second
                             rate *= 1000;
 
