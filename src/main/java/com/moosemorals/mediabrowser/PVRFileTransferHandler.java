@@ -85,7 +85,7 @@ class PVRFileTransferHandler extends TransferHandler {
                         }
                     }
 
-                    dlManager.insertFiles(row, files);
+                    dlManager.insert(row, files);
                 }
                 return true;
             } catch (UnsupportedFlavorException | IOException ex) {

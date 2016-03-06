@@ -29,8 +29,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -58,6 +58,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     private final AtomicBoolean running;
     private final Set<ListDataListener> listDataListeners;
     private Thread downloadThread;
+    private DownloadStatusListener status;
 
     public DownloadManager(Preferences prefs) {
         this.prefs = prefs;
@@ -70,6 +71,99 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         if (running.compareAndSet(false, true)) {
             downloadThread = new Thread(this, "Download");
             downloadThread.start();
+            status.downloadStatusChanged(true);
+        }
+    }
+
+    @Override
+    public void run() {
+        while (running.get()) {
+            PVRFile target;
+
+            synchronized (queue) {
+                while (!downloadsAvailible()) {
+                    try {
+                        queue.wait();
+                    } catch (InterruptedException ex) {
+                        log.info("Intrupted waiting for queue", ex);
+                        running.set(false);
+                        status.downloadStatusChanged(false);
+                        notifyListDataListeners();
+                        notifyStatusListeners();
+                        return;
+                    }
+                }
+                log.debug("Run: Queue length: {}", queue.size());
+                target = getNextDownload();
+            }
+
+            if (target == null) {
+                throw new RuntimeException("Target is null, but it really shouldn't be");
+            }
+
+            notifyListDataListeners();
+            try {
+                final File downloadTarget = new File(getDownloadPath(), target.getDownloadFilename());
+
+                URL url = new URL(target.getRemoteURL());
+                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+                boolean append = false;
+
+                if (target.getState() == PVRFile.State.Paused) {
+                    connection.setRequestProperty("Range", "bytes=" + target.getDownloaded() + "-");
+                }
+
+                log.debug("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
+                connection.connect();
+
+                if (connection.getResponseCode() == 206) {
+                    // Partial content
+                    log.debug("Connection says sure, partial is fine: {}", connection.getHeaderField("Content-Range"));
+                    append = true;
+                }
+
+                target.setState(PVRFile.State.Downloading);
+
+                long lastCheck = System.currentTimeMillis();
+                long lastDownloaded = target.getDownloaded();
+
+                try (InputStream in = connection.getInputStream(); OutputStream out = new FileOutputStream(downloadTarget, append)) {
+                    byte[] buffer = new byte[1024 * 4];
+                    long count = target.getDownloaded();
+                    int n = 0;
+                    while (-1 != (n = in.read(buffer))) {
+                        out.write(buffer, 0, n);
+                        count += n;
+                        target.setDownloaded(count);
+
+                        long timeNow = System.currentTimeMillis();
+                        if ((timeNow - lastCheck) > 500) {
+                            // calculate rate, in bytes/ms
+                            double rate = (double) (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
+                            // Make it bytes/second
+                            rate *= 1000;
+
+                            notifyListDataListeners();
+                            notifyStatusListeners(rate);
+
+                            lastCheck = timeNow;
+                            lastDownloaded = target.getDownloaded();
+                        }
+
+                        if (!running.get() || target.getState() != PVRFile.State.Downloading) {
+                            in.close();
+                            target.setState(PVRFile.State.Paused);
+                            notifyListDataListeners();
+                            return;
+                        }
+                    }
+                }
+                target.setState(PVRFile.State.Completed);
+                notifyListDataListeners();
+            } catch (IOException ex) {
+                log.error("IOExcption", ex);
+            }
         }
     }
 
@@ -77,40 +171,29 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
             downloadThread = null;
+            status.downloadStatusChanged(false);
+            notifyListDataListeners();
+            notifyStatusListeners();
         }
     }
 
-    public boolean queueFile(PVRFile target) {
-
+    boolean add(PVRFile target) {
         if (!setupForQueue(target)) {
             return false;
         }
 
         synchronized (queue) {
             queue.add(target);
-            log.debug("addTarget: Queue length: {}", queue.size());
             queue.notifyAll();
         }
-        notifyListeners();
+
+        notifyListDataListeners();
+        notifyStatusListeners();
         return true;
     }
 
-    private boolean setupForQueue(PVRFile target) {
-        if (target.getState() != PVRFile.State.Ready) {
-            log.debug("File {} isn't ready, in state {}", target.getTitle(), target.getState());
-            return false;
-        }
+    void changeDownloadPath(List<PVRFile> files, File newPath) {
 
-        target.setDownloadPath(getDownloadPath().getPath());
-        final File downloadTarget = new File(getDownloadPath(), target.getFilename());
-        if (downloadTarget.exists()) {
-            target.setDownloaded(downloadTarget.length());
-            target.setState(PVRFile.State.Paused);
-        } else {
-            target.setDownloaded(0);
-            target.setState(PVRFile.State.Queued);
-        }
-        return true;
     }
 
     /**
@@ -125,8 +208,10 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                 queue.remove(f);
                 queue.add(row, f);
             }
+            queue.notifyAll();
         }
-        notifyListeners();
+        notifyListDataListeners();
+        notifyStatusListeners();
     }
 
     /**
@@ -135,7 +220,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      * @param row int target row. Files will be inserted before this row.
      * @param files List&ltPVRFile&gt; of files to be inserted
      */
-    void insertFiles(int row, List<PVRFile> files) {
+    void insert(int row, List<PVRFile> files) {
         log.debug("Inserting {} files at row {}", files.size(), row);
 
         for (Iterator<PVRFile> it = files.iterator(); it.hasNext();) {
@@ -153,99 +238,29 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         synchronized (queue) {
             queue.addAll(row, files);
             queue.notifyAll();
-            notifyListeners();
         }
+
+        notifyListDataListeners();
+        notifyStatusListeners();
     }
 
-    @Override
-    public void run() {
-        while (running.get()) {
-            PVRFile target;
+    void remove(List<PVRFile> files) {
 
-            synchronized (queue) {
-                while (!downloadsAvailible()) {
-                    try {
-                        queue.wait();
-                    } catch (InterruptedException ex) {
-                        log.info("Intrupted waiting for queue", ex);
-                        running.set(false);
-                        return;
-                    }
-                }
-                log.debug("Run: Queue length: {}", queue.size());
-                target = getNextDownload();
-            }
-
-            if (target == null) {
-                throw new RuntimeException("Target is null, but it really shouldn't be");
-            }
-
-            log.debug("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
-            target.setState(PVRFile.State.Downloading);
-            notifyListeners();
-            try {
-                final File downloadTarget = new File(getDownloadPath(), target.getFilename());
-
-                URL url = new URL(target.getRemoteURL());
-                URLConnection connection = url.openConnection();
-
-                boolean append = false;
-
-                if (target.getState() == PVRFile.State.Queued) {
-                    connection.setRequestProperty("Range", "bytes=" + target.getDownloaded() + "-");
-                    append = true;
-                }
-
-                connection.connect();
-
-                long lastCheck = System.currentTimeMillis();
-
-                try (InputStream in = connection.getInputStream(); OutputStream out = new FileOutputStream(downloadTarget, append)) {
-                    byte[] buffer = new byte[1024 * 4];
-                    long count = target.getDownloaded();
-                    int n = 0;
-                    while (-1 != (n = in.read(buffer))) {
-                        out.write(buffer, 0, n);
-                        count += n;
-                        target.setDownloaded(count);
-
-                        if ((System.currentTimeMillis() - lastCheck) > 500) {
-                            lastCheck = System.currentTimeMillis();
-                            notifyListeners();
-                        }
-
-                        if (!running.get()) {
-                            in.close();
-                            target.setState(PVRFile.State.Paused);
-                            notifyListeners();
-                            return;
-                        }
-                    }
-                }
-                target.setState(PVRFile.State.Completed);
-                notifyListeners();
-            } catch (IOException ex) {
-                log.error("IOExcption", ex);
-            }
+        for (PVRFile f : files) {
+            f.setState(PVRFile.State.Ready);
         }
+
+        synchronized (queue) {
+            queue.removeAll(files);
+            queue.notifyAll();
+        }
+
+        notifyListDataListeners();
+        notifyStatusListeners();
     }
 
-    private boolean downloadsAvailible() {
-        for (PVRFile f : queue) {
-            if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private PVRFile getNextDownload() {
-        for (PVRFile f : queue) {
-            if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
-                return f;
-            }
-        }
-        return null;
+    public boolean isDownloading() {
+        return running.get();
     }
 
     public File getDownloadPath() {
@@ -257,7 +272,9 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     public void setDownloadPath(File path) {
-        prefs.put(UI.KEY_DOWNLOAD_DIRECTORY, path.getPath());
+        if (path != null) {
+            prefs.put(UI.KEY_DOWNLOAD_DIRECTORY, path.getPath());
+        }
     }
 
     @Override
@@ -288,12 +305,85 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
     }
 
-    private void notifyListeners() {
+    private void notifyListDataListeners() {
         final ListDataEvent lde = new ListDataEvent(this, ListDataEvent.CONTENTS_CHANGED, 0, queue.size());
         synchronized (listDataListeners) {
             for (ListDataListener ll : listDataListeners) {
                 ll.contentsChanged(lde);
             }
         }
+    }
+
+    private void notifyStatusListeners() {
+        notifyStatusListeners(-1.0);
+    }
+
+    private void notifyStatusListeners(double rate) {
+        if (status == null) {
+            return;
+        }
+        long totalQueued = 0;
+        long totalDownloaded = 0;
+        long currentFile = 0;
+        long currentDownload = 0;
+        synchronized (queue) {
+            for (PVRFile f : queue) {
+                totalQueued += f.getSize();
+                totalDownloaded += f.getDownloaded();
+                if (f.getState() == PVRFile.State.Downloading) {
+                    currentFile = f.getSize();
+                    currentDownload = f.getDownloaded();
+                }
+            }
+        }
+
+        status.downloadProgress(totalQueued, totalDownloaded, currentFile, currentDownload, rate);
+    }
+
+    public void setDownloadStatusListener(DownloadStatusListener status) {
+        this.status = status;
+    }
+
+    private boolean setupForQueue(PVRFile target) {
+        if (target.getState() != PVRFile.State.Ready) {
+            log.debug("File {} isn't ready, in state {}", target.getTitle(), target.getState());
+            return false;
+        }
+
+        target.setDownloadPath(new File(getDownloadPath().getPath()));
+        final File downloadTarget = new File(getDownloadPath(), target.getDownloadFilename());
+        if (downloadTarget.exists()) {
+            target.setDownloaded(downloadTarget.length());
+            target.setState(PVRFile.State.Paused);
+        } else {
+            target.setDownloaded(0);
+            target.setState(PVRFile.State.Queued);
+        }
+        return true;
+    }
+
+    private boolean downloadsAvailible() {
+        for (PVRFile f : queue) {
+            if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private PVRFile getNextDownload() {
+        for (PVRFile f : queue) {
+            if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
+                return f;
+            }
+        }
+        return null;
+    }
+
+    public interface DownloadStatusListener {
+
+        public void downloadStatusChanged(boolean running);
+
+        public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
     }
 }

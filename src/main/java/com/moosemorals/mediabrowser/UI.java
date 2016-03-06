@@ -23,6 +23,7 @@
  */
 package com.moosemorals.mediabrowser;
 
+import com.moosemorals.mediabrowser.DownloadManager.DownloadStatusListener;
 import com.moosemorals.mediabrowser.PVR.PVRFile;
 import com.moosemorals.mediabrowser.PVR.PVRItem;
 import java.awt.BorderLayout;
@@ -38,14 +39,15 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.List;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.swing.*;
+import javax.swing.event.ListSelectionEvent;
+import javax.swing.event.ListSelectionListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
-import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +57,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class UI extends JFrame {
+public class UI extends JFrame implements DownloadStatusListener {
 
     public static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
     public static final String KEY_DIVIDER_LOCATION = "divider_location";
@@ -66,30 +68,26 @@ public class UI extends JFrame {
     public static final String KEY_FRAME_KNOWN = "frame_bounds";
 
     private final Logger log = LoggerFactory.getLogger(UI.class);
-    private final DownloadManager dlManager;
+    private final DownloadManager downloader;
     private final PVR pvr;
-    private final Preferences prefs;
-    private JButton startButton;
-    private JLabel statusLabel;
-    private JTree displayTree;
+    private final Preferences preferences;
+    private final JButton startButton;
+    private final JLabel statusLabel;
+    private final JTree displayTree;
+    private final JList<PVRFile> downloadList;
+    private boolean downloading = false;
 
     private final Action startStopAction = new AbstractAction("Start downloading") {
-
-        private boolean downloading = false;
-
         @Override
         public void actionPerformed(ActionEvent e) {
-
-            if (!downloading) {
-                log.debug("Starting downloads");
-                dlManager.start();
-                putValue(NAME, "Stop downloading");
-                downloading = true;
-            } else {
+            if (downloading) {
                 log.debug("Stopping downloads");
-                dlManager.stop();
+                downloader.stop();
                 putValue(NAME, "Start downloading");
-                downloading = false;
+            } else {
+                log.debug("Starting downloads");
+                downloader.start();
+                putValue(NAME, "Stop downloading");
             }
         }
     };
@@ -97,15 +95,15 @@ public class UI extends JFrame {
     private final Action queueAction = new AbstractAction("Queue selected") {
         @Override
         public void actionPerformed(ActionEvent e) {
-            while (!dlManager.isDownloadPathSet()) {
-                chooseDownloadFolder();
+            while (!downloader.isDownloadPathSet()) {
+                downloader.setDownloadPath(chooseDownloadFolder(downloader.getDownloadPath()));
             }
 
             for (TreePath p : displayTree.getSelectionPaths()) {
                 PVRItem item = (PVRItem) p.getLastPathComponent();
                 if (item.isFile() && !((PVRFile) item).isHighDef()) {
 
-                    if (dlManager.queueFile((PVRFile) item)) {
+                    if (downloader.add((PVRFile) item)) {
                         startStopAction.setEnabled(true);
                     }
                 }
@@ -131,12 +129,30 @@ public class UI extends JFrame {
         }
     };
 
-    private final Action chooseAction = new AbstractAction("Choose download folder") {
+    private final Action chooseDefaultDownloadPathAction = new AbstractAction("Set default download folder") {
         @Override
         public void actionPerformed(ActionEvent e) {
-            chooseDownloadFolder();
+            downloader.setDownloadPath(chooseDownloadFolder(downloader.getDownloadPath()));
         }
+    };
 
+    private final Action chooseDownloadPathAction = new AbstractAction("Set download folder") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+
+            List<PVRFile> selected = downloadList.getSelectedValuesList();
+            if (!selected.isEmpty()) {
+                File downloadPath = chooseDownloadFolder(selected.get(0).getDownloadPath());
+                downloader.changeDownloadPath(selected, downloadPath);
+            }
+        }
+    };
+
+    private final Action removeSelectedAction = new AbstractAction("Remove from queue") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            downloader.remove(downloadList.getSelectedValuesList());
+        }
     };
 
     private final Action quitAction = new AbstractAction("Exit") {
@@ -147,18 +163,17 @@ public class UI extends JFrame {
     };
 
     public UI(Preferences prefs) {
-        pvr = new PVR();
-        this.prefs = prefs;
-        dlManager = new DownloadManager(prefs);
-        initComponents();
-        pvr.start();
-    }
+        this.preferences = prefs;
 
-    private void initComponents() {
+        pvr = new PVR();
+        downloader = new DownloadManager(preferences);
+        downloader.setDownloadStatusListener(this);
 
         queueAction.setEnabled(false);
         startStopAction.setEnabled(false);
         removeLockAction.setEnabled(false);
+        removeSelectedAction.setEnabled(false);
+        chooseDownloadPathAction.setEnabled(false);
 
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setTitle("Media Browser");
@@ -175,10 +190,10 @@ public class UI extends JFrame {
             }
 
             private void saveBounds(Rectangle bounds) {
-                prefs.putInt(KEY_FRAME_TOP, bounds.y);
-                prefs.putInt(KEY_FRAME_LEFT, bounds.x);
-                prefs.putInt(KEY_FRAME_WIDTH, bounds.width);
-                prefs.putInt(KEY_FRAME_HEIGHT, bounds.height);
+                preferences.putInt(KEY_FRAME_TOP, bounds.y);
+                preferences.putInt(KEY_FRAME_LEFT, bounds.x);
+                preferences.putInt(KEY_FRAME_WIDTH, bounds.width);
+                preferences.putInt(KEY_FRAME_HEIGHT, bounds.height);
             }
         });
 
@@ -204,7 +219,7 @@ public class UI extends JFrame {
 
         JMenu menu = new JMenu("File");
 
-        menu.add(chooseAction);
+        menu.add(chooseDefaultDownloadPathAction);
         menu.add(startStopAction);
         menu.add(quitAction);
 
@@ -212,11 +227,16 @@ public class UI extends JFrame {
 
         setJMenuBar(menuBar);
 
-        final JPopupMenu itemPopup = new JPopupMenu();
-        itemPopup.add(queueAction);
-        itemPopup.add(removeLockAction);
+        final JPopupMenu treePopup = new JPopupMenu();
+        treePopup.add(queueAction);
+        treePopup.add(removeLockAction);
 
-        final JLabel downloadLabel = new JLabel(dlManager.getDownloadPath().getPath());
+        final JPopupMenu listPopup = new JPopupMenu();
+        listPopup.add(chooseDownloadPathAction);
+        listPopup.add(removeSelectedAction);
+        listPopup.add(startStopAction);
+
+        final JLabel downloadLabel = new JLabel(downloader.getDownloadPath().getPath());
 
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
             @Override
@@ -238,15 +258,49 @@ public class UI extends JFrame {
         statusPanel.add(downloadLabel);
         statusPanel.add(statusLabel);
 
-        JList downloadList = new JList(dlManager);
+        downloadList = new JList(downloader);
         downloadList.setCellRenderer(new PVRFileListCellRenderer());
         downloadList.setDragEnabled(true);
         downloadList.setDropMode(DropMode.INSERT);
         downloadList.setTransferHandler(new PVRFileTransferHandler());
 
+        downloadList.addMouseListener(new MouseAdapter() {
+
+            @Override
+            public void mouseReleased(MouseEvent e) {
+                maybeShowPopup(e);
+            }
+
+            @Override
+            public void mousePressed(MouseEvent e) {
+                maybeShowPopup(e);
+            }
+
+            private void maybeShowPopup(MouseEvent e) {
+                if (e.isPopupTrigger()) {
+                    listPopup.show(e.getComponent(), e.getX(), e.getY());
+                }
+            }
+
+        });
+
+        downloadList.addListSelectionListener(new ListSelectionListener() {
+            @Override
+            public void valueChanged(ListSelectionEvent e) {
+                removeSelectedAction.setEnabled(false);
+                chooseDownloadPathAction.setEnabled(false);
+                if (downloadList.getSelectedIndices().length > 0) {
+                    removeSelectedAction.setEnabled(true);
+                    if (!downloading) {
+                        chooseDownloadPathAction.setEnabled(true);
+                    }
+                }
+            }
+        });
+
         displayTree = new JTree();
         displayTree.setModel(pvr);
-        displayTree.setCellRenderer(new PVRFileTreeCellRenderer(itemPopup));
+        displayTree.setCellRenderer(new PVRFileTreeCellRenderer(treePopup));
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
         displayTree.setDragEnabled(true);
@@ -274,7 +328,7 @@ public class UI extends JFrame {
 
             private void maybeShowPopup(MouseEvent e) {
                 if (e.isPopupTrigger()) {
-                    itemPopup.show(e.getComponent(), e.getX(), e.getY());
+                    treePopup.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
         });
@@ -312,52 +366,37 @@ public class UI extends JFrame {
         splitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
-                prefs.putInt(KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
-
+                preferences.putInt(KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
             }
         });
 
         cp.add(splitPane, BorderLayout.CENTER);
         cp.add(statusPanel, BorderLayout.SOUTH);
 
+        downloadProgress(0, 0, 0, 0, -1);
+
         setVisible(true);
+
+        pvr.start();
+
     }
 
-    private int[] removeRow(int[] selectedRows, int row) {
-        int i, j;
-        for (i = j = 0; j < selectedRows.length; ++j) {
-            if (j == row) {
-                selectedRows[i++] = selectedRows[j];
-            }
-        }
-        return Arrays.copyOf(selectedRows, i);
-    }
-
-    void expandTreeRoot(DefaultMutableTreeNode root) {
-        log.debug("Expanding {}", root);
-        displayTree.expandPath(new TreePath(root.getPath()));
-    }
-
-    private boolean chooseDownloadFolder() {
-
-        File downloadDir = dlManager.getDownloadPath();
-
-        final JFileChooser fc = new JFileChooser(downloadDir);
+    private File chooseDownloadFolder(File initial) {
+        final JFileChooser fc = new JFileChooser(initial);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+        fc.setDialogTitle("Choose download folder");
 
         int returnVal = fc.showOpenDialog(this);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
-            dlManager.setDownloadPath(fc.getSelectedFile());
-
-            return true;
+            return fc.getSelectedFile();
         } else {
-            return false;
+            return null;
         }
     }
 
     private void quit() {
         pvr.stop();
-        dlManager.stop();
+        downloader.stop();
     }
 
     public void setStatus(final String status) {
@@ -368,6 +407,37 @@ public class UI extends JFrame {
                 statusLabel.setText(status);
             }
         });
+    }
+
+    @Override
+    public void downloadStatusChanged(boolean running) {
+        chooseDownloadPathAction.setEnabled(!running);
+        this.downloading = running;
+    }
+
+    @Override
+    public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
+        if (rate < 0.0) {
+            statusLabel.setText(String.format("Total queued %s (Downloaded %s %.0f%%)",
+                    PVR.humanReadableSize(totalQueued),
+                    PVR.humanReadableSize(totalDownloaded),
+                    totalQueued > 0
+                            ? ((double) totalDownloaded / (double) totalQueued) * 100.0
+                            : 0
+            ));
+        } else {
+            statusLabel.setText(String.format("Total queued %s (Downloaded %s %.0f%%) - Current %s (Downloaded %s %.0f%%) - Rate %s/s",
+                    PVR.humanReadableSize(totalQueued),
+                    PVR.humanReadableSize(totalDownloaded),
+                    ((double) totalDownloaded / (double) totalQueued) * 100.0,
+                    PVR.humanReadableSize(currentFile),
+                    PVR.humanReadableSize(currentDownloaded),
+                    currentFile > 0
+                            ? ((double) currentDownloaded / (double) currentFile) * 100.0
+                            : 0,
+                    PVR.humanReadableSize((long) rate)
+            ));
+        }
     }
 
 }

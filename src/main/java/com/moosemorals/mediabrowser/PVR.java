@@ -26,6 +26,7 @@ package com.moosemorals.mediabrowser;
 import java.awt.EventQueue;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -353,7 +354,7 @@ public class PVR implements TreeModel {
                     file.setLocked(hmt.isLocked());
                     file.setChannelName(hmt.getChannelName());
 
-                    file.setDownloadFilename(String.format("%s - %s - [%s - Freview - %s] UNEDITED.ts",
+                    file.setDownloadFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED.ts",
                             file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
                             DATE_FORMAT.print(file.getStart()),
                             file.isHighDef() ? "1920×1080" : "SD",
@@ -687,7 +688,7 @@ public class PVR implements TreeModel {
         private String description = "";
         private String title = "";
         private String channelName = "Unknown";
-        private String downloadPath = null;
+        private File downloadPath = null;
         private String downloadFilename = null;
         private DateTime start;
         private DateTime end;
@@ -744,11 +745,11 @@ public class PVR implements TreeModel {
             return title;
         }
 
-        public void setDownloadPath(String downloadPath) {
+        public void setDownloadPath(File downloadPath) {
             this.downloadPath = downloadPath;
         }
 
-        public String getDownloadPath() {
+        public File getDownloadPath() {
             return downloadPath;
         }
 
