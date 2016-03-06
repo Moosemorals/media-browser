@@ -253,13 +253,14 @@ class UI implements DownloadStatusListener {
         JMenu menu;
         menu = new JMenu("File");
 
-        menu.add(chooseDefaultDownloadPathAction);
         menu.add(startStopAction);
         menu.add(quitAction);
 
         menuBar.add(menu);
 
         menu = new JMenu("Options");
+
+        menu.add(chooseDefaultDownloadPathAction);
 
         JCheckBoxMenuItem jCheckBoxMenuItem;
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setMinimiseToTrayAction);
@@ -313,7 +314,9 @@ class UI implements DownloadStatusListener {
         JPanel statusPanel = new JPanel();
         statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.LINE_AXIS));
         statusPanel.add(startButton);
+        statusPanel.add(Box.createHorizontalStrut(8));
         statusPanel.add(downloadLabel);
+        statusPanel.add(Box.createHorizontalStrut(8));
         statusPanel.add(statusLabel);
 
         downloadList = new JList(downloader);
