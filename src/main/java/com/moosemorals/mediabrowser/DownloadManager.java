@@ -69,9 +69,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     void start() {
         if (running.compareAndSet(false, true)) {
-            downloadThread = new Thread(this, "Download");
-            downloadThread.start();
-            status.downloadStatusChanged(true);
+            if (downloadsAvailible()) {
+                downloadThread = new Thread(this, "Download");
+                downloadThread.start();
+                status.downloadStatusChanged(true);
+            }
         }
     }
 
@@ -164,6 +166,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
                 if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false)) {
                     stop();
+                    status.downloadStatusChanged(false);
                     return;
                 }
             } catch (IOException ex) {
@@ -359,7 +362,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         final File downloadTarget = new File(getDownloadPath(), target.getDownloadFilename());
         if (downloadTarget.exists()) {
             target.setDownloaded(downloadTarget.length());
-            target.setState(PVRFile.State.Paused);
+            if (downloadTarget.length() == target.getSize()) {
+                target.setState(PVRFile.State.Completed);
+                return false;
+            } else {
+                target.setState(PVRFile.State.Paused);
+            }
         } else {
             target.setDownloaded(0);
             target.setState(PVRFile.State.Queued);
