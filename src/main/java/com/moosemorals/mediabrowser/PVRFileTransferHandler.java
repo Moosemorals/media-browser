@@ -100,7 +100,11 @@ class PVRFileTransferHandler extends TransferHandler {
     @Override
     protected Transferable createTransferable(JComponent c) {
         if (c instanceof JList) {
-            return new PVRFileTransferable(((JList<PVRFile>) c).getSelectedValuesList());
+            PVRFileTransferable pvrFileTransferable = new PVRFileTransferable(((JList<PVRFile>) c).getSelectedValuesList());
+
+            ((JList<PVRFile>) c).clearSelection();
+
+            return pvrFileTransferable;
         } else if (c instanceof JTree) {
             List<PVRFile> files = new ArrayList<>();
             for (TreePath p : ((JTree) c).getSelectionPaths()) {
@@ -109,6 +113,7 @@ class PVRFileTransferHandler extends TransferHandler {
                     files.add((PVRFile) o);
                 }
             }
+            ((JTree) c).clearSelection();
             return new PVRFileTransferable(files);
         } else {
             log.warn("Unexpected data souce component {}", c);
