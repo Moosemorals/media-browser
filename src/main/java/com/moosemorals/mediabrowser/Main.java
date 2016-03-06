@@ -53,7 +53,7 @@ public class Main {
 
             @Override
             public void run() {
-                new UI(prefs).setVisible(true);
+                new UI(prefs).start();
             }
         });
     }

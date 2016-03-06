@@ -167,7 +167,6 @@ public class UI extends JFrame implements DownloadStatusListener {
 
         pvr = new PVR();
         downloader = new DownloadManager(preferences);
-        downloader.setDownloadStatusListener(this);
 
         queueAction.setEnabled(false);
         startStopAction.setEnabled(false);
@@ -373,12 +372,14 @@ public class UI extends JFrame implements DownloadStatusListener {
         cp.add(splitPane, BorderLayout.CENTER);
         cp.add(statusPanel, BorderLayout.SOUTH);
 
-        downloadProgress(0, 0, 0, 0, -1);
-
         setVisible(true);
 
-        pvr.start();
+    }
 
+    public void start() {
+        downloadProgress(0, 0, 0, 0, -1);
+        downloader.setDownloadStatusListener(this);
+        pvr.start();
     }
 
     private File chooseDownloadFolder(File initial) {
