@@ -366,7 +366,7 @@ class PVR implements TreeModel {
                     file.setLocked(hmt.isLocked());
                     file.setChannelName(hmt.getChannelName());
 
-                    file.setDownloadFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED.ts",
+                    file.setDownloadFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                             file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
                             DATE_FORMAT.print(file.getStart()),
                             file.isHighDef() ? "1920×1080" : "SD",

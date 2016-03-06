@@ -105,8 +105,8 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
             notifyListDataListeners();
             try {
-                final File downloadTarget = new File(getDownloadPath(), target.getDownloadFilename());
 
+                File downloadTarget = getDownloadTarget(target);
                 URL url = new URL(target.getRemoteURL());
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
 
@@ -161,7 +161,17 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                         }
                     }
                 }
-                target.setState(PVRFile.State.Completed);
+
+                if (target.getSize() == downloadTarget.length()) {
+                    File completed = getCompletedTarget(target);
+                    if (!downloadTarget.renameTo(completed)) {
+                        throw new IOException("Can't rename from " + downloadTarget + " to " + completed + ": Unknown");
+                    }
+                    target.setState(PVRFile.State.Completed);
+                } else {
+                    target.setState(PVRFile.State.Error);
+                }
+
                 notifyListDataListeners();
 
                 status.downloadCompleted(target);
@@ -361,7 +371,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
 
         target.setDownloadPath(new File(getDownloadPath().getPath()));
-        final File downloadTarget = new File(getDownloadPath(), target.getDownloadFilename());
+        final File downloadTarget = getDownloadTarget(target);
         if (downloadTarget.exists()) {
             target.setDownloaded(downloadTarget.length());
             if (downloadTarget.length() == target.getSize()) {
@@ -393,6 +403,14 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
             }
         }
         return null;
+    }
+
+    private File getDownloadTarget(PVRFile target) {
+        return new File(target.getDownloadPath(), target.getDownloadFilename() + ".partial");
+    }
+
+    private File getCompletedTarget(PVRFile target) {
+        return new File(target.getDownloadPath(), target.getDownloadFilename() + ".ts");
     }
 
     interface DownloadStatusListener {
