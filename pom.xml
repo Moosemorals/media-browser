@@ -33,17 +33,17 @@
         <tag>HEAD</tag>
     </scm>
     <url>https://moosemorals.github.com/media-browserr</url>
-    
+
     <distributionManagement>
-        
+
         <site>
             <id>github</id>
             <name>Github</name>
             <url>scm:git:git@github.com:Moosemorals/media-browser.git</url>
         </site>
-        
+
     </distributionManagement>
-    
+
     <repositories>
         <repository>
             <id>4thline-repo</id>
@@ -94,7 +94,7 @@
                             </classPath>
                             <jre>
                                 <minVersion>1.7.0</minVersion>
-                            </jre>                            
+                            </jre>
                         </configuration>
                     </execution>
                 </executions>
