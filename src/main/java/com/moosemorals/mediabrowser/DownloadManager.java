@@ -164,6 +164,8 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                 target.setState(PVRFile.State.Completed);
                 notifyListDataListeners();
 
+                status.downloadCompleted(target);
+
                 if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false)) {
                     stop();
                     status.downloadStatusChanged(false);
@@ -398,5 +400,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         void downloadStatusChanged(boolean running);
 
         void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
+
+        void downloadCompleted(PVRFile target);
     }
 }

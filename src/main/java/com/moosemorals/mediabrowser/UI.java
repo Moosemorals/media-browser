@@ -72,6 +72,7 @@ class UI implements DownloadStatusListener {
     static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
     static final String KEY_AUTO_DOWNLOAD = "auto_download";
     static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
+    static final String KEY_MESSAGE_ON_COMPLETE = "message_on_complete";
     static final String KEY_FRAME_TOP = "frame_top";
     static final String KEY_FRAME_LEFT = "frame_left";
     static final String KEY_FRAME_WIDTH = "frame_width";
@@ -90,6 +91,7 @@ class UI implements DownloadStatusListener {
     private final JFrame window;
     private final TrayIcon trayIcon;
     private final Main main;
+    private final RateTracker rateTracker;
     private boolean downloading = false;
 
     private final Action startStopAction = new AbstractAction("Start downloading") {
@@ -200,6 +202,13 @@ class UI implements DownloadStatusListener {
         }
     };
 
+    private final Action setShowMessageOnCompleteAction = new AbstractAction("Show completed notification") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            prefs.putBoolean(KEY_MESSAGE_ON_COMPLETE, ((JCheckBoxMenuItem) e.getSource()).getState());
+        }
+    };
+
     UI(Main m) {
         super();
 
@@ -208,6 +217,8 @@ class UI implements DownloadStatusListener {
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
+
+        rateTracker = new RateTracker(10);
 
         queueAction.setEnabled(false);
         startStopAction.setEnabled(false);
@@ -240,12 +251,16 @@ class UI implements DownloadStatusListener {
         window.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
+                main.stop();
+            }
+
+            @Override
+            public void windowIconified(WindowEvent e) {
                 if (prefs.getBoolean(KEY_MINIMISE_TO_TRAY, true)) {
                     window.dispose();
-                } else {
-                    main.stop();
                 }
             }
+
         });
 
         JMenuBar menuBar = new JMenuBar();
@@ -275,6 +290,10 @@ class UI implements DownloadStatusListener {
 
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setAutoDownloadAction);
         jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_AUTO_DOWNLOAD, true));
+        menu.add(jCheckBoxMenuItem);
+
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(setShowMessageOnCompleteAction);
+        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true));
         menu.add(jCheckBoxMenuItem);
 
         setSaveDownloadListAction.setEnabled(false); // not implemented yet
@@ -482,6 +501,7 @@ class UI implements DownloadStatusListener {
         ));
 
         splitPane.setDividerLocation(prefs.getInt(KEY_DIVIDER_LOCATION, window.getWidth() / 2));
+        window.setState(JFrame.NORMAL);
         window.setVisible(true);
     }
 
@@ -516,6 +536,9 @@ class UI implements DownloadStatusListener {
 
     @Override
     public void downloadStatusChanged(boolean running) {
+        if (running && !downloading) {
+            rateTracker.reset();
+        }
         chooseDownloadPathAction.setEnabled(!running);
         this.downloading = running;
     }
@@ -525,22 +548,23 @@ class UI implements DownloadStatusListener {
 
         String message;
 
-        message = String.format("Total queued %s Downloaded %s %.0f%%",
-                PVR.humanReadableSize(totalQueued),
+        message = String.format("Total %s of %s (%.0f%%)",
                 PVR.humanReadableSize(totalDownloaded),
+                PVR.humanReadableSize(totalQueued),
                 totalQueued > 0
                         ? (totalDownloaded / (double) totalQueued) * 100.0
                         : 0
         );
 
         if (rate >= 0) {
-            message += String.format(" - Current %s Downloaded %s %.0f%% - Rate %s/s",
-                    PVR.humanReadableSize(currentFile),
+            rateTracker.addRate(rate);
+            message += String.format(" - Current %s of %s (%.0f%%) - Rate %s/s",
                     PVR.humanReadableSize(currentDownloaded),
+                    PVR.humanReadableSize(currentFile),
                     currentFile > 0
                             ? (currentDownloaded / (double) currentFile) * 100.0
                             : 0,
-                    PVR.humanReadableSize((long) rate)
+                    PVR.humanReadableSize((long) rateTracker.getRate())
             );
         }
 
@@ -556,6 +580,13 @@ class UI implements DownloadStatusListener {
         } else {
             log.error("Can't find resource for {}", path);
             return null;
+        }
+    }
+
+    @Override
+    public void downloadCompleted(PVRFile target) {
+        if (prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true)) {
+            trayIcon.displayMessage("Download Completed", String.format("{} has downloaded to {}/{}", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
         }
     }
 
