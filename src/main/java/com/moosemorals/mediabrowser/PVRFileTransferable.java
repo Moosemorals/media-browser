@@ -42,7 +42,7 @@ import org.slf4j.LoggerFactory;
  */
 class PVRFileTransferable implements Transferable {
 
-    public static final DataFlavor PVRFileFlavor = new DataFlavor(PVRFile.class, "java/x-com-moosemorals-mediabrowser-PVRFile");
+    static final DataFlavor PVRFileFlavor = new DataFlavor(PVRFile.class, "java/x-com-moosemorals-mediabrowser-PVRFile");
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTransferable.class);
 

@@ -59,13 +59,13 @@ import org.slf4j.LoggerFactory;
  */
 class UI extends JFrame implements DownloadStatusListener {
 
-    public static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
-    public static final String KEY_DIVIDER_LOCATION = "divider_location";
-    public static final String KEY_FRAME_TOP = "frame_top";
-    public static final String KEY_FRAME_LEFT = "frame_left";
-    public static final String KEY_FRAME_WIDTH = "frame_width";
-    public static final String KEY_FRAME_HEIGHT = "frame_height";
-    public static final String KEY_FRAME_KNOWN = "frame_bounds";
+    static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
+    static final String KEY_DIVIDER_LOCATION = "divider_location";
+    static final String KEY_FRAME_TOP = "frame_top";
+    static final String KEY_FRAME_LEFT = "frame_left";
+    static final String KEY_FRAME_WIDTH = "frame_width";
+    static final String KEY_FRAME_HEIGHT = "frame_height";
+    static final String KEY_FRAME_KNOWN = "frame_bounds";
 
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager downloader;
@@ -376,7 +376,7 @@ class UI extends JFrame implements DownloadStatusListener {
 
     }
 
-    public void start() {
+    void start() {
         downloadProgress(0, 0, 0, 0, -1);
         downloader.setDownloadStatusListener(this);
         pvr.start();
@@ -400,7 +400,7 @@ class UI extends JFrame implements DownloadStatusListener {
         downloader.stop();
     }
 
-    public void setStatus(final String status) {
+    void setStatus(final String status) {
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override

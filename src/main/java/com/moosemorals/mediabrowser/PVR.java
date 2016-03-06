@@ -83,10 +83,10 @@ class PVR implements TreeModel {
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
     private static final String FTP_ROOT = "/My Video/";
 
-    public static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
-    public static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH-mm").withZone(DEFAULT_TIMEZONE);
+    static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
+    static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH-mm").withZone(DEFAULT_TIMEZONE);
 
-    public static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
+    static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
             .appendHours()
             .appendSeparatorIfFieldsBefore("h")
             .appendMinutes()
@@ -95,14 +95,14 @@ class PVR implements TreeModel {
             .appendSeparatorIfFieldsBefore("s")
             .toFormatter();
 
-    public static final double KILO = 1024;
-    public static final double MEGA = KILO * 1024;
-    public static final double GIGA = MEGA * 1024;
-    public static final double TERA = GIGA * 1024;
+    static final double KILO = 1024;
+    static final double MEGA = KILO * 1024;
+    static final double GIGA = MEGA * 1024;
+    static final double TERA = GIGA * 1024;
 
     private static final String SIZE_FORMAT = "% 6.1f %sb";
 
-    public static String humanReadableSize(long size) {
+    static String humanReadableSize(long size) {
         if (size > TERA) {
             return String.format(SIZE_FORMAT, size / TERA, "T");
         } else if (size > GIGA) {
@@ -161,11 +161,11 @@ class PVR implements TreeModel {
 
     }
 
-    public void setRemoteHostname(String remoteHostname) {
+    void setRemoteHostname(String remoteHostname) {
         this.remoteHostname = remoteHostname;
     }
 
-    public String getRemoteHostname() {
+    String getRemoteHostname() {
         return remoteHostname;
     }
 
@@ -212,7 +212,7 @@ class PVR implements TreeModel {
         return -1;
     }
 
-    public PVRFolder addFolder(PVRFolder parent, String folderName) {
+    PVRFolder addFolder(PVRFolder parent, String folderName) {
         synchronized (parent.children) {
             for (PVRItem child : parent.children) {
                 if (child.getFilename().equals(folderName)) {
@@ -232,7 +232,7 @@ class PVR implements TreeModel {
         }
     }
 
-    public PVRFile addFile(PVRFolder parent, String filename) {
+    PVRFile addFile(PVRFolder parent, String filename) {
         synchronized (parent.children) {
             for (PVRItem child : parent.children) {
                 if (child.getFilename().equals(filename)) {
@@ -252,11 +252,11 @@ class PVR implements TreeModel {
         }
     }
 
-    public void dumpTree() {
+    void dumpTree() {
         dumpTree(rootFolder);
     }
 
-    public void dumpTree(PVRFolder folder) {
+    void dumpTree(PVRFolder folder) {
         synchronized (folder.children) {
             for (PVRItem child : folder.children) {
                 if (child.isFolder()) {
@@ -380,7 +380,7 @@ class PVR implements TreeModel {
         log.info("Disconnected from FTP");
     }
 
-    public void unlockFile(PVRFile target) throws IOException {
+    void unlockFile(PVRFile target) throws IOException {
 
         if (!target.getFilename().endsWith(".ts")) {
             throw new IllegalArgumentException("Target must be a .ts file: " + target.getFilename());
@@ -439,7 +439,7 @@ class PVR implements TreeModel {
         return new HMTFile(out.toByteArray());
     }
 
-    public void start() {
+    void start() {
         if (upnpRunning.compareAndSet(false, true)) {
             upnp.getControlPoint().search(new STAllHeader());
             upnpThread = new Thread(new Runnable() {
@@ -454,7 +454,7 @@ class PVR implements TreeModel {
         }
     }
 
-    public void stop() {
+    void stop() {
         if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
             upnpThread.interrupt();
         }
@@ -508,7 +508,7 @@ class PVR implements TreeModel {
         }
     }
 
-    public static abstract class PVRItem implements Comparable<PVRItem> {
+    static abstract class PVRItem implements Comparable<PVRItem> {
 
         protected final String filename;
         protected final String path;
@@ -535,25 +535,25 @@ class PVR implements TreeModel {
         @Override
         public abstract int compareTo(PVRItem other);
 
-        public abstract boolean isFile();
+        abstract boolean isFile();
 
-        public abstract boolean isFolder();
+        abstract boolean isFolder();
 
-        public abstract long getSize();
+        abstract long getSize();
 
-        public String getFilename() {
+        String getFilename() {
             return filename;
         }
 
-        public String getPath() {
+        String getPath() {
             return path;
         }
 
-        public PVRItem getParent() {
+        PVRItem getParent() {
             return parent;
         }
 
-        public TreePath getTreePath() {
+        TreePath getTreePath() {
             return treePath;
         }
 
@@ -563,7 +563,7 @@ class PVR implements TreeModel {
         }
     }
 
-    public static class PVRFolder extends PVRItem {
+    static class PVRFolder extends PVRItem {
 
         private final List<PVRItem> children;
 
@@ -583,17 +583,17 @@ class PVR implements TreeModel {
         }
 
         @Override
-        public boolean isFolder() {
+        boolean isFolder() {
             return true;
         }
 
         @Override
-        public boolean isFile() {
+        boolean isFile() {
             return false;
         }
 
         @Override
-        public long getSize() {
+        long getSize() {
             synchronized (children) {
                 long size = 0;
                 for (PVRItem child : children) {
@@ -603,27 +603,27 @@ class PVR implements TreeModel {
             }
         }
 
-        public void addChild(PVRItem child) {
+        void addChild(PVRItem child) {
             synchronized (children) {
                 children.add(child);
                 Collections.sort(children);
             }
         }
 
-        public PVRItem getChild(int index) {
+        PVRItem getChild(int index) {
             synchronized (children) {
                 return children.get(index);
             }
         }
 
-        public int getChildCount() {
+        int getChildCount() {
             synchronized (children) {
                 return children.size();
             }
         }
     }
 
-    public static class PVRFile extends PVRItem {
+    static class PVRFile extends PVRItem {
 
         private final Logger log = LoggerFactory.getLogger(PVRFile.class);
 
@@ -665,125 +665,125 @@ class PVR implements TreeModel {
         }
 
         @Override
-        public boolean isFolder() {
+        boolean isFolder() {
             return false;
         }
 
         @Override
-        public boolean isFile() {
+        boolean isFile() {
             return true;
         }
 
         @Override
-        public long getSize() {
+        long getSize() {
             return size;
         }
 
-        public void setState(State newState) {
+        void setState(State newState) {
             this.state = newState;
         }
 
-        public void setTitle(String title) {
+        void setTitle(String title) {
             this.title = title;
         }
 
-        public String getTitle() {
+        String getTitle() {
             return title;
         }
 
-        public void setDownloadPath(File downloadPath) {
+        void setDownloadPath(File downloadPath) {
             this.downloadPath = downloadPath;
         }
 
-        public File getDownloadPath() {
+        File getDownloadPath() {
             return downloadPath;
         }
 
-        public String getDownloadFilename() {
+        String getDownloadFilename() {
             return downloadFilename;
         }
 
-        public void setDownloadFilename(String downloadFilename) {
+        void setDownloadFilename(String downloadFilename) {
             this.downloadFilename = downloadFilename;
         }
 
-        public State getState() {
+        State getState() {
             return state;
         }
 
-        public void setSize(long size) {
+        void setSize(long size) {
             this.size = size;
         }
 
-        public long getDownloaded() {
+        long getDownloaded() {
             return downloaded;
         }
 
-        public void setDownloaded(long downloaded) {
+        void setDownloaded(long downloaded) {
             this.downloaded = downloaded;
         }
 
-        public String getDescription() {
+        String getDescription() {
             return description;
         }
 
-        public void setDescription(String description) {
+        void setDescription(String description) {
             this.description = description;
         }
 
-        public String getRemoteURL() {
+        String getRemoteURL() {
             return remoteURL;
         }
 
-        public void setRemoteURL(String remoteURL) {
+        void setRemoteURL(String remoteURL) {
             this.remoteURL = remoteURL;
         }
 
-        public DateTime getStart() {
+        DateTime getStart() {
             return start;
         }
 
-        public void setStart(DateTime start) {
+        void setStart(DateTime start) {
             this.start = start;
         }
 
-        public DateTime getEnd() {
+        DateTime getEnd() {
             return end;
         }
 
-        public void setEnd(DateTime end) {
+        void setEnd(DateTime end) {
             this.end = end;
         }
 
-        public Duration getLength() {
+        Duration getLength() {
             return length;
         }
 
-        public void setLength(Duration length) {
+        void setLength(Duration length) {
             this.length = length;
         }
 
-        public boolean isHighDef() {
+        boolean isHighDef() {
             return highDef;
         }
 
-        public void setHighDef(boolean highDef) {
+        void setHighDef(boolean highDef) {
             this.highDef = highDef;
         }
 
-        public boolean isLocked() {
+        boolean isLocked() {
             return locked;
         }
 
-        public void setLocked(boolean locked) {
+        void setLocked(boolean locked) {
             this.locked = locked;
         }
 
-        public String getChannelName() {
+        String getChannelName() {
             return channelName;
         }
 
-        public void setChannelName(String channelName) {
+        void setChannelName(String channelName) {
             this.channelName = channelName;
         }
 
@@ -816,7 +816,7 @@ class PVR implements TreeModel {
             return result.toString();
         }
 
-        public static enum State {
+        static enum State {
             Ready, Queued, Downloading, Paused, Completed, Error
         }
 

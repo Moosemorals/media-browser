@@ -67,7 +67,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         this.listDataListeners = new HashSet<>();
     }
 
-    public void start() {
+    void start() {
         if (running.compareAndSet(false, true)) {
             downloadThread = new Thread(this, "Download");
             downloadThread.start();
@@ -167,7 +167,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
     }
 
-    public void stop() {
+    void stop() {
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
             downloadThread = null;
@@ -259,19 +259,19 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         notifyStatusListeners();
     }
 
-    public boolean isDownloading() {
+    boolean isDownloading() {
         return running.get();
     }
 
-    public File getDownloadPath() {
+    File getDownloadPath() {
         return new File(prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
     }
 
-    public boolean isDownloadPathSet() {
+    boolean isDownloadPathSet() {
         return prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, null) != null;
     }
 
-    public void setDownloadPath(File path) {
+    void setDownloadPath(File path) {
         if (path != null) {
             prefs.put(UI.KEY_DOWNLOAD_DIRECTORY, path.getPath());
         }
@@ -340,7 +340,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         status.downloadProgress(totalQueued, totalDownloaded, currentFile, currentDownload, rate);
     }
 
-    public void setDownloadStatusListener(DownloadStatusListener status) {
+    void setDownloadStatusListener(DownloadStatusListener status) {
         this.status = status;
     }
 
@@ -380,10 +380,10 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         return null;
     }
 
-    public interface DownloadStatusListener {
+    interface DownloadStatusListener {
 
-        public void downloadStatusChanged(boolean running);
+        void downloadStatusChanged(boolean running);
 
-        public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
+        void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
     }
 }
