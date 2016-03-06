@@ -26,9 +26,16 @@ package com.moosemorals.mediabrowser;
 import com.moosemorals.mediabrowser.DownloadManager.DownloadStatusListener;
 import com.moosemorals.mediabrowser.PVR.PVRFile;
 import com.moosemorals.mediabrowser.PVR.PVRItem;
+import java.awt.AWTException;
 import java.awt.BorderLayout;
+import java.awt.Image;
+import java.awt.MenuItem;
+import java.awt.PopupMenu;
 import java.awt.Rectangle;
+import java.awt.SystemTray;
+import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -39,6 +46,7 @@ import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.io.IOException;
+import java.net.URL;
 import java.util.List;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
@@ -57,10 +65,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class UI extends JFrame implements DownloadStatusListener {
+class UI implements DownloadStatusListener {
 
     static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
     static final String KEY_DIVIDER_LOCATION = "divider_location";
+    static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
+    static final String KEY_AUTO_DOWNLOAD = "auto_download";
+    static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
     static final String KEY_FRAME_TOP = "frame_top";
     static final String KEY_FRAME_LEFT = "frame_left";
     static final String KEY_FRAME_WIDTH = "frame_width";
@@ -70,11 +81,15 @@ class UI extends JFrame implements DownloadStatusListener {
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager downloader;
     private final PVR pvr;
-    private final Preferences preferences;
+    private final Preferences prefs;
     private final JButton startButton;
     private final JLabel statusLabel;
     private final JTree displayTree;
+    private final JSplitPane splitPane;
     private final JList<PVRFile> downloadList;
+    private final JFrame window;
+    private final TrayIcon trayIcon;
+    private final Main main;
     private boolean downloading = false;
 
     private final Action startStopAction = new AbstractAction("Start downloading") {
@@ -158,15 +173,41 @@ class UI extends JFrame implements DownloadStatusListener {
     private final Action quitAction = new AbstractAction("Exit") {
         @Override
         public void actionPerformed(ActionEvent e) {
-            quit();
+            window.setVisible(false);
+            window.dispose();
+            main.stop();
         }
     };
 
-    UI(Preferences prefs) {
-        this.preferences = prefs;
+    private final Action setMinimiseToTrayAction = new AbstractAction("Minimise to tray") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            prefs.putBoolean(KEY_MINIMISE_TO_TRAY, ((JCheckBoxMenuItem) e.getSource()).getState());
+        }
+    };
 
-        pvr = new PVR();
-        downloader = new DownloadManager(preferences);
+    private final Action setAutoDownloadAction = new AbstractAction("Automaticaly download next") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            prefs.putBoolean(KEY_AUTO_DOWNLOAD, ((JCheckBoxMenuItem) e.getSource()).getState());
+        }
+    };
+
+    private final Action setSaveDownloadListAction = new AbstractAction("Save download list") {
+        @Override
+        public void actionPerformed(ActionEvent e) {
+            prefs.putBoolean(KEY_SAVE_DOWNLOAD_LIST, ((JCheckBoxMenuItem) e.getSource()).getState());
+        }
+    };
+
+    UI(Main m) {
+        super();
+
+        this.main = m;
+        prefs = main.getPreferences();
+
+        pvr = main.getPVR();
+        downloader = main.getDownloadManager();
 
         queueAction.setEnabled(false);
         startStopAction.setEnabled(false);
@@ -174,10 +215,10 @@ class UI extends JFrame implements DownloadStatusListener {
         removeSelectedAction.setEnabled(false);
         chooseDownloadPathAction.setEnabled(false);
 
-        setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        setTitle("Media Browser");
+        window = new JFrame("Media Browser");
 
-        addComponentListener(new ComponentAdapter() {
+        window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+        window.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
                 saveBounds(e.getComponent().getBounds());
@@ -189,34 +230,28 @@ class UI extends JFrame implements DownloadStatusListener {
             }
 
             private void saveBounds(Rectangle bounds) {
-                preferences.putInt(KEY_FRAME_TOP, bounds.y);
-                preferences.putInt(KEY_FRAME_LEFT, bounds.x);
-                preferences.putInt(KEY_FRAME_WIDTH, bounds.width);
-                preferences.putInt(KEY_FRAME_HEIGHT, bounds.height);
+                prefs.putInt(KEY_FRAME_TOP, bounds.y);
+                prefs.putInt(KEY_FRAME_LEFT, bounds.x);
+                prefs.putInt(KEY_FRAME_WIDTH, bounds.width);
+                prefs.putInt(KEY_FRAME_HEIGHT, bounds.height);
             }
         });
 
-        addWindowListener(new WindowAdapter() {
+        window.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                log.debug("Closing window");
-
-                UI.this.setVisible(false);
-                UI.this.dispose();
-                quit();
+                if (prefs.getBoolean(KEY_MINIMISE_TO_TRAY, true)) {
+                    window.dispose();
+                } else {
+                    main.stop();
+                }
             }
         });
-
-        setBounds(new Rectangle(
-                prefs.getInt(KEY_FRAME_LEFT, 0),
-                prefs.getInt(KEY_FRAME_TOP, 0),
-                prefs.getInt(KEY_FRAME_WIDTH, 640),
-                prefs.getInt(KEY_FRAME_HEIGHT, 480)
-        ));
 
         JMenuBar menuBar = new JMenuBar();
 
-        JMenu menu = new JMenu("File");
+        JMenu menu;
+        menu = new JMenu("File");
 
         menu.add(chooseDefaultDownloadPathAction);
         menu.add(startStopAction);
@@ -224,7 +259,31 @@ class UI extends JFrame implements DownloadStatusListener {
 
         menuBar.add(menu);
 
-        setJMenuBar(menuBar);
+        menu = new JMenu("Options");
+
+        JCheckBoxMenuItem jCheckBoxMenuItem;
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(setMinimiseToTrayAction);
+        if (SystemTray.isSupported()) {
+            jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_MINIMISE_TO_TRAY, true));
+        } else {
+            setMinimiseToTrayAction.setEnabled(false);
+            prefs.putBoolean(KEY_MINIMISE_TO_TRAY, false);
+            jCheckBoxMenuItem.setState(false);
+        }
+        menu.add(jCheckBoxMenuItem);
+
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(setAutoDownloadAction);
+        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_AUTO_DOWNLOAD, true));
+        menu.add(jCheckBoxMenuItem);
+
+        setSaveDownloadListAction.setEnabled(false); // not implemented yet
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(setSaveDownloadListAction);
+        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false));
+        menu.add(jCheckBoxMenuItem);
+
+        menuBar.add(menu);
+
+        window.setJMenuBar(menuBar);
 
         final JPopupMenu treePopup = new JPopupMenu();
         treePopup.add(queueAction);
@@ -356,30 +415,71 @@ class UI extends JFrame implements DownloadStatusListener {
             }
         });
 
-        java.awt.Container cp = getContentPane();
-        cp.setLayout(new BorderLayout());
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
+        window.setLayout(new BorderLayout());
 
-        splitPane.setDividerLocation(prefs.getInt(KEY_DIVIDER_LOCATION, -1));
+        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
 
         splitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
-                preferences.putInt(KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
+                prefs.putInt(KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
             }
         });
 
-        cp.add(splitPane, BorderLayout.CENTER);
-        cp.add(statusPanel, BorderLayout.SOUTH);
+        window.add(splitPane, BorderLayout.CENTER);
+        window.add(statusPanel, BorderLayout.SOUTH);
 
-        setVisible(true);
+        if (SystemTray.isSupported()) {
+            PopupMenu trayPopup = new PopupMenu();
+
+            MenuItem item;
+            item = new MenuItem(startStopAction.getValue(AbstractAction.NAME).toString());
+            item.addActionListener(startStopAction);
+            trayPopup.add(item);
+
+            item = new MenuItem(chooseDefaultDownloadPathAction.getValue(AbstractAction.NAME).toString());
+            item.addActionListener(chooseDefaultDownloadPathAction);
+            trayPopup.add(item);
+
+            item = new MenuItem(quitAction.getValue(AbstractAction.NAME).toString());
+            item.addActionListener(quitAction);
+            trayPopup.add(item);
+
+            trayIcon = new TrayIcon(createImage("/application_icon.png", "Application icon"), "Media Browser", trayPopup);
+            trayIcon.setImageAutoSize(true);
+
+            trayIcon.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    log.debug("Action!");
+                    start();
+                }
+            });
+            try {
+                SystemTray.getSystemTray().add(trayIcon);
+            } catch (AWTException ex) {
+                log.error("Can't add system tray icon: {}", ex.getMessage(), ex);
+            }
+        } else {
+            trayIcon = null;
+        }
 
     }
 
     void start() {
         downloadProgress(0, 0, 0, 0, -1);
         downloader.setDownloadStatusListener(this);
-        pvr.start();
+        window.pack();
+
+        window.setBounds(new Rectangle(
+                prefs.getInt(KEY_FRAME_LEFT, 0),
+                prefs.getInt(KEY_FRAME_TOP, 0),
+                prefs.getInt(KEY_FRAME_WIDTH, 640),
+                prefs.getInt(KEY_FRAME_HEIGHT, 480)
+        ));
+
+        splitPane.setDividerLocation(prefs.getInt(KEY_DIVIDER_LOCATION, window.getWidth() / 2));
+        window.setVisible(true);
     }
 
     private File chooseDownloadFolder(File initial) {
@@ -387,7 +487,7 @@ class UI extends JFrame implements DownloadStatusListener {
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fc.setDialogTitle("Choose download folder");
 
-        int returnVal = fc.showOpenDialog(this);
+        int returnVal = fc.showOpenDialog(window);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
             return fc.getSelectedFile();
         } else {
@@ -395,9 +495,10 @@ class UI extends JFrame implements DownloadStatusListener {
         }
     }
 
-    private void quit() {
-        pvr.stop();
-        downloader.stop();
+    public void stop() {
+        if (SystemTray.isSupported()) {
+            SystemTray.getSystemTray().remove(trayIcon);
+        }
     }
 
     void setStatus(final String status) {
@@ -418,26 +519,40 @@ class UI extends JFrame implements DownloadStatusListener {
 
     @Override
     public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
-        if (rate < 0.0) {
-            statusLabel.setText(String.format("Total queued %s (Downloaded %s %.0f%%)",
-                    PVR.humanReadableSize(totalQueued),
-                    PVR.humanReadableSize(totalDownloaded),
-                    totalQueued > 0
-                            ? (totalDownloaded / (double) totalQueued) * 100.0
-                            : 0
-            ));
-        } else {
-            statusLabel.setText(String.format("Total queued %s (Downloaded %s %.0f%%) - Current %s (Downloaded %s %.0f%%) - Rate %s/s",
-                    PVR.humanReadableSize(totalQueued),
-                    PVR.humanReadableSize(totalDownloaded),
-                    (totalDownloaded / (double) totalQueued) * 100.0,
+
+        String message;
+
+        message = String.format("Total queued %s Downloaded %s %.0f%%",
+                PVR.humanReadableSize(totalQueued),
+                PVR.humanReadableSize(totalDownloaded),
+                totalQueued > 0
+                        ? (totalDownloaded / (double) totalQueued) * 100.0
+                        : 0
+        );
+
+        if (rate >= 0) {
+            message += String.format(" - Current %s Downloaded %s %.0f%% - Rate %s/s",
                     PVR.humanReadableSize(currentFile),
                     PVR.humanReadableSize(currentDownloaded),
                     currentFile > 0
                             ? (currentDownloaded / (double) currentFile) * 100.0
                             : 0,
                     PVR.humanReadableSize((long) rate)
-            ));
+            );
+        }
+
+        statusLabel.setText(message);
+        trayIcon.setToolTip(message);
+    }
+
+    private Image createImage(String path, String description) {
+        URL imageURL = UI.class.getResource(path);
+
+        if (imageURL != null) {
+            return (new ImageIcon(imageURL, description)).getImage();
+        } else {
+            log.error("Can't find resource for {}", path);
+            return null;
         }
     }
 

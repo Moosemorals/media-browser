@@ -161,6 +161,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                 }
                 target.setState(PVRFile.State.Completed);
                 notifyListDataListeners();
+
+                if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false)) {
+                    stop();
+                    return;
+                }
             } catch (IOException ex) {
                 log.error("IOExcption", ex);
             }

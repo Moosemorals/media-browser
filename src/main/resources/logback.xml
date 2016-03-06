@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<configuration>
+    <contextListener class="ch.qos.logback.classic.jul.LevelChangePropagator">
+        <!-- reset all previous level configurations of all j.u.l. loggers -->
+        <resetJUL>true</resetJUL>
+    </contextListener> 
+
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyyMMdd'T'HHmmss.SSSz} | %-5p | [%t].%c | %m%n</pattern>
+        </encoder>
+    </appender>
+    
+    <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+        <file>mediabrowser.log</file>
+        <encoder>
+            <pattern>%d{yyyyMMdd'T'HHmmss.SSSz} | %-5p | [%t].%c | %m%n</pattern>
+        </encoder>
+    </appender>
+  
+    <logger name="com.moosemorals" level="DEBUG" />
+  
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+        <appender-ref ref="FILE"/>
+    </root>
+</configuration>

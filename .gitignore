@@ -1,4 +1,6 @@
-reated by https://www.gitignore.io/api/java,netbeans,maven
+/mediabrowser.log
+
+#Created by https://www.gitignore.io/api/java,netbeans,maven
 
 ### Java ###
 *.class

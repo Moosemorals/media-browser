@@ -28,34 +28,91 @@ import java.util.prefs.Preferences;
 import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.slf4j.bridge.SLF4JBridgeHandler;
 
 /**
  * Entry point for the application.
  *
- * @author Osric Wilkinson )osric@fluffypeople.com)
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main {
-
-    private static final Logger log = LoggerFactory.getLogger(Main.class);
+public class Main implements Runnable {
 
     public static void main(String args[]) {
+        log.info("***** STARTUP *****");
+
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                log.info("***** SHUTDOWN *****");
+            }
+        });
+
+        Thread.setDefaultUncaughtExceptionHandler(new ExceptionHandler());
+
+        SLF4JBridgeHandler.removeHandlersForRootLogger();
+        SLF4JBridgeHandler.install();
+
         try {
             UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
         } catch (ClassNotFoundException | InstantiationException | IllegalAccessException | javax.swing.UnsupportedLookAndFeelException ex) {
             log.error("Can't change look and feel", ex);
         }
 
-        final Preferences prefs = Preferences.userNodeForPackage(Main.class);
+        Main main = new Main(Preferences.userNodeForPackage(Main.class));
+        EventQueue.invokeLater(main);
+    }
 
-        log.debug("Download directory {}", prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, "Uknown"));
+    private static final Logger log = LoggerFactory.getLogger(Main.class);
 
-        EventQueue.invokeLater(new Runnable() {
+    private final Preferences preferences;
+    private final DownloadManager downloader;
+    private final PVR pvr;
+    private UI ui = null;
 
-            @Override
-            public void run() {
-                new UI(prefs).start();
-            }
-        });
+    private Main(Preferences prefs) {
+        this.preferences = prefs;
+        pvr = new PVR();
+        pvr.start();
+        downloader = new DownloadManager(preferences);
+    }
+
+    @Override
+    public void run() {
+        // Running in the AWT thread
+        Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
+        ui = new UI(this);
+        log.debug("UI ready");
+        ui.start();
+    }
+
+    PVR getPVR() {
+        return pvr;
+    }
+
+    public void stop() {
+        pvr.stop();
+        downloader.stop();
+        if (ui != null) {
+            ui.stop();
+        }
+        System.exit(0);
+    }
+
+    DownloadManager getDownloadManager() {
+        return downloader;
+    }
+
+    Preferences getPreferences() {
+        return preferences;
+    }
+
+    static class ExceptionHandler implements Thread.UncaughtExceptionHandler {
+
+        @Override
+        public void uncaughtException(Thread thread, Throwable thrown) {
+            log.error("Uncaught exception in thread {}: {}", thread.getName(), thrown.getMessage(), thrown);
+            System.exit(1);
+        }
     }
 
 }
