@@ -226,7 +226,11 @@ class UI implements DownloadStatusListener {
         removeSelectedAction.setEnabled(false);
         chooseDownloadPathAction.setEnabled(false);
 
+        Image applicationIcon = loadIcon("/application_icon.png");
+
         window = new JFrame("Media Browser");
+
+        window.setIconImage(applicationIcon);
 
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         window.addComponentListener(new ComponentAdapter() {
@@ -467,7 +471,7 @@ class UI implements DownloadStatusListener {
             item.addActionListener(quitAction);
             trayPopup.add(item);
 
-            trayIcon = new TrayIcon(createImage("/application_icon.png", "Application icon"), "Media Browser", trayPopup);
+            trayIcon = new TrayIcon(applicationIcon, "Media Browser", trayPopup);
             trayIcon.setImageAutoSize(true);
 
             trayIcon.addActionListener(new ActionListener() {
@@ -572,11 +576,11 @@ class UI implements DownloadStatusListener {
         trayIcon.setToolTip(message);
     }
 
-    private Image createImage(String path, String description) {
+    private Image loadIcon(String path) {
         URL imageURL = UI.class.getResource(path);
 
         if (imageURL != null) {
-            return (new ImageIcon(imageURL, description)).getImage();
+            return (new ImageIcon(imageURL)).getImage();
         } else {
             log.error("Can't find resource for {}", path);
             return null;
@@ -586,7 +590,7 @@ class UI implements DownloadStatusListener {
     @Override
     public void downloadCompleted(PVRFile target) {
         if (prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true)) {
-            trayIcon.displayMessage("Download Completed", String.format("{} has downloaded to {}/{}", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
+            trayIcon.displayMessage("Download Completed", String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
         }
     }
 

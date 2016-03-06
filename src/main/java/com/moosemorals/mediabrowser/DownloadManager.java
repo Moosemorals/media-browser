@@ -176,7 +176,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
                 status.downloadCompleted(target);
 
-                if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false)) {
+                if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false) || !downloadsAvailible()) {
                     stop();
                     status.downloadStatusChanged(false);
                     return;

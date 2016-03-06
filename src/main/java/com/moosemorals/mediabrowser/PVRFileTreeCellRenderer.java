@@ -89,6 +89,8 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
             }
 
             setText(title.toString());
+
+            setToolTipText(file.getDescription());
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
 
