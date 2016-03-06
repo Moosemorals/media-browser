@@ -56,6 +56,9 @@ it will connect to the Upnp service and the FTP service (using the default
 When the list of files has been built, you can right click on a file to queue
 it, or to remove the copy protection flag.
 
+## Information
+
+The maven build information stuff is availible [on github pages](http://moosemorals.github.io/media-browser/index.html).
 
 ## Dependencies
 
