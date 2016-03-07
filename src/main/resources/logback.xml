@@ -20,7 +20,7 @@
     </appender>
   
     <logger name="com.moosemorals" level="DEBUG" />
-  
+   
     <root level="WARN">
         <appender-ref ref="STDOUT"/>
         <appender-ref ref="FILE"/>

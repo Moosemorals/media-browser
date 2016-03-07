@@ -95,19 +95,24 @@ class UI implements DownloadStatusListener {
     private boolean downloading = false;
 
     private final Action startStopAction = new AbstractAction("Start downloading") {
+
         @Override
         public void actionPerformed(ActionEvent e) {
             if (downloading) {
-                log.debug("Stopping downloads");
                 downloader.stop();
-                putValue(NAME, "Start downloading");
             } else {
-                log.debug("Starting downloads");
                 downloader.start();
-                putValue(NAME, "Stop downloading");
             }
         }
     };
+
+    private void updateStartStop() {
+        if (downloading) {
+            startStopAction.putValue(Action.NAME, "Stop downloading");
+        } else {
+            startStopAction.putValue(Action.NAME, "Start donwloading");
+        }
+    }
 
     private final Action queueAction = new AbstractAction("Queue selected") {
         @Override
@@ -463,10 +468,6 @@ class UI implements DownloadStatusListener {
             item.addActionListener(startStopAction);
             trayPopup.add(item);
 
-            item = new MenuItem(chooseDefaultDownloadPathAction.getValue(AbstractAction.NAME).toString());
-            item.addActionListener(chooseDefaultDownloadPathAction);
-            trayPopup.add(item);
-
             item = new MenuItem(quitAction.getValue(AbstractAction.NAME).toString());
             item.addActionListener(quitAction);
             trayPopup.add(item);
@@ -543,8 +544,8 @@ class UI implements DownloadStatusListener {
         if (running && !downloading) {
             rateTracker.reset();
         }
-        chooseDownloadPathAction.setEnabled(!running);
         this.downloading = running;
+        updateStartStop();
     }
 
     @Override

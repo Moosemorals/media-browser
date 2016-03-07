@@ -35,7 +35,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable {
+public class Main implements Runnable, PVR.ConnectionListener {
 
     public static void main(String args[]) {
         log.info("***** STARTUP *****");
@@ -71,7 +71,7 @@ public class Main implements Runnable {
 
     private Main(Preferences prefs) {
         this.preferences = prefs;
-        pvr = new PVR();
+        pvr = new PVR(this);
         pvr.start();
         downloader = new DownloadManager(preferences);
     }
@@ -104,6 +104,16 @@ public class Main implements Runnable {
 
     Preferences getPreferences() {
         return preferences;
+    }
+
+    @Override
+    public void onConnect() {
+        // do nothing
+    }
+
+    @Override
+    public void onDisconnect() {
+        downloader.stop();
     }
 
     static class ExceptionHandler implements Thread.UncaughtExceptionHandler {

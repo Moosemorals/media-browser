@@ -32,7 +32,9 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.event.TreeModelEvent;
@@ -127,23 +129,39 @@ class PVR implements TreeModel {
     private final List<DeviceBrowse> upnpQueue;
     private final AtomicBoolean upnpRunning;
     private final AtomicBoolean ftpRunning;
+    private final ConnectionListener connectionListener;
+
+    private boolean connected = false;
     private Thread upnpThread = null;
     private Thread ftpThread = null;
     private String remoteHostname = null;
     private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
+
+        private RemoteDevice connectedDevice = null;
+
         @Override
         public void remoteDeviceAdded(Registry registry, RemoteDevice device) {
             if (DEVICE_NAME.equals(device.getDisplayString())) {
-                log.debug("Found {} in thread {}", DEVICE_NAME, Thread.currentThread().getName());
-                setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
-                populateTree(device);
-            } else {
-                log.info("Skiping device {} ", device.getDisplayString());
+                log.info("Connected to {}", DEVICE_NAME);
+                onConnect(device);
+                connectedDevice = device;
+
+            }
+        }
+
+        @Override
+        public void remoteDeviceRemoved(Registry registry, RemoteDevice device) {
+            if (device.equals(connectedDevice)) {
+                log.info("Disconnected from {}", DEVICE_NAME);
+                onDisconnect(device);
+                connectedDevice = null;
             }
         }
     };
 
-    PVR() {
+    PVR(ConnectionListener parent) {
+        connectionListener = parent;
+        
         FTPClientConfig config = new FTPClientConfig();
         config.setServerTimeZoneId(DEFAULT_TIMEZONE.getID());
         config.setServerLanguageCode("EN");
@@ -210,6 +228,26 @@ class PVR implements TreeModel {
             }
         }
         return -1;
+    }
+
+    void onConnect(RemoteDevice device) {
+        setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
+        Service service = device.findService(new UDAServiceType("ContentDirectory"));
+        if (service != null) {
+            synchronized (upnpQueue) {
+                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", rootFolder));
+                upnpQueue.notifyAll();
+            }
+            startUPNP();
+        }
+    }
+
+    void onDisconnect(RemoteDevice device) {
+        connectionListener.onDisconnect();
+        stopUpnp();
+        stopFTP();
+        rootFolder.clearChildren();
+        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
     }
 
     PVRFolder addFolder(PVRFolder parent, String folderName) {
@@ -296,6 +334,115 @@ class PVR implements TreeModel {
         });
     }
 
+    void unlockFile(PVRFile target) throws IOException {
+
+        if (!target.getFilename().endsWith(".ts")) {
+            throw new IllegalArgumentException("Target must be a .ts file: " + target.getFilename());
+        }
+
+        log.info("Connecting to FTP");
+
+        ftp.connect(getRemoteHostname());
+        int reply = ftp.getReplyCode();
+
+        if (!FTPReply.isPositiveCompletion(reply)) {
+            ftp.disconnect();
+            throw new IOException("FTP server refused connect");
+        }
+
+        if (!ftp.login("humaxftp", "0000")) {
+            throw new IOException("Can't login to FTP");
+        }
+
+        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
+            throw new IOException("Can't set binary transfer");
+        }
+
+        if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getPath())) {
+            throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getPath());
+        }
+
+        HMTFile hmt = getHMTForTs(target);
+
+        if (!hmt.isLocked()) {
+            log.info("Unlock failed: {} is already unlocked", target.getFilename());
+            return;
+        }
+
+        hmt.clearLock();
+
+        String uploadFilename = target.getFilename().replaceAll("\\.ts$", ".hmt");
+
+        log.info("Uploading unlocked hmt file to {}/{}", target.getParent().getPath(), uploadFilename);
+        if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
+            throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
+        }
+
+        ftp.disconnect();
+        log.info("Disconnected from FTP");
+    }
+
+    private HMTFile getHMTForTs(PVRFile file) throws IOException {
+        String target = file.getFilename().replaceAll("\\.ts$", ".hmt");
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+
+        if (!ftp.retrieveFile(target, out)) {
+            throw new IOException("Can't download " + file.getPath() + ": Unknown reason");
+        }
+
+        return new HMTFile(out.toByteArray());
+    }
+
+    void start() {
+        upnp.getControlPoint().search(new STAllHeader());
+    }
+
+    private void startUPNP() {
+        if (upnpRunning.compareAndSet(false, true)) {
+            upnpThread = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    DeviceBrowse next;
+                    try {
+                        while (upnpRunning.get()) {
+
+                            synchronized (upnpQueue) {
+                                while (upnpQueue.isEmpty()) {
+                                    upnpQueue.wait();
+                                }
+                                next = upnpQueue.remove(0);
+                            }
+
+                            upnp.getControlPoint().execute(next);
+                            synchronized (flag) {
+                                flag.wait();
+                            }
+
+                            synchronized (upnpQueue) {
+                                if (upnpQueue.isEmpty()) {
+                                    log.info("Browse complete");
+                                    startFTP();
+                                    return;
+                                }
+                            }
+                        }
+                    } catch (InterruptedException ex) {
+                        return;
+                    } finally {
+                        upnpRunning.set(false);
+                    }
+                }
+            }, "UPNP");
+            upnpThread.start();
+        }
+    }
+
+    private void stopUpnp() {
+        if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
+            upnpThread.interrupt();
+        }
+    }
+
     private void startFTP() {
         if (ftpRunning.compareAndSet(false, true)) {
             ftpThread = new Thread(new Runnable() {
@@ -304,9 +451,9 @@ class PVR implements TreeModel {
                     try {
                         scrapeFTP();
                     } catch (IOException ex) {
-                        throw new RuntimeException(ex);
+                        log.error("FTP problem: {}", ex.getMessage(), ex);
+                        stopFTP();
                     }
-
                     TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
                     notifyListenersUpdate(e);
                 }
@@ -380,132 +527,20 @@ class PVR implements TreeModel {
         log.info("Disconnected from FTP");
     }
 
-    void unlockFile(PVRFile target) throws IOException {
-
-        if (!target.getFilename().endsWith(".ts")) {
-            throw new IllegalArgumentException("Target must be a .ts file: " + target.getFilename());
-        }
-
-        log.info("Connecting to FTP");
-
-        ftp.connect(getRemoteHostname());
-        int reply = ftp.getReplyCode();
-
-        if (!FTPReply.isPositiveCompletion(reply)) {
-            ftp.disconnect();
-            throw new IOException("FTP server refused connect");
-        }
-
-        if (!ftp.login("humaxftp", "0000")) {
-            throw new IOException("Can't login to FTP");
-        }
-
-        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
-            throw new IOException("Can't set binary transfer");
-        }
-
-        if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getPath())) {
-            throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getPath());
-        }
-
-        HMTFile hmt = getHMTForTs(target);
-
-        if (!hmt.isLocked()) {
-            log.info("Unlock failed: {} is already unlocked", target.getFilename());
-            return;
-        }
-
-        hmt.clearLock();
-
-        String uploadFilename = target.getFilename().replaceAll("\\.ts$", ".hmt");
-
-        log.info("Uploading unlocked hmt file to {}/{}", target.getParent().getPath(), uploadFilename);
-        if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
-            throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
-        }
-
-        ftp.disconnect();
-        log.info("Disconnected from FTP");
-    }
-
-    private HMTFile getHMTForTs(PVRFile file) throws IOException {
-        String target = file.getFilename().replaceAll("\\.ts$", ".hmt");
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-
-        if (!ftp.retrieveFile(target, out)) {
-            throw new IOException("Can't download " + file.getPath() + ": Unknown reason");
-        }
-
-        return new HMTFile(out.toByteArray());
-    }
-
-    void start() {
-        if (upnpRunning.compareAndSet(false, true)) {
-            upnp.getControlPoint().search(new STAllHeader());
-            upnpThread = new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    browseUpnp();
-                }
-
-            }, "BrowseQueue");
-
-            upnpThread.start();
+    private void stopFTP() {
+        if (ftpRunning.compareAndSet(true, false) && ftpThread != null) {
+            ftpThread.interrupt();
         }
     }
 
     void stop() {
-        if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
-            upnpThread.interrupt();
-        }
-
-        if (ftpRunning.compareAndSet(false, true) && ftpThread != null) {
-            ftpThread.interrupt();
-        }
-
         upnp.shutdown();
-    }
 
-    private void populateTree(RemoteDevice device) {
-        Service service = device.findService(new UDAServiceType("ContentDirectory"));
-        if (service != null) {
-            synchronized (upnpQueue) {
-                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", (PVRFolder) getRoot()));
-                upnpQueue.notifyAll();
-            }
-        }
-    }
+        stopUpnp();
+        stopFTP();
 
-    private void browseUpnp() {
-        while (upnpRunning.get()) {
-            DeviceBrowse next;
-
-            try {
-                synchronized (upnpQueue) {
-                    while (upnpQueue.isEmpty()) {
-                        upnpQueue.wait();
-                    }
-                    next = upnpQueue.remove(0);
-                }
-
-                upnp.getControlPoint().execute(next);
-                synchronized (flag) {
-                    flag.wait();
-                }
-
-                synchronized (upnpQueue) {
-                    if (upnpQueue.isEmpty()) {
-                        log.info("Browse complete");
-                        startFTP();
-                        upnpRunning.set(false);
-                        break;
-                    }
-                }
-            } catch (InterruptedException ex) {
-                upnpRunning.set(false);
-                return;
-            }
-        }
+        rootFolder.clearChildren();
+        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
     }
 
     static abstract class PVRItem implements Comparable<PVRItem> {
@@ -534,6 +569,26 @@ class PVR implements TreeModel {
 
         @Override
         public abstract int compareTo(PVRItem other);
+
+        @Override
+        public int hashCode() {
+            int hash = 7;
+            hash = 89 * hash + Objects.hashCode(this.filename);
+            hash = 89 * hash + Objects.hashCode(this.path);
+            return hash;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj == null) {
+                return false;
+            }
+            if (getClass() != obj.getClass()) {
+                return false;
+            }
+            final PVRItem other = (PVRItem) obj;
+            return this.path.equals(other.path) && this.filename.equals(other.filename);
+        }
 
         abstract boolean isFile();
 
@@ -619,6 +674,18 @@ class PVR implements TreeModel {
         int getChildCount() {
             synchronized (children) {
                 return children.size();
+            }
+        }
+
+        void clearChildren() {
+            synchronized (children) {
+                for (Iterator<PVRItem> it = children.iterator(); it.hasNext();) {
+                    PVRItem item = it.next();
+                    if (item.isFolder()) {
+                        ((PVRFolder) item).clearChildren();
+                    }
+                    it.remove();
+                }
             }
         }
     }
@@ -817,6 +884,7 @@ class PVR implements TreeModel {
         }
 
         static enum State {
+
             Ready, Queued, Downloading, Paused, Completed, Error
         }
 
@@ -869,5 +937,10 @@ class PVR implements TreeModel {
         public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
 
         }
+    }
+    
+    interface ConnectionListener {
+        void onConnect();
+        void onDisconnect();
     }
 }

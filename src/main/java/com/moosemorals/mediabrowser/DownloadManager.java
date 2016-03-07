@@ -134,7 +134,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                     byte[] buffer = new byte[1024 * 4];
                     long count = target.getDownloaded();
                     int n = 0;
-                    while (-1 != (n = in.read(buffer))) {
+                    while ((n = in.read(buffer)) != -1) {
                         out.write(buffer, 0, n);
                         count += n;
                         target.setDownloaded(count);
@@ -160,25 +160,37 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                             return;
                         }
                     }
-                }
 
-                if (target.getSize() == downloadTarget.length()) {
-                    File completed = getCompletedTarget(target);
-                    if (!downloadTarget.renameTo(completed)) {
-                        throw new IOException("Can't rename from " + downloadTarget + " to " + completed + ": Unknown");
+                    if (target.getSize() == downloadTarget.length()) {
+                        File completed = getCompletedTarget(target);
+                        if (downloadTarget.renameTo(completed)) {
+                            target.setState(PVRFile.State.Completed);
+                        } else {
+                            log.error("Can't rename {} to {}", target, completed);
+                            target.setState(PVRFile.State.Error);
+                        }
+                        status.downloadCompleted(target);
                     }
-                    target.setState(PVRFile.State.Completed);
-                } else {
-                    target.setState(PVRFile.State.Error);
+
+                } catch (IOException ex) {
+                    if (running.get()) {
+                        // Error while we're running, so probably actualy an error
+                        target.setState(PVRFile.State.Error);
+                        log.error("IOException while downloading: {}", ex.getMessage(), ex);
+                    } else {
+                        // Error while we're not running, probably a disconnect
+                        target.setState(PVRFile.State.Paused);
+                        log.info("IOException disconnecting: {}", ex.getMessage(), ex);
+                    }
+                    // just in case
+                    stop();
+                    return;
                 }
 
                 notifyListDataListeners();
 
-                status.downloadCompleted(target);
-
                 if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false) || !downloadsAvailible()) {
                     stop();
-                    status.downloadStatusChanged(false);
                     return;
                 }
             } catch (IOException ex) {
