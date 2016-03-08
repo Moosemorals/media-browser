@@ -65,7 +65,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class UI implements DownloadStatusListener {
+class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
     static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
     static final String KEY_DIVIDER_LOCATION = "divider_location";
@@ -593,6 +593,16 @@ class UI implements DownloadStatusListener {
         if (prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true)) {
             trayIcon.displayMessage("Download Completed", String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
         }
+    }
+
+    @Override
+    public void onConnect() {
+
+    }
+
+    @Override
+    public void onDisconnect() {
+        startStopAction.setEnabled(false);
     }
 
 }

@@ -50,7 +50,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class DownloadManager implements ListModel<PVRFile>, Runnable {
+class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionListener {
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
@@ -215,6 +215,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
 
         synchronized (queue) {
+            if (queue.contains(target)) {
+                // already queued
+                return false;
+            }
+
             queue.add(target);
             queue.notifyAll();
         }
@@ -377,6 +382,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     private boolean setupForQueue(PVRFile target) {
+
         if (target.getState() != PVRFile.State.Ready) {
             log.debug("File {} isn't ready, in state {}", target.getTitle(), target.getState());
             return false;
@@ -423,6 +429,16 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private File getCompletedTarget(PVRFile target) {
         return new File(target.getDownloadPath(), target.getDownloadFilename() + ".ts");
+    }
+
+    @Override
+    public void onConnect() {
+        // ignored
+    }
+
+    @Override
+    public void onDisconnect() {
+        stop();
     }
 
     interface DownloadStatusListener {

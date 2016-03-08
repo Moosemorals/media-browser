@@ -129,9 +129,8 @@ class PVR implements TreeModel {
     private final List<DeviceBrowse> upnpQueue;
     private final AtomicBoolean upnpRunning;
     private final AtomicBoolean ftpRunning;
-    private final ConnectionListener connectionListener;
+    private final Set<ConnectionListener> connectionListeners;
 
-    private boolean connected = false;
     private Thread upnpThread = null;
     private Thread ftpThread = null;
     private String remoteHostname = null;
@@ -159,9 +158,9 @@ class PVR implements TreeModel {
         }
     };
 
-    PVR(ConnectionListener parent) {
-        connectionListener = parent;
-        
+    PVR() {
+        connectionListeners = new HashSet<>();
+
         FTPClientConfig config = new FTPClientConfig();
         config.setServerTimeZoneId(DEFAULT_TIMEZONE.getID());
         config.setServerLanguageCode("EN");
@@ -240,14 +239,15 @@ class PVR implements TreeModel {
             }
             startUPNP();
         }
+        notifyConnectionListeners(true);
     }
 
     void onDisconnect(RemoteDevice device) {
-        connectionListener.onDisconnect();
         stopUpnp();
         stopFTP();
         rootFolder.clearChildren();
         notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+        notifyConnectionListeners(false);
     }
 
     PVRFolder addFolder(PVRFolder parent, String folderName) {
@@ -332,6 +332,30 @@ class PVR implements TreeModel {
                 }
             }
         });
+    }
+
+    void addConnectionListener(ConnectionListener l) {
+        synchronized (connectionListeners) {
+            connectionListeners.add(l);
+        }
+    }
+
+    void removeConnectionListener(ConnectionListener l) {
+        synchronized (connectionListeners) {
+            connectionListeners.add(l);
+        }
+    }
+
+    private void notifyConnectionListeners(boolean connected) {
+        synchronized (connectionListeners) {
+            for (ConnectionListener l : connectionListeners) {
+                if (connected) {
+                    l.onConnect();
+                } else {
+                    l.onDisconnect();
+                }
+            }
+        }
     }
 
     void unlockFile(PVRFile target) throws IOException {
@@ -938,9 +962,11 @@ class PVR implements TreeModel {
 
         }
     }
-    
+
     interface ConnectionListener {
+
         void onConnect();
+
         void onDisconnect();
     }
 }

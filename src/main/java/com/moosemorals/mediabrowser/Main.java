@@ -35,7 +35,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable, PVR.ConnectionListener {
+public class Main implements Runnable {
 
     public static void main(String args[]) {
         log.info("***** STARTUP *****");
@@ -71,9 +71,12 @@ public class Main implements Runnable, PVR.ConnectionListener {
 
     private Main(Preferences prefs) {
         this.preferences = prefs;
-        pvr = new PVR(this);
+        pvr = new PVR();
+
         pvr.start();
         downloader = new DownloadManager(preferences);
+        pvr.addConnectionListener(downloader);
+
     }
 
     @Override
@@ -81,6 +84,7 @@ public class Main implements Runnable, PVR.ConnectionListener {
         // Running in the AWT thread
         Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
         ui = new UI(this);
+        pvr.addConnectionListener(ui);
         log.debug("UI ready");
         ui.start();
     }
@@ -104,16 +108,6 @@ public class Main implements Runnable, PVR.ConnectionListener {
 
     Preferences getPreferences() {
         return preferences;
-    }
-
-    @Override
-    public void onConnect() {
-        // do nothing
-    }
-
-    @Override
-    public void onDisconnect() {
-        downloader.stop();
     }
 
     static class ExceptionHandler implements Thread.UncaughtExceptionHandler {
