@@ -189,7 +189,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
 
                 notifyListDataListeners();
 
-                if (!prefs.getBoolean(UI.KEY_AUTO_DOWNLOAD, false) || !downloadsAvailible()) {
+                if (!prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false) || !downloadsAvailible()) {
                     stop();
                     return;
                 }
@@ -301,16 +301,16 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
     }
 
     File getDownloadPath() {
-        return new File(prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
+        return new File(prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
     }
 
     boolean isDownloadPathSet() {
-        return prefs.get(UI.KEY_DOWNLOAD_DIRECTORY, null) != null;
+        return prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, null) != null;
     }
 
     void setDownloadPath(File path) {
         if (path != null) {
-            prefs.put(UI.KEY_DOWNLOAD_DIRECTORY, path.getPath());
+            prefs.put(Main.KEY_DOWNLOAD_DIRECTORY, path.getPath());
         }
     }
 
@@ -405,7 +405,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
         return true;
     }
 
-    private boolean downloadsAvailible() {
+    boolean downloadsAvailible() {
         for (PVRFile f : queue) {
             if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
                 return true;

@@ -24,8 +24,14 @@
 package com.moosemorals.mediabrowser;
 
 import java.awt.EventQueue;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
 import java.util.prefs.Preferences;
 import javax.swing.UIManager;
+import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
@@ -35,7 +41,19 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable {
+public class Main implements Runnable, ActionListener {
+
+    static final String KEY_FRAME_KNOWN = "frame_bounds";
+    static final String KEY_FRAME_HEIGHT = "frame_height";
+    static final String KEY_MESSAGE_ON_COMPLETE = "message_on_complete";
+    static final String KEY_AUTO_DOWNLOAD = "auto_download";
+    static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
+    static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
+    static final String KEY_DIVIDER_LOCATION = "divider_location";
+    static final String KEY_FRAME_WIDTH = "frame_width";
+    static final String KEY_FRAME_LEFT = "frame_left";
+    static final String KEY_FRAME_TOP = "frame_top";
+    static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
 
     public static void main(String args[]) {
         log.info("***** STARTUP *****");
@@ -86,7 +104,7 @@ public class Main implements Runnable {
         ui = new UI(this);
         pvr.addConnectionListener(ui);
         log.debug("UI ready");
-        ui.start();
+        ui.showWindow();
     }
 
     PVR getPVR() {
@@ -108,6 +126,81 @@ public class Main implements Runnable {
 
     Preferences getPreferences() {
         return preferences;
+    }
+
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        String cmd = e.getActionCommand();
+        if (cmd == null) {
+            cmd = "UKNOWN";
+        }
+
+        switch (cmd) {
+            case UI.ACTION_START_STOP:
+                if (downloader.isDownloading()) {
+                    downloader.stop();
+                } else {
+                    downloader.start();
+                }
+                break;
+            case UI.ACTION_QUEUE:
+                while (!downloader.isDownloadPathSet()) {
+                    downloader.setDownloadPath(ui.showFileChooser(downloader.getDownloadPath()));
+                }
+
+                for (TreePath p : ui.getTreeSelected()) {
+                    PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
+                    if (item.isFile() && !((PVR.PVRFile) item).isHighDef()) {
+
+                        if (downloader.add((PVR.PVRFile) item)) {
+                            ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+                        }
+                    }
+                }
+                break;
+            case UI.ACTION_LOCK:
+                for (TreePath p : ui.getTreeSelected()) {
+                    PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
+                    if (item.isFile() && ((PVR.PVRFile) item).isLocked()) {
+                        PVR.PVRFile file = (PVR.PVRFile) item;
+                        try {
+                            pvr.unlockFile(file);
+                        } catch (IOException ex) {
+                            log.error("Problem unlocking " + file.path + "/" + file.filename + ": " + ex.getMessage(), ex);
+                            file.setState(PVR.PVRFile.State.Error);
+                        }
+                    }
+                }
+                break;
+            case UI.ACTION_CHOOSE_DEFAULT:
+                downloader.setDownloadPath(ui.showFileChooser(downloader.getDownloadPath()));
+                break;
+            case UI.ACTION_CHOOSE:
+                List<PVR.PVRFile> selected = ui.getListSelected();
+                if (!selected.isEmpty()) {
+                    File downloadPath = ui.showFileChooser(selected.get(0).getDownloadPath());
+                    downloader.changeDownloadPath(selected, downloadPath);
+                }
+                break;
+            case UI.ACTION_REMOVE:
+                downloader.remove(ui.getListSelected());
+                break;
+            case UI.ACTION_QUIT:
+                stop();
+                break;
+            case UI.ACTION_TRAY:
+                if (!ui.isVisible()) {
+                    ui.showWindow();
+                }
+                break;
+            default:
+                log.warn("Unknown action {}, ignoring", cmd);
+                break;
+        }
+    }
+
+    boolean isDownloading() {
+        return downloader.isDownloading();
     }
 
     static class ExceptionHandler implements Thread.UncaughtExceptionHandler {

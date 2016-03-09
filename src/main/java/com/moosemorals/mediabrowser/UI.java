@@ -34,8 +34,6 @@ import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
@@ -45,7 +43,6 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
-import java.io.IOException;
 import java.net.URL;
 import java.util.List;
 import java.util.prefs.PreferenceChangeEvent;
@@ -67,17 +64,14 @@ import org.slf4j.LoggerFactory;
  */
 class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
-    static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
-    static final String KEY_DIVIDER_LOCATION = "divider_location";
-    static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
-    static final String KEY_AUTO_DOWNLOAD = "auto_download";
-    static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
-    static final String KEY_MESSAGE_ON_COMPLETE = "message_on_complete";
-    static final String KEY_FRAME_TOP = "frame_top";
-    static final String KEY_FRAME_LEFT = "frame_left";
-    static final String KEY_FRAME_WIDTH = "frame_width";
-    static final String KEY_FRAME_HEIGHT = "frame_height";
-    static final String KEY_FRAME_KNOWN = "frame_bounds";
+    static final String ACTION_START_STOP = "start";
+    static final String ACTION_QUEUE = "queue";
+    static final String ACTION_LOCK = "lock";
+    static final String ACTION_CHOOSE_DEFAULT = "choose_default";
+    static final String ACTION_CHOOSE = "choose";
+    static final String ACTION_REMOVE = "remove";
+    static final String ACTION_QUIT = "quit";
+    static final String ACTION_TRAY = "tray";
 
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager downloader;
@@ -92,133 +86,29 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
     private final TrayIcon trayIcon;
     private final Main main;
     private final RateTracker rateTracker;
-    private boolean downloading = false;
 
-    private final Action startStopAction = new AbstractAction("Start downloading") {
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            if (downloading) {
-                downloader.stop();
-            } else {
-                downloader.start();
-            }
-        }
-    };
-
-    private void updateStartStop() {
-        if (downloading) {
-            startStopAction.putValue(Action.NAME, "Stop downloading");
-        } else {
-            startStopAction.putValue(Action.NAME, "Start donwloading");
-        }
-    }
-
-    private final Action queueAction = new AbstractAction("Queue selected") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            while (!downloader.isDownloadPathSet()) {
-                downloader.setDownloadPath(chooseDownloadFolder(downloader.getDownloadPath()));
-            }
-
-            for (TreePath p : displayTree.getSelectionPaths()) {
-                PVRItem item = (PVRItem) p.getLastPathComponent();
-                if (item.isFile() && !((PVRFile) item).isHighDef()) {
-
-                    if (downloader.add((PVRFile) item)) {
-                        startStopAction.setEnabled(true);
-                    }
-                }
-            }
-        }
-    };
-
-    private final Action removeLockAction = new AbstractAction("Remove lock") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            for (TreePath p : displayTree.getSelectionPaths()) {
-                PVRItem item = (PVRItem) p.getLastPathComponent();
-                if (item.isFile() && ((PVRFile) item).isLocked()) {
-                    PVRFile file = (PVRFile) item;
-                    try {
-                        pvr.unlockFile(file);
-                    } catch (IOException ex) {
-                        log.error("Problem unlocking " + file.path + "/" + file.filename + ": " + ex.getMessage(), ex);
-                        file.setState(PVRFile.State.Error);
-                    }
-                }
-            }
-        }
-    };
-
-    private final Action chooseDefaultDownloadPathAction = new AbstractAction("Set default download folder") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            downloader.setDownloadPath(chooseDownloadFolder(downloader.getDownloadPath()));
-        }
-    };
-
-    private final Action chooseDownloadPathAction = new AbstractAction("Set download folder") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-
-            List<PVRFile> selected = downloadList.getSelectedValuesList();
-            if (!selected.isEmpty()) {
-                File downloadPath = chooseDownloadFolder(selected.get(0).getDownloadPath());
-                downloader.changeDownloadPath(selected, downloadPath);
-            }
-        }
-    };
-
-    private final Action removeSelectedAction = new AbstractAction("Remove from queue") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            downloader.remove(downloadList.getSelectedValuesList());
-        }
-    };
-
-    private final Action quitAction = new AbstractAction("Exit") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            window.setVisible(false);
-            window.dispose();
-            main.stop();
-        }
-    };
-
-    private final Action setMinimiseToTrayAction = new AbstractAction("Minimise to tray") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            prefs.putBoolean(KEY_MINIMISE_TO_TRAY, ((JCheckBoxMenuItem) e.getSource()).getState());
-        }
-    };
-
-    private final Action setAutoDownloadAction = new AbstractAction("Automaticaly download next") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            prefs.putBoolean(KEY_AUTO_DOWNLOAD, ((JCheckBoxMenuItem) e.getSource()).getState());
-        }
-    };
-
-    private final Action setSaveDownloadListAction = new AbstractAction("Save download list") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            prefs.putBoolean(KEY_SAVE_DOWNLOAD_LIST, ((JCheckBoxMenuItem) e.getSource()).getState());
-        }
-    };
-
-    private final Action setShowMessageOnCompleteAction = new AbstractAction("Show completed notification") {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            prefs.putBoolean(KEY_MESSAGE_ON_COMPLETE, ((JCheckBoxMenuItem) e.getSource()).getState());
-        }
-    };
+    private final Action startStopAction, queueAction, removeLockAction, chooseDefaultDownloadPathAction,
+            chooseDownloadPathAction, removeSelectedAction, quitAction, setMinimiseToTrayAction,
+            setAutoDownloadAction, setSaveDownloadListAction, setShowMessageOnCompleteAction;
 
     UI(Main m) {
-        super();
 
         this.main = m;
         prefs = main.getPreferences();
+
+        this.setShowMessageOnCompleteAction = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
+        this.setSaveDownloadListAction = new PreferenceAction(prefs, "Save download list", Main.KEY_SAVE_DOWNLOAD_LIST);
+        this.setAutoDownloadAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
+        this.setMinimiseToTrayAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_MINIMISE_TO_TRAY);
+
+        this.chooseDefaultDownloadPathAction = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
+        this.chooseDownloadPathAction = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
+        this.quitAction = new LocalAction(main, "Exit", ACTION_QUIT);
+        this.queueAction = new LocalAction(main, "Queue selected", ACTION_QUEUE);
+        this.removeLockAction = new LocalAction(main, "Remove lock", ACTION_LOCK);
+        this.removeSelectedAction = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
+
+        this.startStopAction = new LocalAction(main, "Start downloading", ACTION_START_STOP);
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
@@ -250,10 +140,10 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
             }
 
             private void saveBounds(Rectangle bounds) {
-                prefs.putInt(KEY_FRAME_TOP, bounds.y);
-                prefs.putInt(KEY_FRAME_LEFT, bounds.x);
-                prefs.putInt(KEY_FRAME_WIDTH, bounds.width);
-                prefs.putInt(KEY_FRAME_HEIGHT, bounds.height);
+                prefs.putInt(Main.KEY_FRAME_TOP, bounds.y);
+                prefs.putInt(Main.KEY_FRAME_LEFT, bounds.x);
+                prefs.putInt(Main.KEY_FRAME_WIDTH, bounds.width);
+                prefs.putInt(Main.KEY_FRAME_HEIGHT, bounds.height);
             }
         });
 
@@ -265,7 +155,7 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
             @Override
             public void windowIconified(WindowEvent e) {
-                if (prefs.getBoolean(KEY_MINIMISE_TO_TRAY, true)) {
+                if (prefs.getBoolean(Main.KEY_MINIMISE_TO_TRAY, true)) {
                     window.dispose();
                 }
             }
@@ -289,25 +179,25 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         JCheckBoxMenuItem jCheckBoxMenuItem;
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setMinimiseToTrayAction);
         if (SystemTray.isSupported()) {
-            jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_MINIMISE_TO_TRAY, true));
+            jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_MINIMISE_TO_TRAY, true));
         } else {
             setMinimiseToTrayAction.setEnabled(false);
-            prefs.putBoolean(KEY_MINIMISE_TO_TRAY, false);
+            prefs.putBoolean(Main.KEY_MINIMISE_TO_TRAY, false);
             jCheckBoxMenuItem.setState(false);
         }
         menu.add(jCheckBoxMenuItem);
 
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setAutoDownloadAction);
-        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_AUTO_DOWNLOAD, true));
+        jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, true));
         menu.add(jCheckBoxMenuItem);
 
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setShowMessageOnCompleteAction);
-        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true));
+        jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true));
         menu.add(jCheckBoxMenuItem);
 
         setSaveDownloadListAction.setEnabled(false); // not implemented yet
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setSaveDownloadListAction);
-        jCheckBoxMenuItem.setState(prefs.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false));
+        jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_SAVE_DOWNLOAD_LIST, false));
         menu.add(jCheckBoxMenuItem);
 
         menuBar.add(menu);
@@ -328,7 +218,7 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
             @Override
             public void preferenceChange(PreferenceChangeEvent evt) {
-                if (evt.getKey().equals(KEY_DOWNLOAD_DIRECTORY)) {
+                if (evt.getKey().equals(Main.KEY_DOWNLOAD_DIRECTORY)) {
                     downloadLabel.setText(evt.getNewValue());
                 }
             }
@@ -380,7 +270,7 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
                 chooseDownloadPathAction.setEnabled(false);
                 if (downloadList.getSelectedIndices().length > 0) {
                     removeSelectedAction.setEnabled(true);
-                    if (!downloading) {
+                    if (!main.isDownloading()) {
                         chooseDownloadPathAction.setEnabled(true);
                     }
                 }
@@ -453,7 +343,7 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         splitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
-                prefs.putInt(KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
+                prefs.putInt(Main.KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
             }
         });
 
@@ -474,14 +364,8 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
             trayIcon = new TrayIcon(applicationIcon, "Media Browser", trayPopup);
             trayIcon.setImageAutoSize(true);
-
-            trayIcon.addActionListener(new ActionListener() {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    log.debug("Action!");
-                    start();
-                }
-            });
+            trayIcon.setActionCommand(ACTION_TRAY);
+            trayIcon.addActionListener(main);
             try {
                 SystemTray.getSystemTray().add(trayIcon);
             } catch (AWTException ex) {
@@ -493,19 +377,19 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
     }
 
-    void start() {
+    void showWindow() {
         downloadProgress(0, 0, 0, 0, -1);
         downloader.setDownloadStatusListener(this);
         window.pack();
 
         window.setBounds(new Rectangle(
-                prefs.getInt(KEY_FRAME_LEFT, 0),
-                prefs.getInt(KEY_FRAME_TOP, 0),
-                prefs.getInt(KEY_FRAME_WIDTH, 640),
-                prefs.getInt(KEY_FRAME_HEIGHT, 480)
+                prefs.getInt(Main.KEY_FRAME_LEFT, 0),
+                prefs.getInt(Main.KEY_FRAME_TOP, 0),
+                prefs.getInt(Main.KEY_FRAME_WIDTH, 640),
+                prefs.getInt(Main.KEY_FRAME_HEIGHT, 480)
         ));
 
-        splitPane.setDividerLocation(prefs.getInt(KEY_DIVIDER_LOCATION, window.getWidth() / 2));
+        splitPane.setDividerLocation(prefs.getInt(Main.KEY_DIVIDER_LOCATION, window.getWidth() / 2));
         window.setState(JFrame.NORMAL);
         window.setVisible(true);
     }
@@ -523,7 +407,9 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         }
     }
 
-    public void stop() {
+    void stop() {
+        window.setVisible(false);
+        window.dispose();
         if (SystemTray.isSupported()) {
             SystemTray.getSystemTray().remove(trayIcon);
         }
@@ -541,11 +427,8 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
     @Override
     public void downloadStatusChanged(boolean running) {
-        if (running && !downloading) {
-            rateTracker.reset();
-        }
-        this.downloading = running;
-        updateStartStop();
+        rateTracker.reset();
+        setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
     }
 
     @Override
@@ -590,7 +473,7 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
     @Override
     public void downloadCompleted(PVRFile target) {
-        if (prefs.getBoolean(KEY_MESSAGE_ON_COMPLETE, true)) {
+        if (prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
             trayIcon.displayMessage("Download Completed", String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
         }
     }
@@ -603,6 +486,31 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
     @Override
     public void onDisconnect() {
         startStopAction.setEnabled(false);
+    }
+
+    File showFileChooser(File base) {
+        return chooseDownloadFolder(base);
+    }
+
+    TreePath[] getTreeSelected() {
+        return displayTree.getSelectionPaths();
+    }
+
+    List<PVRFile> getListSelected() {
+        return downloadList.getSelectedValuesList();
+    }
+
+    void setStartButtonStatus(boolean queued, boolean downloading) {
+        startStopAction.setEnabled(queued);
+        if (downloading) {
+            startStopAction.putValue(Action.NAME, "Stop downloading");
+        } else {
+            startStopAction.putValue(Action.NAME, "Start donwloading");
+        }
+    }
+
+    boolean isVisible() {
+        return window.isVisible();
     }
 
 }
