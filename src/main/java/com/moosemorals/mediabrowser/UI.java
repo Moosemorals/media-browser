@@ -27,6 +27,7 @@ import com.moosemorals.mediabrowser.PVR.PVRFile;
 import com.moosemorals.mediabrowser.PVR.PVRItem;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
+import java.awt.Dimension;
 import java.awt.Image;
 import java.awt.MenuItem;
 import java.awt.PopupMenu;
@@ -42,11 +43,16 @@ import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
+import javax.imageio.ImageIO;
 import javax.swing.*;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
@@ -72,6 +78,15 @@ class UI {
     static final String ACTION_QUIT = "quit";
     static final String ACTION_TRAY = "tray";
 
+    private static final String ICON_READY = "Blue";
+    private static final String ICON_DISCONNECTED = "Grey";
+    private static final String ICON_DOWNLOADING = "Red";
+    private static final String ICON_ERROR = "Error";
+
+    private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_READY, ICON_DOWNLOADING, ICON_ERROR};
+    private static final int[] ICON_SIZES = {32, 24, 20, 16};
+
+    private final Map<String, List<Image>> icons;
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager downloader;
     private final PVR pvr;
@@ -117,13 +132,17 @@ class UI {
         removeSelectedAction.setEnabled(false);
         chooseDownloadPathAction.setEnabled(false);
 
-        Image applicationIcon = loadIcon("/application_icon.png");
+        icons = new HashMap<>();
+        for (String color : ICON_COLORS) {
+            icons.put(color, loadIcons(color));
+        }
 
         window = new JFrame("Media Browser");
 
-        window.setIconImage(applicationIcon);
+        window.setIconImages(icons.get(ICON_READY));
 
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+
         window.addComponentListener(new ComponentAdapter() {
             @Override
             public void componentResized(ComponentEvent e) {
@@ -358,19 +377,45 @@ class UI {
             item.addActionListener(quitAction);
             trayPopup.add(item);
 
-            trayIcon = new TrayIcon(applicationIcon, "Media Browser", trayPopup);
-            trayIcon.setImageAutoSize(true);
-            trayIcon.setActionCommand(ACTION_TRAY);
-            trayIcon.addActionListener(main);
-            try {
-                SystemTray.getSystemTray().add(trayIcon);
-            } catch (AWTException ex) {
-                log.error("Can't add system tray icon: {}", ex.getMessage(), ex);
+            Image icon = getTrayIconImage(icons.get(ICON_DISCONNECTED));
+            if (icon != null) {
+                trayIcon = new TrayIcon(icon, "Media Browser", trayPopup);
+
+                trayIcon.setImageAutoSize(false);
+
+                trayIcon.setActionCommand(ACTION_TRAY);
+                trayIcon.addActionListener(main);
+
+                try {
+                    SystemTray.getSystemTray().add(trayIcon);
+                } catch (AWTException ex) {
+                    log.error("Can't add system tray icon: {}", ex.getMessage(), ex);
+                }
+            } else {
+                trayIcon = null;
+
             }
         } else {
             trayIcon = null;
         }
+    }
 
+    public void setTrayIcon(String color) {
+        trayIcon.setImage(getTrayIconImage(icons.get(color)));
+    }
+
+    private Image getTrayIconImage(List<Image> applicationIcons) {
+        Dimension trayIconSize = SystemTray.getSystemTray().getTrayIconSize();
+
+        log.debug("Tray icon size: {}", trayIconSize);
+
+        for (int i = 0; i < ICON_SIZES.length; i += 1) {
+            if (trayIconSize.width == ICON_SIZES[i]) {
+                return applicationIcons.get(i);
+            }
+        }
+
+        return null;
     }
 
     void showWindow() {
@@ -429,15 +474,25 @@ class UI {
         });
     }
 
-    private Image loadIcon(String path) {
-        URL imageURL = UI.class.getResource(path);
+    private List<Image> loadIcons(String color) {
+        List<Image> result = new ArrayList<>();
 
-        if (imageURL != null) {
-            return (new ImageIcon(imageURL)).getImage();
-        } else {
-            log.error("Can't find resource for {}", path);
-            return null;
+        for (int i = 0; i < ICON_SIZES.length; i += 1) {
+            String path = String.format("/icons/PVR Icon %s %dx%d.png", color, ICON_SIZES[i], ICON_SIZES[i]);
+            URL imageURL = UI.class.getResource(path);
+
+            if (imageURL != null) {
+                try {
+                    result.add(ImageIO.read(imageURL));
+                } catch (IOException ex) {
+                    log.error("Can't load image {}: {}", imageURL, ex.getMessage(), ex);
+                }
+            } else {
+                log.error("Can't find resource for {}", path);
+            }
         }
+
+        return result;
     }
 
     public void showPopupMessage(String title, String message, TrayIcon.MessageType type) {
@@ -468,5 +523,4 @@ class UI {
     boolean isVisible() {
         return window.isVisible();
     }
-
 }

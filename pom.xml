@@ -87,7 +87,8 @@
                             <goal>launch4j</goal>
                         </goals>
                         <configuration>
-                            <headerType>gui</headerType>
+				<headerType>gui</headerType>
+				<icon>src/main/resources/icons/app.ico</icon>
                             <outfile>target/MediaBrowser.exe</outfile>
                             <classPath>
                                 <mainClass>com.moosemorals.mediabrowser.Main</mainClass>
