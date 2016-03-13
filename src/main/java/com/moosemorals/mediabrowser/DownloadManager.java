@@ -72,7 +72,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     void start() {
         if (running.compareAndSet(false, true)) {
-            if (downloadsAvailible()) {
+            if (areDownloadsAvailible()) {
                 downloadThread = new Thread(this, "Download");
                 downloadThread.start();
                 status.downloadStatusChanged(true);
@@ -81,12 +81,43 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     @Override
+    public int getSize() {
+        synchronized (queue) {
+            return queue.size();
+        }
+    }
+
+    @Override
+    public PVRFile getElementAt(int i) {
+        synchronized (queue) {
+            return queue.get(i);
+        }
+    }
+
+    @Override
+    public void addListDataListener(ListDataListener ll) {
+        synchronized (listDataListeners) {
+            listDataListeners.add(ll);
+        }
+    }
+
+    @Override
+    public void removeListDataListener(ListDataListener ll) {
+        synchronized (listDataListeners) {
+            listDataListeners.remove(ll);
+        }
+    }
+
+    /**
+     * Waits for the next download to get queued, and then downloads it.
+     */
+    @Override
     public void run() {
         while (running.get()) {
             PVRFile target;
 
             synchronized (queue) {
-                while (!downloadsAvailible()) {
+                while (!areDownloadsAvailible()) {
                     try {
                         queue.wait();
                     } catch (InterruptedException ex) {
@@ -195,7 +226,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
                 notifyListDataListeners();
 
-                if (!prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false) || !downloadsAvailible()) {
+                if (!prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false) || !areDownloadsAvailible()) {
                     stop();
                     return;
                 }
@@ -205,6 +236,10 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
     }
 
+    /**
+     * Stops the download thread and any in-progress downloads. Waits for the
+     * download thread to finish before returning.
+     */
     void stop() {
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
@@ -221,6 +256,19 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
     }
 
+    /**
+     * Add a file to the queue. Returns true if the file was added succesfully,
+     * false otherwise.
+     *
+     * <p>
+     * As part of the adding a file process, checks to see if the file is
+     * partially downloaded, and updates the status (to
+     * {@link PVR.PVRFile.State.Paused}), and the number of bytes already
+     * downloaded, if needed.</p>
+     *
+     * @param target
+     * @return
+     */
     boolean add(PVRFile target) {
         if (!setupForQueue(target)) {
             return false;
@@ -241,6 +289,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         return true;
     }
 
+    /**
+     * Get a copy of the current queue. Its a shallow copy, so try not to mess
+     * with the PVRFiles too badly.
+     *
+     * @return
+     */
     List<PVRFile> getQueue() {
         synchronized (queue) {
             return new ArrayList<>(queue);
@@ -296,6 +350,13 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         notifyStatusListeners();
     }
 
+    /**
+     * Remove a list of files from the queue. If any of the files are being
+     * downloaded then that download will stop, but the partial file will be
+     * left.
+     *
+     * @param files List of files to remove.
+     */
     void remove(List<PVRFile> files) {
 
         for (PVRFile f : files) {
@@ -311,50 +372,68 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         notifyStatusListeners();
     }
 
+    /**
+     * Checks if there is a download in progress.
+     *
+     * <p>
+     * Strictly, checks if the download thread is running, but that should exit
+     * once the queue is empty (or after the current download if
+     * not-auto-download is set.
+     *
+     * @return boolean true if we're downloading, false otherwise.
+     */
     boolean isDownloading() {
         return running.get();
     }
 
+    /**
+     * Get the current download path if it has been set, or the users home
+     * directory if not.
+     *
+     * @return File default download path.
+     */
     File getDownloadPath() {
         return new File(prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
     }
 
+    /**
+     * Check if the default download path has been set by the user.
+     *
+     * @return boolean true if the download path has been set.
+     */
     boolean isDownloadPathSet() {
         return prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, null) != null;
     }
 
+    /**
+     * Set the default download path.
+     *
+     * @param path File path to download to.
+     */
     void setDownloadPath(File path) {
         if (path != null) {
             prefs.put(Main.KEY_DOWNLOAD_DIRECTORY, path.getPath());
         }
     }
 
-    @Override
-    public int getSize() {
+    void setDownloadStatusListener(DownloadStatusListener status) {
+        this.status = status;
+    }
+
+    /**
+     * Check if there are files queued and ready to download.
+     *
+     * @return boolean true if there are downloads available, false otherwise.
+     */
+    boolean areDownloadsAvailible() {
         synchronized (queue) {
-            return queue.size();
+            for (PVRFile f : queue) {
+                if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
+                    return true;
+                }
+            }
         }
-    }
-
-    @Override
-    public PVRFile getElementAt(int i) {
-        synchronized (queue) {
-            return queue.get(i);
-        }
-    }
-
-    @Override
-    public void addListDataListener(ListDataListener ll) {
-        synchronized (listDataListeners) {
-            listDataListeners.add(ll);
-        }
-    }
-
-    @Override
-    public void removeListDataListener(ListDataListener ll) {
-        synchronized (listDataListeners) {
-            listDataListeners.remove(ll);
-        }
+        return false;
     }
 
     private void notifyListDataListeners() {
@@ -392,10 +471,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         status.downloadProgress(totalQueued, totalDownloaded, currentFile, currentDownload, rate);
     }
 
-    void setDownloadStatusListener(DownloadStatusListener status) {
-        this.status = status;
-    }
-
     private boolean setupForQueue(PVRFile target) {
 
         if (target.getState() != PVRFile.State.Ready) {
@@ -403,9 +478,9 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
             return false;
         }
 
-        if (target.getDownloadPath() == null) {
+        if (target.getLocalPath() == null) {
             log.debug("Download path not set");
-            target.setDownloadPath(new File(getDownloadPath().getPath()));
+            target.setLocalPath(new File(getDownloadPath().getPath()));
         }
         final File downloadTarget = getDownloadTarget(target);
         if (downloadTarget.exists()) {
@@ -424,17 +499,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         return true;
     }
 
-    boolean downloadsAvailible() {
-        synchronized (queue) {
-            for (PVRFile f : queue) {
-                if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
     private PVRFile getNextDownload() {
         for (PVRFile f : queue) {
             if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
@@ -445,11 +509,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     private File getDownloadTarget(PVRFile target) {
-        return new File(target.getDownloadPath(), target.getDownloadFilename() + ".partial");
+        return new File(target.getLocalPath(), target.getLocalFilename() + ".partial");
     }
 
     private File getCompletedTarget(PVRFile target) {
-        return new File(target.getDownloadPath(), target.getDownloadFilename() + ".ts");
+        return new File(target.getLocalPath(), target.getLocalFilename() + ".ts");
     }
 
     public interface DownloadStatusListener {

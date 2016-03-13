@@ -397,22 +397,9 @@ class UI {
         }
     }
 
-    public void setTrayIcon(String color) {
-        trayIcon.setImage(getTrayIconImage(icons.get(color)));
-    }
-
-    private Image getTrayIconImage(List<Image> applicationIcons) {
-        Dimension trayIconSize = SystemTray.getSystemTray().getTrayIconSize();
-
-        for (int i = 0; i < ICON_SIZES.length; i += 1) {
-            if (trayIconSize.width == ICON_SIZES[i]) {
-                return applicationIcons.get(i);
-            }
-        }
-
-        return null;
-    }
-
+    /**
+     * Loads the window position from preferences, and shows it.
+     */
     void showWindow() {
         window.pack();
 
@@ -428,8 +415,81 @@ class UI {
         window.setVisible(true);
     }
 
-    private File chooseDownloadFolder(File initial) {
-        final JFileChooser fc = new JFileChooser(initial);
+    /**
+     * Hides and kills the window, and removes the system tray icon.
+     */
+    void stop() {
+        window.setVisible(false);
+        window.dispose();
+        if (SystemTray.isSupported()) {
+            SystemTray.getSystemTray().remove(trayIcon);
+        }
+    }
+
+    /**
+     * Sets the message in the status bar.
+     *
+     * @param status
+     */
+    void setStatus(final String status) {
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                statusLabel.setText(status);
+            }
+        });
+    }
+
+    /**
+     * Sets the message in the tray icon tool tip
+     *
+     * @param message
+     */
+    void setTrayIconToolTip(final String message) {
+        SwingUtilities.invokeLater(new Runnable() {
+
+            @Override
+            public void run() {
+                trayIcon.setToolTip(message);
+            }
+        });
+    }
+
+    /**
+     * Shows a popup message from the tray icon.
+     *
+     * @param title String title of the popup.
+     * @param body String body of the popup.
+     * @param type TrayIcon.MessageType type of message (for the icon used)
+     */
+    void showPopupMessage(String title, String body, TrayIcon.MessageType type) {
+        trayIcon.displayMessage(title, body, type);
+    }
+
+    /**
+     * Sets the window and tray icon color.
+     *
+     * <p>
+     * Use one of the {@code ICON_*} constants.
+     *
+     * @param color
+     */
+    void setIconColor(String color) {
+        window.setIconImages(icons.get(color));
+        if (SystemTray.isSupported()) {
+            trayIcon.setImage(getTrayIconImage(icons.get(color)));
+        }
+    }
+
+    /**
+     * Show a {@link javax.swing.JFileChooser} to pick a directory.
+     *
+     * @param base File starting directory for the chooser
+     * @return File chosen directory.
+     */
+    File showDirectoryChooser(File base) {
+        final JFileChooser fc = new JFileChooser(base);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fc.setDialogTitle("Choose download folder");
 
@@ -441,32 +501,80 @@ class UI {
         }
     }
 
-    void stop() {
-        window.setVisible(false);
-        window.dispose();
-        if (SystemTray.isSupported()) {
-            SystemTray.getSystemTray().remove(trayIcon);
+    /**
+     * Get the list of currently selected items from the tree.
+     *
+     * @return List of PVRFile selected items.
+     */
+    List<PVRFile> getTreeSelected() {
+        List<PVRFile> result = new ArrayList<>();
+        TreePath[] selectionPaths = displayTree.getSelectionPaths();
+        if (selectionPaths != null) {
+            for (TreePath p : selectionPaths) {
+                PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
+                if (item.isFile()) {
+                    result.add((PVRFile) item);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Get the list of currently selected items in the download list.
+     *
+     * @return List of PVRFile selected items.
+     */
+    List<PVRFile> getListSelected() {
+        return downloadList.getSelectedValuesList();
+    }
+
+    /**
+     * Sets the state of the StartAction.
+     *
+     * <p>
+     * The action can be either enabled or disabled, and should be disabled when
+     * the queue is empty, enabled otherwise, and can be showing either "Start
+     * downloading" (when there are no downloads running) or "Stop downloading"
+     * (when there are downloads running).
+     *
+     * @param enabled boolean true if there are files queued, false otherwise.
+     * @param downloading boolean true if there is an active download, false
+     * otherwise.
+     */
+    void setStartActionStatus(boolean enabled, boolean downloading) {
+        startStopAction.setEnabled(enabled);
+        if (downloading) {
+            startStopAction.putValue(Action.NAME, "Stop downloading");
+        } else {
+            startStopAction.putValue(Action.NAME, "Start donwloading");
         }
     }
 
-    void setStatus(final String status) {
-        SwingUtilities.invokeLater(new Runnable() {
-
-            @Override
-            public void run() {
-                statusLabel.setText(status);
-            }
-        });
+    /**
+     * True if the top level window is visible, false otherwise.
+     *
+     * @return boolean true if the top level window is visible.
+     */
+    boolean isVisible() {
+        return window.isVisible();
     }
 
-    void setTrayIconToolTip(final String message) {
-        SwingUtilities.invokeLater(new Runnable() {
+    void refresh() {
+        window.repaint();
+    }
 
-            @Override
-            public void run() {
-                trayIcon.setToolTip(message);
+    private Image getTrayIconImage(List<Image> applicationIcons) {
+        Dimension trayIconSize = SystemTray.getSystemTray().getTrayIconSize();
+
+        for (int i = 0; i < ICON_SIZES.length; i += 1) {
+            if (trayIconSize.width == ICON_SIZES[i]) {
+                return applicationIcons.get(i);
             }
-        });
+        }
+
+        return null;
     }
 
     private List<Image> loadIcons(String color) {
@@ -490,43 +598,4 @@ class UI {
         return result;
     }
 
-    void showPopupMessage(String title, String message, TrayIcon.MessageType type) {
-        trayIcon.displayMessage(title, message, type);
-    }
-
-    void setColor(String color) {
-        window.setIconImages(icons.get(color));
-        if (SystemTray.isSupported()) {
-            trayIcon.setImage(getTrayIconImage(icons.get(color)));
-        }
-    }
-
-    File showFileChooser(File base) {
-        return chooseDownloadFolder(base);
-    }
-
-    TreePath[] getTreeSelected() {
-        return displayTree.getSelectionPaths();
-    }
-
-    List<PVRFile> getListSelected() {
-        return downloadList.getSelectedValuesList();
-    }
-
-    void setStartButtonStatus(boolean enabled, boolean downloading) {
-        startStopAction.setEnabled(enabled);
-        if (downloading) {
-            startStopAction.putValue(Action.NAME, "Stop downloading");
-        } else {
-            startStopAction.putValue(Action.NAME, "Start donwloading");
-        }
-    }
-
-    boolean isVisible() {
-        return window.isVisible();
-    }
-
-    void refresh() {
-        window.repaint();
-    }
 }

@@ -31,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
+ * Extends AbstractAction for actions that are mostly meant for
+ * {@link javax.swing.JCheckBoxMenuItem} to hold yes/no preferences.
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
@@ -41,6 +43,13 @@ public class PreferenceAction extends AbstractAction {
     private final Preferences prefs;
     private final String prefKey;
 
+    /**
+     * Create a new PreferenceAction
+     *
+     * @param prefs {@link java.util.prefs.Preferences} backing object
+     * @param name String display name
+     * @param prefKey String preferences key.
+     */
     public PreferenceAction(Preferences prefs, String name, String prefKey) {
         super(name);
         this.prefs = prefs;

@@ -29,16 +29,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Extends AbstractAction
+ * Extends AbstractAction to send all ActionEvents to Main.
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-public class LocalAction extends AbstractAction {
+class LocalAction extends AbstractAction {
 
     private final Logger log = LoggerFactory.getLogger(LocalAction.class);
     private final Main main;
 
-    public LocalAction(Main m, String name, String actionCommand) {
+    LocalAction(Main m, String name, String actionCommand) {
         super(name);
         this.main = m;
         putValue(ACTION_COMMAND_KEY, actionCommand);

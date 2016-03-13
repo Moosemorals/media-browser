@@ -97,9 +97,9 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
         String title = new StringBuilder()
                 .append(file.getTitle())
                 .append(" → ")
-                .append(file.getDownloadPath().getPath())
+                .append(file.getLocalPath().getPath())
                 .append("/")
-                .append(file.getDownloadFilename())
+                .append(file.getLocalFilename())
                 .toString();
 
         text.setText(title);

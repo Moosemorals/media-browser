@@ -37,7 +37,6 @@ import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.swing.UIManager;
-import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
@@ -135,7 +134,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
         ui = new UI(this);
 
-        ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         ui.showWindow();
     }
 
@@ -182,40 +181,36 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                 break;
             case UI.ACTION_QUEUE:
                 while (!downloader.isDownloadPathSet()) {
-                    downloader.setDownloadPath(ui.showFileChooser(downloader.getDownloadPath()));
+                    downloader.setDownloadPath(ui.showDirectoryChooser(downloader.getDownloadPath()));
                 }
 
-                for (TreePath p : ui.getTreeSelected()) {
-                    PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
-                    if (item.isFile() && !((PVR.PVRFile) item).isHighDef()) {
-
-                        if (downloader.add((PVR.PVRFile) item)) {
-                            ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+                for (PVRFile file : ui.getTreeSelected()) {
+                    if (!file.isHighDef()) {
+                        if (downloader.add(file)) {
+                            ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
                         }
                     }
                 }
                 break;
             case UI.ACTION_LOCK:
-                for (TreePath p : ui.getTreeSelected()) {
-                    PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
-                    if (item.isFile() && ((PVR.PVRFile) item).isLocked()) {
-                        PVR.PVRFile file = (PVR.PVRFile) item;
+                for (PVRFile file : ui.getTreeSelected()) {
+                    if (file.isLocked()) {
                         try {
                             pvr.unlockFile(file);
                         } catch (IOException ex) {
-                            log.error("Problem unlocking " + file.path + "/" + file.filename + ": " + ex.getMessage(), ex);
+                            log.error("Problem unlocking " + file.remotePath + "/" + file.remoteFilename + ": " + ex.getMessage(), ex);
                             file.setState(PVR.PVRFile.State.Error);
                         }
                     }
                 }
                 break;
             case UI.ACTION_CHOOSE_DEFAULT:
-                downloader.setDownloadPath(ui.showFileChooser(downloader.getDownloadPath()));
+                downloader.setDownloadPath(ui.showDirectoryChooser(downloader.getDownloadPath()));
                 break;
             case UI.ACTION_CHOOSE:
                 List<PVR.PVRFile> selected = ui.getListSelected();
                 if (!selected.isEmpty()) {
-                    File downloadPath = ui.showFileChooser(selected.get(0).getDownloadPath());
+                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
                     downloader.changeDownloadPath(selected, downloadPath);
                 }
                 break;
@@ -244,13 +239,13 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     @Override
     public void downloadStatusChanged(boolean downloading) {
         rateTracker.reset();
-        ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         if (!connected) {
-            ui.setColor(UI.ICON_DISCONNECTED);
+            ui.setIconColor(UI.ICON_DISCONNECTED);
         } else if (downloading) {
-            ui.setColor(UI.ICON_DOWNLOADING);
+            ui.setIconColor(UI.ICON_DOWNLOADING);
         } else {
-            ui.setColor(UI.ICON_CONNECTED);
+            ui.setIconColor(UI.ICON_CONNECTED);
         }
     }
 
@@ -286,7 +281,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     @Override
     public void downloadCompleted(PVR.PVRFile target) {
         if (preferences.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
-            String message = String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename());
+            String message = String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getLocalPath(), target.getLocalFilename());
             ui.showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
         }
     }
@@ -295,7 +290,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     public void onConnect() {
         connected = true;
         if (ui != null) {
-            ui.setColor(UI.ICON_CONNECTED);
+            ui.setIconColor(UI.ICON_CONNECTED);
         }
     }
 
@@ -303,22 +298,22 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     public void onDisconnect() {
         connected = false;
         if (ui != null) {
-            ui.setStartButtonStatus(false, false);
-            ui.setColor(UI.ICON_DISCONNECTED);
+            ui.setStartActionStatus(false, false);
+            ui.setIconColor(UI.ICON_DISCONNECTED);
         }
     }
 
     public void onFileFound(PVRFile file) {
-        String remotePath = file.getPath();
+        String remotePath = file.getRemotePath();
         if (savedPaths.containsKey(remotePath)) {
 
             String localPath = savedPaths.get(remotePath);
-            file.setDownloadPath(new File(localPath));
+            file.setLocalPath(new File(localPath));
 
             log.debug("Trying to add {} -> ", remotePath, localPath);
             downloader.add(file);
             if (ui != null) {
-                ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+                ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
                 ui.refresh();
             }
         }
@@ -370,8 +365,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         preferences.putInt(KEY_SAVE_DOWNLOAD_COUNT, queue.size());
         log.debug("Saving {} ", queue.size());
         for (PVRFile file : queue) {
-            preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getDownloadPath().getPath());
-            preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getPath());
+            preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
+            preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
 
             count += 1;
         }

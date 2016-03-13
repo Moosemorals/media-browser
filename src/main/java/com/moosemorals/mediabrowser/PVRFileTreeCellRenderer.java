@@ -69,12 +69,12 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
         if (item.isFile()) {
             PVR.PVRFile file = (PVR.PVRFile) item;
 
-            Duration length = new Duration(file.getStart(), file.getEnd());
+            Duration length = new Duration(file.getStartTime(), file.getEndTime());
 
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
-                    .append(DATE_FORMAT.print(file.getStart()))
+                    .append(DATE_FORMAT.print(file.getStartTime()))
                     .append(" (")
                     .append(PERIOD_FORMAT.print(length.toPeriod()))
                     .append(") ")
@@ -94,7 +94,7 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
 
             StringBuilder title = new StringBuilder()
-                    .append(folder.getFilename())
+                    .append(folder.getRemoteFilename())
                     .append(": ");
 
             if (folder.getSize() >= 0) {

@@ -27,7 +27,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Keep track of a moving average of download speeds
+ * Keep track of a moving average of download speeds.
+ *
+ * <p>
+ * Actually, keep track of a moving average of any double.</p>
+ *
+ * <p>
+ * Internally, the class keeps an array of up to "size" readings, and calculates
+ * an average when asked.</p>
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
@@ -39,10 +46,20 @@ public class RateTracker {
     private int pointer = 0;
     boolean looped = false;
 
+    /**
+     * Create a RateTracker of the given size.
+     *
+     * @param size int number of readings to keep.
+     */
     public RateTracker(int size) {
         rates = new double[size];
     }
 
+    /**
+     * Record a rate. Will throw away the oldest held rate if needed.
+     *
+     * @param rate double rate to add.
+     */
     public void addRate(double rate) {
         rates[pointer] = rate;
         pointer += 1;
@@ -52,6 +69,11 @@ public class RateTracker {
         }
     }
 
+    /**
+     * Gets the average of the rates that are held.
+     *
+     * @return
+     */
     public double getRate() {
         if (pointer == 0 && !looped) {
             return 0;
@@ -64,6 +86,9 @@ public class RateTracker {
         return total / (looped ? rates.length : pointer);
     }
 
+    /**
+     * Drop all rates.
+     */
     public void reset() {
         pointer = 0;
         looped = false;

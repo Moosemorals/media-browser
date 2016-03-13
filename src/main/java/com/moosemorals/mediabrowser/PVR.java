@@ -75,8 +75,9 @@ import org.slf4j.LoggerFactory;
 /**
  * Models a remote PVR.
  *
+ * <p>
  * PVRs have folders that contain files. Files have a bunch of attributes.
- * (Folders also have attributes
+ * (Folders also have attributes).</p>
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
@@ -104,6 +105,17 @@ class PVR implements TreeModel {
 
     private static final String SIZE_FORMAT = "%.1f %sb";
 
+    /**
+     * Convert a number of bytes into something more readable.
+     *
+     * <p>
+     * Note that I've got no time for that "SI bytes" rubbish, 1kb is 1024
+     * bytes.</p>
+     *
+     * @param size long number of bytes to display
+     * @return String human readable String showing roughly the same number of
+     * bytes.
+     */
     static String humanReadableSize(long size) {
         if (size > TERA) {
             return String.format(SIZE_FORMAT, size / TERA, "T");
@@ -180,11 +192,11 @@ class PVR implements TreeModel {
 
     }
 
-    void setRemoteHostname(String remoteHostname) {
+    private void setRemoteHostname(String remoteHostname) {
         this.remoteHostname = remoteHostname;
     }
 
-    String getRemoteHostname() {
+    private String getRemoteHostname() {
         return remoteHostname;
     }
 
@@ -231,68 +243,6 @@ class PVR implements TreeModel {
         return -1;
     }
 
-    void onConnect(RemoteDevice device) {
-        setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
-        Service service = device.findService(new UDAServiceType("ContentDirectory"));
-        if (service != null) {
-            synchronized (upnpQueue) {
-                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", rootFolder));
-                upnpQueue.notifyAll();
-            }
-            startUPNP();
-        }
-        notifyConnectionListeners(true);
-    }
-
-    void onDisconnect(RemoteDevice device) {
-        stopUpnp();
-        stopFTP();
-        rootFolder.clearChildren();
-        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
-        notifyConnectionListeners(false);
-    }
-
-    PVRFolder addFolder(PVRFolder parent, String folderName) {
-        synchronized (parent.children) {
-            for (PVRItem child : parent.children) {
-                if (child.getFilename().equals(folderName)) {
-                    if (child.isFolder()) {
-                        return (PVRFolder) child;
-                    } else {
-                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.path + ": Already exists as folder");
-                    }
-                }
-            }
-
-            PVRFolder folder = new PVRFolder(parent, parent.getPath() + folderName + "/", folderName);
-            parent.addChild(folder);
-
-            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
-            return folder;
-        }
-    }
-
-    PVRFile addFile(PVRFolder parent, String filename) {
-        synchronized (parent.children) {
-            for (PVRItem child : parent.children) {
-                if (child.getFilename().equals(filename)) {
-                    if (child.isFile()) {
-                        return (PVRFile) child;
-                    } else {
-                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.path + ": Already exists as file");
-                    }
-                }
-            }
-
-            PVRFile file = new PVRFile(parent, parent.getPath() + filename, filename);
-            parent.addChild(file);
-
-            main.onFileFound(file);
-            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
-            return file;
-        }
-    }
-
     @Override
     public void addTreeModelListener(TreeModelListener l) {
         synchronized (treeModelListeners) {
@@ -307,6 +257,173 @@ class PVR implements TreeModel {
         }
     }
 
+    void addConnectionListener(PVRListener l) {
+        synchronized (connectionListeners) {
+            connectionListeners.add(l);
+        }
+    }
+
+    void removeConnectionListener(PVRListener l) {
+        synchronized (connectionListeners) {
+            connectionListeners.add(l);
+        }
+    }
+
+    /**
+     * Unset the locked flag.
+     *
+     * <p>
+     * This is one of the two core operations of this project. It connects to
+     * the PVR using FTP, fetches the PVR's control file, sets the value of a
+     * significant byte and uploads the file back to the PVR, over-writing the
+     * existing file.</p>
+     *
+     * <p>
+     * Using this method may be illegal in certain jurisdictions. Seriously. See
+     * <a href="https://en.wikipedia.org/wiki/Anti-circumvention">this Wikipedia
+     * article</a> to start with, and then talk to a lawyer.</p>
+     *
+     * @param target
+     * @throws IOException
+     */
+    void unlockFile(PVRFile target) throws IOException {
+
+        if (!target.getRemoteFilename().endsWith(".ts")) {
+            throw new IllegalArgumentException("Target must be a .ts file: " + target.getRemoteFilename());
+        }
+
+        log.info("Connecting to FTP");
+
+        ftp.connect(getRemoteHostname());
+        int reply = ftp.getReplyCode();
+
+        if (!FTPReply.isPositiveCompletion(reply)) {
+            ftp.disconnect();
+            throw new IOException("FTP server refused connect");
+        }
+
+        if (!ftp.login("humaxftp", "0000")) {
+            throw new IOException("Can't login to FTP");
+        }
+
+        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
+            throw new IOException("Can't set binary transfer");
+        }
+
+        if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getRemotePath())) {
+            throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getRemotePath());
+        }
+
+        HMTFile hmt = getHMTForTs(target);
+
+        if (!hmt.isLocked()) {
+            log.info("Unlock failed: {} is already unlocked", target.getRemoteFilename());
+            return;
+        }
+
+        hmt.clearLock();
+
+        String uploadFilename = target.getRemoteFilename().replaceAll("\\.ts$", ".hmt");
+
+        log.info("Uploading unlocked hmt file to {}/{}", target.getParent().getRemotePath(), uploadFilename);
+        if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
+            throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
+        }
+
+        ftp.disconnect();
+        log.info("Disconnected from FTP");
+    }
+
+    /**
+     * Starts looking for devices to connect to. Starts a new thread and then
+     * returns. New devices will be reported asynchronously..
+     */
+    void start() {
+        upnp.getControlPoint().search(new STAllHeader());
+    }
+
+    /**
+     * Stop any running threads and tidy up.
+     */
+    void stop() {
+        upnp.shutdown();
+
+        stopUpnp();
+        stopFTP();
+
+        rootFolder.clearChildren();
+        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+    }
+
+    private void onConnect(RemoteDevice device) {
+        setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
+        Service service = device.findService(new UDAServiceType("ContentDirectory"));
+        if (service != null) {
+            synchronized (upnpQueue) {
+                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", rootFolder));
+                upnpQueue.notifyAll();
+            }
+            startUPNP();
+        }
+        notifyConnectionListeners(true);
+    }
+
+    private void onDisconnect(RemoteDevice device) {
+        stopUpnp();
+        stopFTP();
+        rootFolder.clearChildren();
+        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+        notifyConnectionListeners(false);
+    }
+
+    /**
+     * Adds a Folder to the tree. Will return an existing folder if it can.
+     *
+     * @param parent {@link PVRFolder} parent, must not be null.
+     * @param folderName String PVRs name of the folder.
+     * @return {@link PVRFolder} either an existing Folder, or a new one.
+     */
+    private PVRFolder addFolder(PVRFolder parent, String folderName) {
+        synchronized (parent.children) {
+            for (PVRItem child : parent.children) {
+                if (child.getRemoteFilename().equals(folderName)) {
+                    if (child.isFolder()) {
+                        return (PVRFolder) child;
+                    } else {
+                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.remotePath + ": Already exists as folder");
+                    }
+                }
+            }
+
+            PVRFolder folder = new PVRFolder(parent, parent.getRemotePath() + folderName + "/", folderName);
+            parent.addChild(folder);
+
+            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
+            return folder;
+        }
+    }
+
+    private PVRFile addFile(PVRFolder parent, String filename) {
+        synchronized (parent.children) {
+            for (PVRItem child : parent.children) {
+                if (child.getRemoteFilename().equals(filename)) {
+                    if (child.isFile()) {
+                        return (PVRFile) child;
+                    } else {
+                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.remotePath + ": Already exists as file");
+                    }
+                }
+            }
+
+            PVRFile file = new PVRFile(parent, parent.getRemotePath() + filename, filename);
+            parent.addChild(file);
+
+            main.onFileFound(file);
+            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
+            return file;
+        }
+    }
+
     private void notifyListenersUpdate(final TreeModelEvent e) {
         EventQueue.invokeLater(new Runnable() {
             @Override
@@ -318,18 +435,6 @@ class PVR implements TreeModel {
                 }
             }
         });
-    }
-
-    void addConnectionListener(PVRListener l) {
-        synchronized (connectionListeners) {
-            connectionListeners.add(l);
-        }
-    }
-
-    void removeConnectionListener(PVRListener l) {
-        synchronized (connectionListeners) {
-            connectionListeners.add(l);
-        }
     }
 
     private void notifyConnectionListeners(boolean connected) {
@@ -352,67 +457,15 @@ class PVR implements TreeModel {
         }
     }
 
-    void unlockFile(PVRFile target) throws IOException {
-
-        if (!target.getFilename().endsWith(".ts")) {
-            throw new IllegalArgumentException("Target must be a .ts file: " + target.getFilename());
-        }
-
-        log.info("Connecting to FTP");
-
-        ftp.connect(getRemoteHostname());
-        int reply = ftp.getReplyCode();
-
-        if (!FTPReply.isPositiveCompletion(reply)) {
-            ftp.disconnect();
-            throw new IOException("FTP server refused connect");
-        }
-
-        if (!ftp.login("humaxftp", "0000")) {
-            throw new IOException("Can't login to FTP");
-        }
-
-        if (!ftp.setFileType(FTPClient.BINARY_FILE_TYPE)) {
-            throw new IOException("Can't set binary transfer");
-        }
-
-        if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getPath())) {
-            throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getPath());
-        }
-
-        HMTFile hmt = getHMTForTs(target);
-
-        if (!hmt.isLocked()) {
-            log.info("Unlock failed: {} is already unlocked", target.getFilename());
-            return;
-        }
-
-        hmt.clearLock();
-
-        String uploadFilename = target.getFilename().replaceAll("\\.ts$", ".hmt");
-
-        log.info("Uploading unlocked hmt file to {}/{}", target.getParent().getPath(), uploadFilename);
-        if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
-            throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
-        }
-
-        ftp.disconnect();
-        log.info("Disconnected from FTP");
-    }
-
     private HMTFile getHMTForTs(PVRFile file) throws IOException {
-        String target = file.getFilename().replaceAll("\\.ts$", ".hmt");
+        String target = file.getRemoteFilename().replaceAll("\\.ts$", ".hmt");
         ByteArrayOutputStream out = new ByteArrayOutputStream();
 
         if (!ftp.retrieveFile(target, out)) {
-            throw new IOException("Can't download " + file.getPath() + ": Unknown reason");
+            throw new IOException("Can't download " + file.getRemotePath() + ": Unknown reason");
         }
 
         return new HMTFile(out.toByteArray());
-    }
-
-    void start() {
-        upnp.getControlPoint().search(new STAllHeader());
     }
 
     private void startUPNP() {
@@ -519,8 +572,8 @@ class PVR implements TreeModel {
         while (!queue.isEmpty()) {
             PVRFolder directory = queue.remove(0);
 
-            if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getPath())) {
-                throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getPath());
+            if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getRemotePath())) {
+                throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getRemotePath());
             }
 
             for (FTPFile f : ftp.listFiles()) {
@@ -538,20 +591,19 @@ class PVR implements TreeModel {
                     file.setSize(f.getSize());
                     file.setDescription(hmt.getDesc());
                     file.setTitle(hmt.getRecordingTitle());
-                    file.setStart(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
-                    file.setEnd(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
+                    file.setStartTime(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
+                    file.setEndTime(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
                     file.setLength(new Duration(hmt.getLength() * 1000));
                     file.setHighDef(hmt.isHighDef());
                     file.setLocked(hmt.isLocked());
                     file.setChannelName(hmt.getChannelName());
 
-                    file.setDownloadFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
+                    file.setLocalFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                             file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
-                            DATE_FORMAT.print(file.getStart()),
+                            DATE_FORMAT.print(file.getStartTime()),
                             file.isHighDef() ? "1920×1080" : "SD",
                             file.getChannelName()
                     ));
-
                 }
             }
         }
@@ -572,28 +624,22 @@ class PVR implements TreeModel {
         }
     }
 
-    void stop() {
-        upnp.shutdown();
-
-        stopUpnp();
-        stopFTP();
-
-        rootFolder.clearChildren();
-        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
-    }
-
+    /**
+     * Parent class of PVRFile and PVRFolder. Allows Folders to have Files and
+     * Folders as children.
+     */
     static abstract class PVRItem implements Comparable<PVRItem> {
 
-        protected final String filename;
-        protected final String path;
-        protected final PVRItem parent;
+        protected final String remoteFilename;
+        protected final String remotePath;
+        protected final PVRFolder parent;
         protected final TreePath treePath;
 
         @SuppressWarnings("LeakingThisInConstructor")
-        private PVRItem(PVRItem parent, String path, String filename) {
+        private PVRItem(PVRFolder parent, String remotePath, String remoteFilename) {
             this.parent = parent;
-            this.filename = filename;
-            this.path = path;
+            this.remoteFilename = remoteFilename;
+            this.remotePath = remotePath;
             if (parent != null) {
                 Object[] parentPath = parent.getTreePath().getPath();
                 Object[] myPath = new Object[parentPath.length + 1];
@@ -612,8 +658,8 @@ class PVR implements TreeModel {
         @Override
         public int hashCode() {
             int hash = 7;
-            hash = 89 * hash + Objects.hashCode(this.filename);
-            hash = 89 * hash + Objects.hashCode(this.path);
+            hash = 89 * hash + Objects.hashCode(this.remoteFilename);
+            hash = 89 * hash + Objects.hashCode(this.remotePath);
             return hash;
         }
 
@@ -626,42 +672,84 @@ class PVR implements TreeModel {
                 return false;
             }
             final PVRItem other = (PVRItem) obj;
-            return this.path.equals(other.path) && this.filename.equals(other.filename);
+            return this.remotePath.equals(other.remotePath) && this.remoteFilename.equals(other.remoteFilename);
         }
 
+        /**
+         * Returns true if this is a PVRFile.
+         *
+         * @return boolean
+         */
         abstract boolean isFile();
 
+        /**
+         * Returns true if this is a PVRFolder.
+         *
+         * @return
+         */
         abstract boolean isFolder();
 
+        /**
+         * Returns the size of this item. Files have a simple size, folders
+         * include the size of all their children (recursivley).
+         *
+         * @return
+         */
         abstract long getSize();
 
-        String getFilename() {
-            return filename;
+        /**
+         * Get the filename (last path segment) as reported by the PVR.
+         *
+         * @return
+         */
+        String getRemoteFilename() {
+            return remoteFilename;
         }
 
-        String getPath() {
-            return path;
+        /**
+         * Get the path reported by the PVR. Note that you'll need to add
+         * FTP_ROOT to the front if you're using it for FTP.
+         *
+         * @return String path reported by DLNA.
+         */
+        String getRemotePath() {
+            return remotePath;
         }
 
-        PVRItem getParent() {
+        /**
+         * Get parent Folder. Will return null for the root folder.
+         *
+         * @return PVRFolder parent folder, or null for the root.
+         */
+        PVRFolder getParent() {
             return parent;
         }
 
+        /**
+         * Get TreePath. This is set in the constructor, and never changes.
+         * Should never be null.
+         *
+         * @return TreePath
+         */
         TreePath getTreePath() {
             return treePath;
         }
 
         @Override
         public String toString() {
-            return filename;
+            return remoteFilename;
         }
     }
 
+    /**
+     * Represents a folder on the remote device. May have children, which will
+     * either be files or folders (which may have their own children).
+     */
     static class PVRFolder extends PVRItem {
 
         private final List<PVRItem> children;
 
-        private PVRFolder(PVRItem parent, String path, String filename) {
+        private PVRFolder(PVRFolder parent, String path, String filename) {
             super(parent, path, filename);
             this.children = new ArrayList<>();
         }
@@ -672,7 +760,7 @@ class PVR implements TreeModel {
                 // Folders go first
                 return -1;
             } else {
-                return getFilename().compareTo(o.getFilename());
+                return getRemoteFilename().compareTo(o.getRemoteFilename());
             }
         }
 
@@ -697,6 +785,11 @@ class PVR implements TreeModel {
             }
         }
 
+        /**
+         * Add a child item to this folder. Doesn't check for duplicates.
+         *
+         * @param child PVRItem child to add
+         */
         void addChild(PVRItem child) {
             synchronized (children) {
                 children.add(child);
@@ -704,18 +797,32 @@ class PVR implements TreeModel {
             }
         }
 
+        /**
+         * Get a child by index.
+         *
+         * @param index int index of the child. No bounds checking is done.
+         * @return PVRItem at index.
+         */
         PVRItem getChild(int index) {
             synchronized (children) {
                 return children.get(index);
             }
         }
 
+        /**
+         * Get the number of children of this Folder.
+         *
+         * @return int number of children.
+         */
         int getChildCount() {
             synchronized (children) {
                 return children.size();
             }
         }
 
+        /**
+         * Delete the children of this item, and their children too.
+         */
         void clearChildren() {
             synchronized (children) {
                 for (Iterator<PVRItem> it = children.iterator(); it.hasNext();) {
@@ -729,6 +836,10 @@ class PVR implements TreeModel {
         }
     }
 
+    /**
+     * Represents a file on the remote device.
+     *
+     */
     static class PVRFile extends PVRItem {
 
         private final Logger log = LoggerFactory.getLogger(PVRFile.class);
@@ -740,19 +851,19 @@ class PVR implements TreeModel {
         private String description = "";
         private String title = "";
         private String channelName = "Unknown";
-        private File downloadPath = null;
-        private String downloadFilename = null;
-        private DateTime start;
-        private DateTime end;
+        private File localPath = null;
+        private String localFilename = null;
+        private DateTime startTime;
+        private DateTime endTime;
         private Duration length;
         private boolean highDef = false;
         private boolean locked = false;
 
-        private PVRFile(PVRItem parent, String path, String filename) {
+        private PVRFile(PVRFolder parent, String path, String filename) {
             super(parent, path, filename);
             state = State.Ready;
             title = filename;
-            downloadFilename = filename;
+            localFilename = filename;
         }
 
         @Override
@@ -761,9 +872,9 @@ class PVR implements TreeModel {
                 // Folders go first
                 return 1;
             } else {
-                int x = getFilename().compareTo(o.getFilename());
+                int x = getRemoteFilename().compareTo(o.getRemoteFilename());
                 if (x == 0) {
-                    return start.compareTo(((PVRFile) o).start);
+                    return startTime.compareTo(((PVRFile) o).startTime);
                 } else {
                     return x;
                 }
@@ -785,110 +896,259 @@ class PVR implements TreeModel {
             return size;
         }
 
+        /**
+         * Sets the queue state of this file.
+         *
+         * @param newState
+         */
         void setState(State newState) {
             this.state = newState;
         }
 
+        /**
+         * Sets the human readable title of this file.
+         *
+         * @param title String human readable title.
+         */
         void setTitle(String title) {
             this.title = title;
         }
 
+        /**
+         * Get the human readable title of this file.
+         *
+         * @return String human readable title.
+         */
         String getTitle() {
             return title;
         }
 
-        void setDownloadPath(File downloadPath) {
-            this.downloadPath = downloadPath;
+        /**
+         * Set the local folder where this file should be saved.
+         *
+         * @param localPath File local folder
+         * @throws IllegalArgumentException if localPath is not a folder.
+         */
+        void setLocalPath(File localPath) {
+            if (!localPath.isDirectory()) {
+                throw new IllegalArgumentException(localPath + " is not a folder");
+            }
+            this.localPath = localPath;
         }
 
-        File getDownloadPath() {
-            return downloadPath;
+        /**
+         * Get the local folder where this file should be saved.
+         *
+         * @return File local folder
+         */
+        File getLocalPath() {
+            return localPath;
         }
 
-        String getDownloadFilename() {
-            return downloadFilename;
+        /**
+         * Get the filename that will be used when this file is saved locally.
+         *
+         * @return String local filename
+         */
+        String getLocalFilename() {
+            return localFilename;
         }
 
-        void setDownloadFilename(String downloadFilename) {
-            this.downloadFilename = downloadFilename;
+        /**
+         * Set the local filename to use when saving this file locally.
+         *
+         * @param localFilename local filename
+         */
+        void setLocalFilename(String localFilename) {
+            this.localFilename = localFilename;
         }
 
+        /**
+         * Get the current queue/download state.
+         *
+         * @return
+         */
         State getState() {
             return state;
         }
 
+        /**
+         * Set the size of this file, in bytes.
+         *
+         * @param size long size of file, in bytes.
+         */
         void setSize(long size) {
             this.size = size;
         }
 
+        /**
+         * Get how many bytes of this file have been downloaded.
+         *
+         * @return long downloaded bytes.
+         */
         long getDownloaded() {
             return downloaded;
         }
 
+        /**
+         * Set how many bytes of this file have been downloaded.
+         *
+         * @param downloaded
+         */
         void setDownloaded(long downloaded) {
             this.downloaded = downloaded;
         }
 
+        /**
+         * Get the human readable description of this file.
+         *
+         * @return String human readable description.
+         */
         String getDescription() {
             return description;
         }
 
+        /**
+         * Set the human readable description of this file.
+         *
+         * @param description
+         */
         void setDescription(String description) {
             this.description = description;
         }
 
+        /**
+         * Get the remote URL this file can be downloaded from.
+         *
+         * @return String remote URL.
+         */
         String getRemoteURL() {
             return remoteURL;
         }
 
+        /**
+         * Set the remote URL to download this file.
+         *
+         * @param remoteURL String remote URL
+         */
         void setRemoteURL(String remoteURL) {
             this.remoteURL = remoteURL;
         }
 
-        DateTime getStart() {
-            return start;
+        /**
+         * Get the start time of the recording. It should be in the PVRs
+         * timezone, but that code hasn't really been written yet.
+         *
+         * @return DateTime start time of the recording
+         */
+        DateTime getStartTime() {
+            return startTime;
         }
 
-        void setStart(DateTime start) {
-            this.start = start;
+        /**
+         * Set the start time of the recording.
+         *
+         * @param startTime DateTime start time of the recording.
+         */
+        void setStartTime(DateTime startTime) {
+            this.startTime = startTime;
         }
 
-        DateTime getEnd() {
-            return end;
+        /**
+         * Get the end time of the recording. See getStartTime() for Timezone
+         * comments,
+         *
+         * @return DateTime start time of the recording.
+         */
+        DateTime getEndTime() {
+            return endTime;
         }
 
-        void setEnd(DateTime end) {
-            this.end = end;
+        /**
+         * Set the end time of the recording.
+         *
+         * @param endTime
+         */
+        void setEndTime(DateTime endTime) {
+            this.endTime = endTime;
         }
 
+        /**
+         * Get the length of the recording.
+         *
+         * @return Duration recording length.
+         */
         Duration getLength() {
             return length;
         }
 
+        /**
+         * Set the length of the recording.
+         *
+         * @param length Duration recording length
+         */
         void setLength(Duration length) {
             this.length = length;
         }
 
+        /**
+         * Is the recoding High Definition.
+         *
+         * Note that HD recordings can't be downloaded using this tool.
+         *
+         * @return boolean true if the recoding is HD, false otherwise.
+         */
         boolean isHighDef() {
             return highDef;
         }
 
+        /**
+         * Set the highdef flag. Setting this flag to true will not make a
+         * recording high definition. Sorry.
+         *
+         * @param highDef boolean true for high def.
+         */
         void setHighDef(boolean highDef) {
             this.highDef = highDef;
         }
 
+        /**
+         * Is the recording locked. Humax PVR sets a flag to say if a recording
+         * should be decrypted when it's copied off the disk. This flag is
+         * ignored (or at least, always set to decript) for SD files, but not
+         * for HD.
+         *
+         * @return boolean true if its a high def file, and can't be copied,
+         * false otherwise.
+         */
         boolean isLocked() {
             return locked;
         }
 
+        /**
+         * Set the locked flag. See {@link PVR.unlockFile(PVRFile)} if you
+         * actually want to unlock a file.
+         *
+         * @param locked boolean true if locked, false otherwise.
+         */
         void setLocked(boolean locked) {
             this.locked = locked;
         }
 
+        /**
+         * Get the channel the recording was made from.
+         *
+         * @return String channel name, or the String "Unknown" if not set.
+         */
         String getChannelName() {
             return channelName;
         }
 
+        /**
+         * Set the name of the channel.
+         *
+         * @param channelName String channel name.
+         */
         void setChannelName(String channelName) {
             this.channelName = channelName;
         }
@@ -922,13 +1182,45 @@ class PVR implements TreeModel {
             return result.toString();
         }
 
+        /**
+         * Indicates the queued/downloading state of a file.
+         */
         static enum State {
-
-            Ready, Queued, Downloading, Paused, Completed, Error
+            /**
+             * Found, in the tree, but not queued.
+             */
+            Ready,
+            /**
+             * In the download queue.
+             */
+            Queued,
+            /**
+             * Currently downloading. Should only be one PVRFile in this state.
+             *
+             */
+            Downloading,
+            /**
+             * Download started, but not finished. Proabably means theres a
+             * '.partial' file in the localPath folder.
+             */
+            Paused,
+            /**
+             * File has downloaded succesfully. At least, as far as we can
+             * tell....
+             */
+            Completed,
+            /**
+             * The file got broken somehow.
+             */
+            Error
         }
 
     }
 
+    /**
+     * Part of the Cing framework. This class implements the upnp device search
+     * stuff.
+     */
     private class DeviceBrowse extends Browse {
 
         private final PVRFolder parent;
@@ -974,20 +1266,46 @@ class PVR implements TreeModel {
 
         @Override
         public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
-
+            synchronized (flag) {
+                flag.notifyAll();
+            }
         }
     }
 
+    /**
+     * Used to indicate what type of browsing we're doing.
+     */
     enum BrowseType {
         upnp, ftp
     };
 
+    /**
+     * For objects that want to know whats happening with this PVR.
+     */
     public interface PVRListener {
 
+        /**
+         * Called when we connect to a PVR.
+         */
         public void onConnect();
 
+        /**
+         * Called when we disconnect from a PVR.
+         */
         public void onDisconnect();
 
+        /**
+         * Called when we start or stop browsing the PVR.
+         *
+         * <p>
+         * We can browse in two ways, through upnp (DLNA) or through FTP.
+         * Mostly, upnp starts first, and then once we've located a device
+         * through upnp, we start browsing through FTP.
+         *
+         * @param type {@link BrowseType} indicating if we're talking about upnp
+         * or ftp.
+         * @param startStop boolean true for start, false for stop..
+         */
         public void onBrowse(BrowseType type, boolean startStop);
     }
 }
