@@ -37,6 +37,7 @@ import java.util.Map;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -383,8 +384,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                 break;
         }
 
-        if (!upnpBrowsing && !ftpBrowsing) {
-
+        if (scanning && !upnpBrowsing && !ftpBrowsing) {
+            // Should be done scanning now
             scanning = false;
             if (ui != null) {
                 ui.setStatus("Scan complete");
@@ -403,12 +404,20 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                             file.setLocalPath(new File(localPath));
 
                             log.debug("Trying to add {} -> {}", remotePath, localPath);
-                            downloader.add(file);
-                            if (ui != null) {
+                            if (!downloader.add(file)) {
+                                log.debug("But couldn't");
+                            }
+
+                        }
+                    }
+                    if (ui != null) {
+                        SwingUtilities.invokeLater(new Runnable() {
+                            @Override
+                            public void run() {
                                 ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
                                 ui.refresh();
                             }
-                        }
+                        });
                     }
                 }
             });

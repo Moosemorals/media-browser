@@ -607,6 +607,7 @@ class PVR implements TreeModel {
                     file.setHighDef(hmt.isHighDef());
                     file.setLocked(hmt.isLocked());
                     file.setChannelName(hmt.getChannelName());
+                    file.setFtp(true);
 
                     file.setLocalFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                             file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
@@ -855,6 +856,8 @@ class PVR implements TreeModel {
         private final Logger log = LoggerFactory.getLogger(PVRFile.class);
 
         private State state;
+        private boolean upnp = false;
+        private boolean ftp = false;
         private long size = -1;
         private long downloaded = -1;
         private String remoteURL = null;
@@ -1163,6 +1166,37 @@ class PVR implements TreeModel {
             this.channelName = channelName;
         }
 
+        /**
+         * Has been seen by Upnp
+         *
+         * @return true if has been seen.
+         */
+        boolean isUpnp() {
+            return upnp;
+        }
+
+        /**
+         * Set if has been seen by upnp
+         *
+         * @param upnp
+         */
+        void setUpnp(boolean upnp) {
+            this.upnp = upnp;
+        }
+
+        /**
+         * Has been seen by FTP
+         *
+         * @return true if seen by FTP
+         */
+        boolean isFtp() {
+            return ftp;
+        }
+
+        void setFtp(boolean ftp) {
+            this.ftp = ftp;
+        }
+
         @Override
         public String toString() {
             StringBuilder result = new StringBuilder();
@@ -1257,6 +1291,8 @@ class PVR implements TreeModel {
 
             for (Item i : items) {
                 PVRFile file = addFile(parent, i.getTitle());
+
+                file.setUpnp(true);
 
                 Res res = i.getFirstResource();
                 if (res != null) {

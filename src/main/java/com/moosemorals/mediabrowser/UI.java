@@ -562,7 +562,7 @@ class UI {
     }
 
     void refresh() {
-        window.repaint();
+        window.revalidate();
     }
 
     private Image getTrayIconImage(List<Image> applicationIcons) {

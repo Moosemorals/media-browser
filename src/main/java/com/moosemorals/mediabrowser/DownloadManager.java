@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
 import javax.swing.ListModel;
+import javax.swing.SwingUtilities;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
 import org.slf4j.Logger;
@@ -128,7 +129,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                     throw new RuntimeException("Target is null, but it really shouldn't be");
                 }
 
-                download(target);
+                try {
+                    download(target);
+                } catch (IOException ex) {
+                    log.error("Unexpected issue with download: {}", ex.getMessage(), ex);
+                    target.setState(PVRFile.State.Error);
+                }
 
                 notifyListDataListeners();
                 notifyStatusListeners();
@@ -141,11 +147,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
             }
         } catch (InterruptedException ex) {
             log.info("Interrupted waiting for next queue item. Assuming we're being told to stop");
-        } catch (IOException ex) {
-            log.error("Unexpected issue with download: {}", ex.getMessage(), ex);
+
         } finally {
-            status.downloadStatusChanged(false);
             running.set(false);
+            status.downloadStatusChanged(false);
+
             notifyListDataListeners();
             notifyStatusListeners();
         }
@@ -454,11 +460,17 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private void notifyListDataListeners() {
         final ListDataEvent lde = new ListDataEvent(this, ListDataEvent.CONTENTS_CHANGED, 0, queue.size());
-        synchronized (listDataListeners) {
-            for (ListDataListener ll : listDataListeners) {
-                ll.contentsChanged(lde);
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (listDataListeners) {
+                    for (ListDataListener ll : listDataListeners) {
+                        ll.contentsChanged(lde);
+                    }
+                }
             }
-        }
+        });
+
     }
 
     private void notifyStatusListeners() {
@@ -491,6 +503,11 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
 
         if (target.getState() != PVRFile.State.Ready) {
             log.info("File {} isn't ready, in state {}", target.getTitle(), target.getState());
+            return false;
+        }
+
+        if (target.getRemoteURL() == null) {
+            log.info("File {} isn't ready, no remote URL", target.getTitle());
             return false;
         }
 
