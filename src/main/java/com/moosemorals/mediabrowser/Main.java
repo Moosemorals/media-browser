@@ -311,20 +311,14 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     private Map<String, String> getSavedPaths() {
-
-        log.debug("Looking for saved paths");
         final Map<String, String> result = new HashMap<>();
 
         if (isSavingPaths()) {
-
             int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-
-            log.debug("Found {} saved paths: ", count);
             for (int i = 0; i < count; i += 1) {
                 String remotePath = preferences.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
                 String localPath = preferences.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
                 if (remotePath != null && localPath != null) {
-                    log.debug("Found a saved path {} -> {}", remotePath, localPath);
                     result.put(remotePath, localPath);
                 }
             }
@@ -334,25 +328,18 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
 
     private void clearSavedPaths() {
         int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-
-        log.debug("Removing {} saved items", count);
-
         for (int i = 0; i < count; i += 1) {
             preferences.remove(KEY_SAVE_DOWNLOAD_REMOTE + i);
             preferences.remove(KEY_SAVE_DOWNLOAD_LOCAL + i);
         }
-
         preferences.remove(KEY_SAVE_DOWNLOAD_COUNT);
-
     }
 
     private void savePaths() {
-
         List<PVRFile> queue = downloader.getQueue();
 
         int count = 0;
 
-        log.debug("Saving {} ", queue.size());
         for (PVRFile file : queue) {
             if (file.getState() == State.Downloading || file.getState() == State.Paused || file.getState() == State.Queued) {
                 preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
@@ -399,15 +386,9 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                         PVRFile file = (PVRFile) item;
                         String remotePath = file.getRemotePath();
                         if (savedPaths.containsKey(remotePath)) {
-
                             String localPath = savedPaths.get(remotePath);
                             file.setLocalPath(new File(localPath));
-
-                            log.debug("Trying to add {} -> {}", remotePath, localPath);
-                            if (!downloader.add(file)) {
-                                log.debug("But couldn't");
-                            }
-
+                            downloader.add(file);
                         }
                     }
                     if (ui != null) {
