@@ -23,13 +23,18 @@
  */
 package com.moosemorals.mediabrowser;
 
+import com.moosemorals.mediabrowser.PVR.PVRFile;
 import java.awt.EventQueue;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.prefs.PreferenceChangeEvent;
+import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.swing.UIManager;
 import javax.swing.tree.TreePath;
@@ -42,7 +47,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, PVR.ConnectionListener {
+class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, PVR.PVRListener {
 
     static final String KEY_FRAME_KNOWN = "frame_bounds";
     static final String KEY_FRAME_HEIGHT = "frame_height";
@@ -55,6 +60,9 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     static final String KEY_FRAME_LEFT = "frame_left";
     static final String KEY_FRAME_TOP = "frame_top";
     static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
+    static final String KEY_SAVE_DOWNLOAD_COUNT = "save_download_count";
+    static final String KEY_SAVE_DOWNLOAD_REMOTE = "save_download_remote";
+    static final String KEY_SAVE_DOWNLOAD_LOCAL = "save_download_local";
 
     public static void main(String args[]) {
         log.info("***** STARTUP *****");
@@ -86,12 +94,27 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     private final Preferences preferences;
     private final DownloadManager downloader;
     private final PVR pvr;
+
     private UI ui = null;
     private boolean connected = false;
+    private Map<String, String> savedPaths = null;
+    private boolean upnpBrowsing = false;
+    private boolean ftpBrowsing = false;
 
     private Main(Preferences prefs) {
+
         this.preferences = prefs;
-        pvr = new PVR();
+
+        preferences.addPreferenceChangeListener(new PreferenceChangeListener() {
+            @Override
+            public void preferenceChange(PreferenceChangeEvent evt) {
+                if (evt.getKey().equals(KEY_SAVE_DOWNLOAD_LIST) && evt.getNewValue().equals("false")) {
+                    clearSavedPaths();
+                }
+            }
+        });
+
+        pvr = new PVR(this);
         downloader = new DownloadManager(preferences);
         rateTracker = new RateTracker(15);
     }
@@ -99,6 +122,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     public void start() {
         downloader.setDownloadStatusListener(this);
         pvr.addConnectionListener(this);
+
+        savedPaths = getSavedPaths();
 
         pvr.start();
         EventQueue.invokeLater(this);
@@ -109,6 +134,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         // Running in the AWT thread
         Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
         ui = new UI(this);
+
+        ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
         ui.showWindow();
     }
 
@@ -119,6 +146,11 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     public void stop() {
         pvr.stop();
         downloader.stop();
+
+        if (isSavingPaths()) {
+            savePaths();
+        }
+
         if (ui != null) {
             ui.stop();
         }
@@ -273,6 +305,95 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         if (ui != null) {
             ui.setStartButtonStatus(false, false);
             ui.setColor(UI.ICON_DISCONNECTED);
+        }
+    }
+
+    public void onFileFound(PVRFile file) {
+        String remotePath = file.getPath();
+        if (savedPaths.containsKey(remotePath)) {
+
+            String localPath = savedPaths.get(remotePath);
+            file.setDownloadPath(new File(localPath));
+
+            log.debug("Trying to add {} -> ", remotePath, localPath);
+            downloader.add(file);
+            if (ui != null) {
+                ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+                ui.refresh();
+            }
+        }
+    }
+
+    boolean isSavingPaths() {
+        return preferences.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
+    }
+
+    private Map<String, String> getSavedPaths() {
+
+        log.debug("Looking for saved paths");
+        final Map<String, String> result = new HashMap<>();
+
+        if (isSavingPaths()) {
+
+            int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
+
+            log.debug("Found {} saved paths: ", count);
+            for (int i = 0; i < count; i += 1) {
+                String remotePath = preferences.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
+                String localPath = preferences.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
+                if (remotePath != null && localPath != null) {
+                    log.debug("Found a saved path {} -> {}", remotePath, localPath);
+                    result.put(remotePath, localPath);
+                }
+            }
+        }
+        return result;
+    }
+
+    private void clearSavedPaths() {
+        int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, 0);
+
+        for (int i = 0; i < count; i += 1) {
+            preferences.remove(KEY_SAVE_DOWNLOAD_REMOTE + "i");
+            preferences.remove(KEY_SAVE_DOWNLOAD_LOCAL + "i");
+        }
+
+        preferences.remove(KEY_SAVE_DOWNLOAD_COUNT);
+    }
+
+    private void savePaths() {
+
+        List<PVRFile> queue = downloader.getQueue();
+
+        int count = 0;
+
+        preferences.putInt(KEY_SAVE_DOWNLOAD_COUNT, queue.size());
+        log.debug("Saving {} ", queue.size());
+        for (PVRFile file : queue) {
+            preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getDownloadPath().getPath());
+            preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getPath());
+
+            count += 1;
+        }
+
+    }
+
+    @Override
+    public void onBrowse(PVR.BrowseType type, boolean startStop) {
+        switch (type) {
+            case upnp:
+                upnpBrowsing = startStop;
+                break;
+            case ftp:
+                ftpBrowsing = startStop;
+                break;
+            default:
+                log.warn("Unknown browsing type: {}", type);
+                break;
+        }
+
+        if (!upnpBrowsing && !ftpBrowsing) {
+            clearSavedPaths();
         }
     }
 

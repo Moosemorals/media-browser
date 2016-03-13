@@ -109,25 +109,23 @@ class UI {
         this.main = m;
         prefs = main.getPreferences();
 
-        this.setShowMessageOnCompleteAction = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
-        this.setSaveDownloadListAction = new PreferenceAction(prefs, "Save download list", Main.KEY_SAVE_DOWNLOAD_LIST);
-        this.setAutoDownloadAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
-        this.setMinimiseToTrayAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_MINIMISE_TO_TRAY);
+        setShowMessageOnCompleteAction = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
+        setSaveDownloadListAction = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
+        setAutoDownloadAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
+        setMinimiseToTrayAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_MINIMISE_TO_TRAY);
 
-        this.chooseDefaultDownloadPathAction = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
-        this.chooseDownloadPathAction = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
-        this.quitAction = new LocalAction(main, "Exit", ACTION_QUIT);
-        this.queueAction = new LocalAction(main, "Queue selected", ACTION_QUEUE);
-        this.removeLockAction = new LocalAction(main, "Remove lock", ACTION_LOCK);
-        this.removeSelectedAction = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
-
-        this.startStopAction = new LocalAction(main, "Start downloading", ACTION_START_STOP);
+        chooseDefaultDownloadPathAction = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
+        chooseDownloadPathAction = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
+        quitAction = new LocalAction(main, "Exit", ACTION_QUIT);
+        queueAction = new LocalAction(main, "Queue selected", ACTION_QUEUE);
+        removeLockAction = new LocalAction(main, "Remove lock", ACTION_LOCK);
+        removeSelectedAction = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
+        startStopAction = new LocalAction(main, "Start downloading", ACTION_START_STOP);
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
 
         queueAction.setEnabled(false);
-        startStopAction.setEnabled(false);
         removeLockAction.setEnabled(false);
         removeSelectedAction.setEnabled(false);
         chooseDownloadPathAction.setEnabled(false);
@@ -210,7 +208,6 @@ class UI {
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true));
         menu.add(jCheckBoxMenuItem);
 
-        setSaveDownloadListAction.setEnabled(false); // not implemented yet
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setSaveDownloadListAction);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_SAVE_DOWNLOAD_LIST, false));
         menu.add(jCheckBoxMenuItem);
@@ -527,5 +524,9 @@ class UI {
 
     boolean isVisible() {
         return window.isVisible();
+    }
+
+    void refresh() {
+        window.repaint();
     }
 }

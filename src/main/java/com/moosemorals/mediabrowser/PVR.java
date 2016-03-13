@@ -120,6 +120,7 @@ class PVR implements TreeModel {
 
     private final boolean debugFTP = false;
 
+    private final Main main;
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
@@ -129,7 +130,7 @@ class PVR implements TreeModel {
     private final List<DeviceBrowse> upnpQueue;
     private final AtomicBoolean upnpRunning;
     private final AtomicBoolean ftpRunning;
-    private final Set<ConnectionListener> connectionListeners;
+    private final Set<PVRListener> connectionListeners;
 
     private Thread upnpThread = null;
     private Thread ftpThread = null;
@@ -158,7 +159,8 @@ class PVR implements TreeModel {
         }
     };
 
-    PVR() {
+    PVR(Main main) {
+        this.main = main;
         connectionListeners = new HashSet<>();
 
         FTPClientConfig config = new FTPClientConfig();
@@ -285,6 +287,7 @@ class PVR implements TreeModel {
             PVRFile file = new PVRFile(parent, parent.getPath() + filename, filename);
             parent.addChild(file);
 
+            main.onFileFound(file);
             notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
             return file;
         }
@@ -317,13 +320,13 @@ class PVR implements TreeModel {
         });
     }
 
-    void addConnectionListener(ConnectionListener l) {
+    void addConnectionListener(PVRListener l) {
         synchronized (connectionListeners) {
             connectionListeners.add(l);
         }
     }
 
-    void removeConnectionListener(ConnectionListener l) {
+    void removeConnectionListener(PVRListener l) {
         synchronized (connectionListeners) {
             connectionListeners.add(l);
         }
@@ -331,12 +334,20 @@ class PVR implements TreeModel {
 
     private void notifyConnectionListeners(boolean connected) {
         synchronized (connectionListeners) {
-            for (ConnectionListener l : connectionListeners) {
+            for (PVRListener l : connectionListeners) {
                 if (connected) {
                     l.onConnect();
                 } else {
                     l.onDisconnect();
                 }
+            }
+        }
+    }
+
+    private void notifyBrowseListeners(BrowseType type, boolean start) {
+        synchronized (connectionListeners) {
+            for (PVRListener l : connectionListeners) {
+                l.onBrowse(type, start);
             }
         }
     }
@@ -437,10 +448,13 @@ class PVR implements TreeModel {
                         return;
                     } finally {
                         upnpRunning.set(false);
+                        notifyBrowseListeners(BrowseType.upnp, false);
                     }
                 }
             }, "UPNP");
             upnpThread.start();
+            notifyBrowseListeners(BrowseType.upnp, true);
+
         }
     }
 
@@ -466,13 +480,17 @@ class PVR implements TreeModel {
                     } catch (IOException ex) {
                         log.error("FTP problem: {}", ex.getMessage(), ex);
                         stopFTP();
+                    } finally {
+                        TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
+                        notifyListenersUpdate(e);
+                        notifyBrowseListeners(BrowseType.ftp, false);
+                        ftpRunning.set(false);
                     }
-                    TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
-                    notifyListenersUpdate(e);
-                    ftpRunning.set(false);
                 }
             }, "FTP");
             ftpThread.start();
+            notifyBrowseListeners(BrowseType.ftp, true);
+
         }
     }
 
@@ -960,10 +978,16 @@ class PVR implements TreeModel {
         }
     }
 
-    public interface ConnectionListener {
+    enum BrowseType {
+        upnp, ftp
+    };
+
+    public interface PVRListener {
 
         public void onConnect();
 
         public void onDisconnect();
+
+        public void onBrowse(BrowseType type, boolean startStop);
     }
 }

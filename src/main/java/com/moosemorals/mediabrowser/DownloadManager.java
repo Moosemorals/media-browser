@@ -52,7 +52,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionListener {
+class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private static final int BUFFER_SIZE = 1024 * 4;
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
@@ -241,6 +241,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
         return true;
     }
 
+    List<PVRFile> getQueue() {
+        synchronized (queue) {
+            return new ArrayList<>(queue);
+        }
+    }
+
     void changeDownloadPath(List<PVRFile> files, File newPath) {
 
     }
@@ -397,7 +403,10 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
             return false;
         }
 
-        target.setDownloadPath(new File(getDownloadPath().getPath()));
+        if (target.getDownloadPath() == null) {
+            log.debug("Download path not set");
+            target.setDownloadPath(new File(getDownloadPath().getPath()));
+        }
         final File downloadTarget = getDownloadTarget(target);
         if (downloadTarget.exists()) {
             target.setDownloaded(downloadTarget.length());
@@ -408,6 +417,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                 target.setState(PVRFile.State.Paused);
             }
         } else {
+            log.debug("File at {} doesn't exist", downloadTarget);
             target.setDownloaded(0);
             target.setState(PVRFile.State.Queued);
         }
@@ -440,16 +450,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
 
     private File getCompletedTarget(PVRFile target) {
         return new File(target.getDownloadPath(), target.getDownloadFilename() + ".ts");
-    }
-
-    @Override
-    public void onConnect() {
-        // ignored
-    }
-
-    @Override
-    public void onDisconnect() {
-        stop();
     }
 
     public interface DownloadStatusListener {
