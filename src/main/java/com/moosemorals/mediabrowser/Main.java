@@ -24,6 +24,7 @@
 package com.moosemorals.mediabrowser;
 
 import java.awt.EventQueue;
+import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
@@ -41,7 +42,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable, ActionListener {
+class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, PVR.ConnectionListener {
 
     static final String KEY_FRAME_KNOWN = "frame_bounds";
     static final String KEY_FRAME_HEIGHT = "frame_height";
@@ -76,12 +77,12 @@ public class Main implements Runnable, ActionListener {
             log.error("Can't change look and feel", ex);
         }
 
-        Main main = new Main(Preferences.userNodeForPackage(Main.class));
-        EventQueue.invokeLater(main);
+        new Main(Preferences.userNodeForPackage(Main.class)).start();
+
     }
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
-
+    private final RateTracker rateTracker;
     private final Preferences preferences;
     private final DownloadManager downloader;
     private final PVR pvr;
@@ -90,11 +91,16 @@ public class Main implements Runnable, ActionListener {
     private Main(Preferences prefs) {
         this.preferences = prefs;
         pvr = new PVR();
+        downloader = new DownloadManager(preferences);
+        rateTracker = new RateTracker(15);
+    }
+
+    public void start() {
+        downloader.setDownloadStatusListener(this);
+        pvr.addConnectionListener(this);
 
         pvr.start();
-        downloader = new DownloadManager(preferences);
-        pvr.addConnectionListener(downloader);
-
+        EventQueue.invokeLater(this);
     }
 
     @Override
@@ -102,7 +108,6 @@ public class Main implements Runnable, ActionListener {
         // Running in the AWT thread
         Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
         ui = new UI(this);
-        pvr.addConnectionListener(ui);
         log.debug("UI ready");
         ui.showWindow();
     }
@@ -186,6 +191,7 @@ public class Main implements Runnable, ActionListener {
                 downloader.remove(ui.getListSelected());
                 break;
             case UI.ACTION_QUIT:
+            case "Exit": // Stupid TrayIcon popup doesn't support Actions!
                 stop();
                 break;
             case UI.ACTION_TRAY:
@@ -201,6 +207,59 @@ public class Main implements Runnable, ActionListener {
 
     boolean isDownloading() {
         return downloader.isDownloading();
+    }
+
+    @Override
+    public void downloadStatusChanged(boolean running) {
+        rateTracker.reset();
+        ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+    }
+
+    @Override
+    public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
+        String message;
+
+        message = String.format("Total %s of %s (%.0f%%)",
+                PVR.humanReadableSize(totalDownloaded),
+                PVR.humanReadableSize(totalQueued),
+                totalQueued > 0
+                        ? (totalDownloaded / (double) totalQueued) * 100.0
+                        : 0
+        );
+
+        if (rate >= 0) {
+            rateTracker.addRate(rate);
+            message += String.format(" - Current %s of %s (%.0f%%) - Rate %s/s",
+                    PVR.humanReadableSize(currentDownloaded),
+                    PVR.humanReadableSize(currentFile),
+                    currentFile > 0
+                            ? (currentDownloaded / (double) currentFile) * 100.0
+                            : 0,
+                    PVR.humanReadableSize((long) rateTracker.getRate())
+            );
+        }
+
+        ui.setStatus(message);
+        ui.setTrayIconToolTip(message);
+    }
+
+    @Override
+    public void downloadCompleted(PVR.PVRFile target) {
+        if (preferences.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
+            String message = String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename());
+            ui.showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
+        }
+    }
+
+    @Override
+    public void onConnect() {
+
+    }
+
+    @Override
+    public void onDisconnect() {
+
+        ui.setStartButtonStatus(false, false);
     }
 
     static class ExceptionHandler implements Thread.UncaughtExceptionHandler {

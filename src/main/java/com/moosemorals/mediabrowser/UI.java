@@ -23,7 +23,6 @@
  */
 package com.moosemorals.mediabrowser;
 
-import com.moosemorals.mediabrowser.DownloadManager.DownloadStatusListener;
 import com.moosemorals.mediabrowser.PVR.PVRFile;
 import com.moosemorals.mediabrowser.PVR.PVRItem;
 import java.awt.AWTException;
@@ -62,7 +61,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class UI implements DownloadStatusListener, PVR.ConnectionListener {
+class UI {
 
     static final String ACTION_START_STOP = "start";
     static final String ACTION_QUEUE = "queue";
@@ -85,7 +84,6 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
     private final JFrame window;
     private final TrayIcon trayIcon;
     private final Main main;
-    private final RateTracker rateTracker;
 
     private final Action startStopAction, queueAction, removeLockAction, chooseDefaultDownloadPathAction,
             chooseDownloadPathAction, removeSelectedAction, quitAction, setMinimiseToTrayAction,
@@ -112,8 +110,6 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
-
-        rateTracker = new RateTracker(10);
 
         queueAction.setEnabled(false);
         startStopAction.setEnabled(false);
@@ -378,8 +374,6 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
     }
 
     void showWindow() {
-        downloadProgress(0, 0, 0, 0, -1);
-        downloader.setDownloadStatusListener(this);
         window.pack();
 
         window.setBounds(new Rectangle(
@@ -425,39 +419,14 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         });
     }
 
-    @Override
-    public void downloadStatusChanged(boolean running) {
-        rateTracker.reset();
-        setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
-    }
+    void setTrayIconToolTip(final String message) {
+        SwingUtilities.invokeLater(new Runnable() {
 
-    @Override
-    public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
-
-        String message;
-
-        message = String.format("Total %s of %s (%.0f%%)",
-                PVR.humanReadableSize(totalDownloaded),
-                PVR.humanReadableSize(totalQueued),
-                totalQueued > 0
-                        ? (totalDownloaded / (double) totalQueued) * 100.0
-                        : 0
-        );
-
-        if (rate >= 0) {
-            rateTracker.addRate(rate);
-            message += String.format(" - Current %s of %s (%.0f%%) - Rate %s/s",
-                    PVR.humanReadableSize(currentDownloaded),
-                    PVR.humanReadableSize(currentFile),
-                    currentFile > 0
-                            ? (currentDownloaded / (double) currentFile) * 100.0
-                            : 0,
-                    PVR.humanReadableSize((long) rateTracker.getRate())
-            );
-        }
-
-        statusLabel.setText(message);
-        trayIcon.setToolTip(message);
+            @Override
+            public void run() {
+                trayIcon.setToolTip(message);
+            }
+        });
     }
 
     private Image loadIcon(String path) {
@@ -471,21 +440,8 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         }
     }
 
-    @Override
-    public void downloadCompleted(PVRFile target) {
-        if (prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
-            trayIcon.displayMessage("Download Completed", String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getDownloadPath(), target.getDownloadFilename()), TrayIcon.MessageType.INFO);
-        }
-    }
-
-    @Override
-    public void onConnect() {
-
-    }
-
-    @Override
-    public void onDisconnect() {
-        startStopAction.setEnabled(false);
+    public void showPopupMessage(String title, String message, TrayIcon.MessageType type) {
+        trayIcon.displayMessage(title, message, type);
     }
 
     File showFileChooser(File base) {
@@ -500,8 +456,8 @@ class UI implements DownloadStatusListener, PVR.ConnectionListener {
         return downloadList.getSelectedValuesList();
     }
 
-    void setStartButtonStatus(boolean queued, boolean downloading) {
-        startStopAction.setEnabled(queued);
+    void setStartButtonStatus(boolean enabled, boolean downloading) {
+        startStopAction.setEnabled(enabled);
         if (downloading) {
             startStopAction.putValue(Action.NAME, "Stop downloading");
         } else {

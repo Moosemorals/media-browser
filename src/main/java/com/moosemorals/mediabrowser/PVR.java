@@ -464,6 +464,12 @@ class PVR implements TreeModel {
     private void stopUpnp() {
         if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
             upnpThread.interrupt();
+            log.debug("Waiting for upnpThread to finish");
+            try {
+                upnpThread.join();
+            } catch (InterruptedException ex) {
+                log.error("Unexpected interruption waiting for upnpThread, ignored");
+            }
         }
     }
 
@@ -480,6 +486,7 @@ class PVR implements TreeModel {
                     }
                     TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
                     notifyListenersUpdate(e);
+                    ftpRunning.set(false);
                 }
             }, "FTP");
             ftpThread.start();
@@ -554,6 +561,13 @@ class PVR implements TreeModel {
     private void stopFTP() {
         if (ftpRunning.compareAndSet(true, false) && ftpThread != null) {
             ftpThread.interrupt();
+            try {
+                log.debug("Waitng for ftpThread to finish");
+                ftpThread.join();
+            } catch (InterruptedException ex) {
+                log.error("Unexpected interruption waiting for ftpThread to finish");
+            }
+
         }
     }
 
@@ -963,10 +977,10 @@ class PVR implements TreeModel {
         }
     }
 
-    interface ConnectionListener {
+    public interface ConnectionListener {
 
-        void onConnect();
+        public void onConnect();
 
-        void onDisconnect();
+        public void onDisconnect();
     }
 }

@@ -24,6 +24,8 @@
 package com.moosemorals.mediabrowser;
 
 import com.moosemorals.mediabrowser.PVR.PVRFile;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -52,6 +54,7 @@ import org.slf4j.LoggerFactory;
  */
 class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionListener {
 
+    private static final int BUFFER_SIZE = 1024 * 4;
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Preferences prefs;
     private final List<PVRFile> queue;
@@ -130,17 +133,17 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                 long lastCheck = System.currentTimeMillis();
                 long lastDownloaded = target.getDownloaded();
 
-                try (InputStream in = connection.getInputStream(); OutputStream out = new FileOutputStream(downloadTarget, append)) {
-                    byte[] buffer = new byte[1024 * 4];
+                try (InputStream in = new BufferedInputStream(connection.getInputStream()); OutputStream out = new BufferedOutputStream(new FileOutputStream(downloadTarget, append))) {
+                    byte[] buffer = new byte[BUFFER_SIZE];
                     long count = target.getDownloaded();
-                    int n = 0;
-                    while ((n = in.read(buffer)) != -1) {
-                        out.write(buffer, 0, n);
-                        count += n;
+                    int bytesRead;
+                    while ((bytesRead = in.read(buffer, 0, BUFFER_SIZE)) != -1) {
+                        out.write(buffer, 0, bytesRead);
+                        count += bytesRead;
                         target.setDownloaded(count);
 
                         long timeNow = System.currentTimeMillis();
-                        if ((timeNow - lastCheck) > 500) {
+                        if ((timeNow - lastCheck) > 750) {
                             // calculate rate, in bytes/ms
                             double rate = (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
                             // Make it bytes/second
@@ -202,6 +205,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
     void stop() {
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
+            try {
+                log.debug("Waiting for download thread to finish");
+                downloadThread.join();
+            } catch (InterruptedException ex) {
+                log.error("Interrupted while waiting for download thread to finish, ignoring");
+            }
             downloadThread = null;
             status.downloadStatusChanged(false);
             notifyListDataListeners();
@@ -406,9 +415,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
     }
 
     boolean downloadsAvailible() {
-        for (PVRFile f : queue) {
-            if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
-                return true;
+        synchronized (queue) {
+            for (PVRFile f : queue) {
+                log.debug("D {}: {}", f.getTitle(), f.getState());
+                if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
+                    return true;
+                }
             }
         }
         return false;
@@ -441,12 +453,12 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
         stop();
     }
 
-    interface DownloadStatusListener {
+    public interface DownloadStatusListener {
 
-        void downloadStatusChanged(boolean running);
+        public void downloadStatusChanged(boolean running);
 
-        void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
+        public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
 
-        void downloadCompleted(PVRFile target);
+        public void downloadCompleted(PVRFile target);
     }
 }
