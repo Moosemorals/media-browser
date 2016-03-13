@@ -24,6 +24,7 @@
 package com.moosemorals.mediabrowser;
 
 import com.moosemorals.mediabrowser.PVR.PVRFile;
+import com.moosemorals.mediabrowser.PVR.PVRFile.State;
 import java.awt.EventQueue;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
@@ -97,6 +98,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     private UI ui = null;
     private boolean connected = false;
     private Map<String, String> savedPaths = null;
+    private boolean scanning = false;
     private boolean upnpBrowsing = false;
     private boolean ftpBrowsing = false;
 
@@ -113,7 +115,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
             }
         });
 
-        pvr = new PVR(this);
+        pvr = new PVR();
         downloader = new DownloadManager(preferences);
         rateTracker = new RateTracker(15);
     }
@@ -303,22 +305,6 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         }
     }
 
-    public void onFileFound(PVRFile file) {
-        String remotePath = file.getRemotePath();
-        if (savedPaths.containsKey(remotePath)) {
-
-            String localPath = savedPaths.get(remotePath);
-            file.setLocalPath(new File(localPath));
-
-            log.debug("Trying to add {} -> ", remotePath, localPath);
-            downloader.add(file);
-            if (ui != null) {
-                ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
-                ui.refresh();
-            }
-        }
-    }
-
     boolean isSavingPaths() {
         return preferences.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
     }
@@ -346,14 +332,17 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     private void clearSavedPaths() {
-        int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, 0);
+        int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
+
+        log.debug("Removing {} saved items", count);
 
         for (int i = 0; i < count; i += 1) {
-            preferences.remove(KEY_SAVE_DOWNLOAD_REMOTE + "i");
-            preferences.remove(KEY_SAVE_DOWNLOAD_LOCAL + "i");
+            preferences.remove(KEY_SAVE_DOWNLOAD_REMOTE + i);
+            preferences.remove(KEY_SAVE_DOWNLOAD_LOCAL + i);
         }
 
         preferences.remove(KEY_SAVE_DOWNLOAD_COUNT);
+
     }
 
     private void savePaths() {
@@ -362,19 +351,26 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
 
         int count = 0;
 
-        preferences.putInt(KEY_SAVE_DOWNLOAD_COUNT, queue.size());
         log.debug("Saving {} ", queue.size());
         for (PVRFile file : queue) {
-            preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
-            preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
-
-            count += 1;
+            if (file.getState() == State.Downloading || file.getState() == State.Paused || file.getState() == State.Queued) {
+                preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
+                preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
+                count += 1;
+            }
         }
-
+        preferences.putInt(KEY_SAVE_DOWNLOAD_COUNT, count);
     }
 
     @Override
     public void onBrowse(PVR.BrowseType type, boolean startStop) {
+        if (!scanning && startStop) {
+            scanning = true;
+            if (ui != null) {
+                ui.setStatus("Scanning ...");
+            }
+        }
+
         switch (type) {
             case upnp:
                 upnpBrowsing = startStop;
@@ -388,7 +384,34 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         }
 
         if (!upnpBrowsing && !ftpBrowsing) {
+
+            scanning = false;
+            if (ui != null) {
+                ui.setStatus("Scan complete");
+            }
             clearSavedPaths();
+
+            pvr.treeWalk(new PVR.TreeWalker() {
+                @Override
+                public void action(PVR.PVRItem item) {
+                    if (item.isFile()) {
+                        PVRFile file = (PVRFile) item;
+                        String remotePath = file.getRemotePath();
+                        if (savedPaths.containsKey(remotePath)) {
+
+                            String localPath = savedPaths.get(remotePath);
+                            file.setLocalPath(new File(localPath));
+
+                            log.debug("Trying to add {} -> {}", remotePath, localPath);
+                            downloader.add(file);
+                            if (ui != null) {
+                                ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+                                ui.refresh();
+                            }
+                        }
+                    }
+                }
+            });
         }
     }
 

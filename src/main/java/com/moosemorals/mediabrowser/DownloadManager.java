@@ -113,127 +113,143 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      */
     @Override
     public void run() {
-        while (running.get()) {
-            PVRFile target;
+        try {
+            while (running.get()) {
+                PVRFile target;
 
-            synchronized (queue) {
-                while (!areDownloadsAvailible()) {
-                    try {
+                synchronized (queue) {
+                    while (!areDownloadsAvailible()) {
                         queue.wait();
-                    } catch (InterruptedException ex) {
-                        running.set(false);
-                        status.downloadStatusChanged(false);
-                        notifyListDataListeners();
-                        notifyStatusListeners();
-                        return;
                     }
-                }
-                target = getNextDownload();
-            }
-
-            if (target == null) {
-                throw new RuntimeException("Target is null, but it really shouldn't be");
-            }
-
-            notifyListDataListeners();
-            try {
-
-                File downloadTarget = getDownloadTarget(target);
-                URL url = new URL(target.getRemoteURL());
-                HttpURLConnection connection = (HttpURLConnection) url.openConnection();
-
-                boolean append = false;
-
-                if (target.getState() == PVRFile.State.Paused) {
-                    connection.setRequestProperty("Range", "bytes=" + target.getDownloaded() + "-");
+                    target = getNextDownload();
                 }
 
-                log.info("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
-                connection.connect();
-
-                if (connection.getResponseCode() == 206) {
-                    // Partial content
-                    log.debug("Connection says sure, partial is fine: {}", connection.getHeaderField("Content-Range"));
-                    append = true;
+                if (target == null) {
+                    throw new RuntimeException("Target is null, but it really shouldn't be");
                 }
 
-                target.setState(PVRFile.State.Downloading);
-
-                long lastCheck = System.currentTimeMillis();
-                long lastDownloaded = target.getDownloaded();
-
-                try (InputStream in = new BufferedInputStream(connection.getInputStream()); OutputStream out = new BufferedOutputStream(new FileOutputStream(downloadTarget, append))) {
-                    byte[] buffer = new byte[BUFFER_SIZE];
-                    long count = target.getDownloaded();
-                    int bytesRead;
-                    while ((bytesRead = in.read(buffer, 0, BUFFER_SIZE)) != -1) {
-                        out.write(buffer, 0, bytesRead);
-                        count += bytesRead;
-                        target.setDownloaded(count);
-
-                        long timeNow = System.currentTimeMillis();
-                        if ((timeNow - lastCheck) > 750) {
-                            // calculate rate, in bytes/ms
-                            double rate = (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
-                            // Make it bytes/second
-                            rate *= 1000;
-
-                            notifyListDataListeners();
-                            notifyStatusListeners(rate);
-
-                            lastCheck = timeNow;
-                            lastDownloaded = target.getDownloaded();
-                        }
-
-                        if (!running.get()) {
-                            in.close();
-                            notifyListDataListeners();
-                            return;
-                        }
-
-                        if (target.getState() != PVRFile.State.Downloading) {
-                            in.close();
-                            notifyListDataListeners();
-                            break;
-                        }
-                    }
-
-                    if (target.getSize() == downloadTarget.length()) {
-                        File completed = getCompletedTarget(target);
-                        if (downloadTarget.renameTo(completed)) {
-                            target.setState(PVRFile.State.Completed);
-                        } else {
-                            log.error("Can't rename {} to {}", target, completed);
-                            target.setState(PVRFile.State.Error);
-                        }
-                        status.downloadCompleted(target);
-                    }
-
-                } catch (IOException ex) {
-                    if (running.get()) {
-                        // Error while we're running, so probably actualy an error
-                        target.setState(PVRFile.State.Error);
-                        log.error("IOException while downloading: {}", ex.getMessage(), ex);
-                    } else {
-                        // Error while we're not running, probably a disconnect
-                        target.setState(PVRFile.State.Paused);
-                        log.info("IOException disconnecting: {}", ex.getMessage(), ex);
-                    }
-                    // just in case
-                    stop();
-                    return;
-                }
+                download(target);
 
                 notifyListDataListeners();
+                notifyStatusListeners();
 
                 if (!prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false) || !areDownloadsAvailible()) {
                     stop();
                     return;
                 }
-            } catch (IOException ex) {
-                log.error("IOExcption", ex);
+
             }
+        } catch (InterruptedException ex) {
+            log.info("Interrupted waiting for next queue item. Assuming we're being told to stop");
+        } catch (IOException ex) {
+            log.error("Unexpected issue with download: {}", ex.getMessage(), ex);
+        } finally {
+            status.downloadStatusChanged(false);
+            running.set(false);
+            notifyListDataListeners();
+            notifyStatusListeners();
         }
+    }
+
+    private void download(PVRFile target) throws IOException {
+        File downloadTarget = getDownloadTarget(target);
+        URL url = new URL(target.getRemoteURL());
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+
+        boolean append = false;
+
+        if (target.getState() == PVRFile.State.Paused) {
+            connection.setRequestProperty("Range", "bytes=" + target.getDownloaded() + "-");
+        }
+
+        log.info("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
+        connection.connect();
+
+        if (connection.getResponseCode() == 206) {
+            // Partial content
+            log.debug("Connection says sure, partial is fine: {}", connection.getHeaderField("Content-Range"));
+            append = true;
+        }
+
+        target.setState(PVRFile.State.Downloading);
+
+        long lastCheck = System.currentTimeMillis();
+        long lastDownloaded = target.getDownloaded();
+
+        try (InputStream in = new BufferedInputStream(connection.getInputStream()); OutputStream out = new BufferedOutputStream(new FileOutputStream(downloadTarget, append))) {
+            byte[] buffer = new byte[BUFFER_SIZE];
+            long count = target.getDownloaded();
+            int bytesRead;
+
+            // Main download loop. Isn't it well hidden?
+            while ((bytesRead = in.read(buffer, 0, BUFFER_SIZE)) != -1) {
+                out.write(buffer, 0, bytesRead);
+                count += bytesRead;
+                target.setDownloaded(count);
+
+                long timeNow = System.currentTimeMillis();
+                if ((timeNow - lastCheck) > 750) {
+                    // calculate rate, in bytes/ms
+                    double rate = (target.getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
+                    // Make it bytes/second
+                    rate *= 1000;
+
+                    notifyListDataListeners();
+                    notifyStatusListeners(rate);
+
+                    lastCheck = timeNow;
+                    lastDownloaded = target.getDownloaded();
+                }
+
+                // We can be asked to stop downloading in two ways. Either running is
+                // set false, or the user sets our state to paused. Either way, we're
+                // done here.
+                if (!running.get() || target.getState() != PVRFile.State.Downloading) {
+                    in.close();
+                    notifyListDataListeners();
+                    break;
+                }
+            }
+
+            // Paranoia.
+            out.flush();
+
+        } catch (IOException ex) {
+            if (running.get()) {
+                // Error while we're running, so probably actualy an error
+                target.setState(PVRFile.State.Error);
+                log.error("IOException while downloading: {}", ex.getMessage(), ex);
+            } else {
+                // Error while we're not running, probably a disconnect
+                target.setState(PVRFile.State.Paused);
+                log.info("IOException disconnecting: {}", ex.getMessage(), ex);
+            }
+            // just in case
+            stop();
+            return;
+        }
+
+        // Assume that if the file on disk is the same size as the
+        // file we were told about then then file has downloaded
+        // ok. Oh, for some kind of hash from the remote end.
+        if (target.getSize() == downloadTarget.length()) {
+            File completed = getCompletedTarget(target);
+            if (downloadTarget.renameTo(completed)) {
+                // TODO: Think about this.
+                //downloadTarget.setLastModified(target.getStartTime().getMillis());
+                target.setState(PVRFile.State.Completed);
+            } else {
+                log.error("Can't rename {} to {}", target, completed);
+                target.setState(PVRFile.State.Error);
+            }
+            status.downloadCompleted(target);
+        } else {
+            // Assume that we got interrupted for a good and proper reason.
+            // Error status is set above.
+            target.setState(PVRFile.State.Paused);
+        }
+
+        notifyListDataListeners();
     }
 
     /**
@@ -250,7 +266,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                 log.error("Interrupted while waiting for download thread to finish, ignoring");
             }
             downloadThread = null;
-            status.downloadStatusChanged(false);
+
             notifyListDataListeners();
             notifyStatusListeners();
         }
@@ -479,7 +495,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         }
 
         if (target.getLocalPath() == null) {
-            log.debug("Download path not set");
             target.setLocalPath(new File(getDownloadPath().getPath()));
         }
         final File downloadTarget = getDownloadTarget(target);
@@ -492,7 +507,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
                 target.setState(PVRFile.State.Paused);
             }
         } else {
-            log.debug("File at {} doesn't exist", downloadTarget);
             target.setDownloaded(0);
             target.setState(PVRFile.State.Queued);
         }

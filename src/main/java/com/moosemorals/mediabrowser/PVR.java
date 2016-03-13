@@ -132,7 +132,6 @@ class PVR implements TreeModel {
 
     private final boolean debugFTP = false;
 
-    private final Main main;
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
@@ -171,8 +170,7 @@ class PVR implements TreeModel {
         }
     };
 
-    PVR(Main main) {
-        this.main = main;
+    PVR() {
         connectionListeners = new HashSet<>();
 
         FTPClientConfig config = new FTPClientConfig();
@@ -355,6 +353,19 @@ class PVR implements TreeModel {
         notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
     }
 
+    void treeWalk(TreeWalker walker) {
+        treeWalk(rootFolder, walker);
+    }
+
+    private void treeWalk(PVRFolder target, TreeWalker walker) {
+        for (PVRItem child : target.children) {
+            walker.action(child);
+            if (child.isFolder()) {
+                treeWalk((PVRFolder) child, walker);
+            }
+        }
+    }
+
     private void onConnect(RemoteDevice device) {
         setRemoteHostname(device.getIdentity().getDescriptorURL().getHost());
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
@@ -418,7 +429,6 @@ class PVR implements TreeModel {
             PVRFile file = new PVRFile(parent, parent.getRemotePath() + filename, filename);
             parent.addChild(file);
 
-            main.onFileFound(file);
             notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
             return file;
         }
@@ -1307,5 +1317,10 @@ class PVR implements TreeModel {
          * @param startStop boolean true for start, false for stop..
          */
         public void onBrowse(BrowseType type, boolean startStop);
+    }
+
+    public interface TreeWalker {
+
+        public void action(PVRItem item);
     }
 }
