@@ -86,7 +86,7 @@ class PVR implements TreeModel {
     private static final String FTP_ROOT = "/My Video/";
 
     static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
-    static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd'T'HH-mm").withZone(DEFAULT_TIMEZONE);
+    static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH-mm").withZone(DEFAULT_TIMEZONE);
 
     static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
             .appendHours()
@@ -102,7 +102,7 @@ class PVR implements TreeModel {
     static final double GIGA = MEGA * 1024;
     static final double TERA = GIGA * 1024;
 
-    private static final String SIZE_FORMAT = "% 6.1f %sb";
+    private static final String SIZE_FORMAT = "%.1f %sb";
 
     static String humanReadableSize(long size) {
         if (size > TERA) {
@@ -114,7 +114,7 @@ class PVR implements TreeModel {
         } else if (size > KILO) {
             return String.format(SIZE_FORMAT, size / MEGA, "k");
         } else {
-            return String.format("% 5db", size);
+            return String.format("%db", size);
         }
     }
 
@@ -290,23 +290,6 @@ class PVR implements TreeModel {
         }
     }
 
-    void dumpTree() {
-        dumpTree(rootFolder);
-    }
-
-    void dumpTree(PVRFolder folder) {
-        synchronized (folder.children) {
-            for (PVRItem child : folder.children) {
-                if (child.isFolder()) {
-                    log.debug("Folder : [{}] - [{}]", child.getPath(), child.getFilename());
-                    dumpTree((PVRFolder) child);
-                } else {
-                    log.debug("File   : [{}] - [{}] - [{}]", child.getPath(), child.getFilename(), ((PVRFile) child).getRemoteURL());
-                }
-            }
-        }
-    }
-
     @Override
     public void addTreeModelListener(TreeModelListener l) {
         synchronized (treeModelListeners) {
@@ -464,7 +447,7 @@ class PVR implements TreeModel {
     private void stopUpnp() {
         if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
             upnpThread.interrupt();
-            log.debug("Waiting for upnpThread to finish");
+            log.info("Waiting for upnpThread to finish");
             try {
                 upnpThread.join();
             } catch (InterruptedException ex) {
@@ -562,7 +545,7 @@ class PVR implements TreeModel {
         if (ftpRunning.compareAndSet(true, false) && ftpThread != null) {
             ftpThread.interrupt();
             try {
-                log.debug("Waitng for ftpThread to finish");
+                log.info("Waitng for ftpThread to finish");
                 ftpThread.join();
             } catch (InterruptedException ex) {
                 log.error("Unexpected interruption waiting for ftpThread to finish");

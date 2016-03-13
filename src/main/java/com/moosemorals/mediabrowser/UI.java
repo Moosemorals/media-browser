@@ -78,12 +78,12 @@ class UI {
     static final String ACTION_QUIT = "quit";
     static final String ACTION_TRAY = "tray";
 
-    private static final String ICON_READY = "Blue";
-    private static final String ICON_DISCONNECTED = "Grey";
-    private static final String ICON_DOWNLOADING = "Red";
-    private static final String ICON_ERROR = "Error";
+    static final String ICON_CONNECTED = "Blue";
+    static final String ICON_DISCONNECTED = "Grey";
+    static final String ICON_DOWNLOADING = "Red";
+    static final String ICON_ERROR = "Error";
 
-    private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_READY, ICON_DOWNLOADING, ICON_ERROR};
+    private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_CONNECTED, ICON_DOWNLOADING, ICON_ERROR};
     private static final int[] ICON_SIZES = {32, 24, 20, 16};
 
     private final Map<String, List<Image>> icons;
@@ -139,7 +139,7 @@ class UI {
 
         window = new JFrame("Media Browser");
 
-        window.setIconImages(icons.get(ICON_READY));
+        window.setIconImages(icons.get(ICON_CONNECTED));
 
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 
@@ -407,8 +407,6 @@ class UI {
     private Image getTrayIconImage(List<Image> applicationIcons) {
         Dimension trayIconSize = SystemTray.getSystemTray().getTrayIconSize();
 
-        log.debug("Tray icon size: {}", trayIconSize);
-
         for (int i = 0; i < ICON_SIZES.length; i += 1) {
             if (trayIconSize.width == ICON_SIZES[i]) {
                 return applicationIcons.get(i);
@@ -495,8 +493,15 @@ class UI {
         return result;
     }
 
-    public void showPopupMessage(String title, String message, TrayIcon.MessageType type) {
+    void showPopupMessage(String title, String message, TrayIcon.MessageType type) {
         trayIcon.displayMessage(title, message, type);
+    }
+
+    void setColor(String color) {
+        window.setIconImages(icons.get(color));
+        if (SystemTray.isSupported()) {
+            trayIcon.setImage(getTrayIconImage(icons.get(color)));
+        }
     }
 
     File showFileChooser(File base) {

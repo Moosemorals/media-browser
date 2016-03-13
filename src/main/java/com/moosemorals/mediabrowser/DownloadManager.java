@@ -90,7 +90,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                     try {
                         queue.wait();
                     } catch (InterruptedException ex) {
-                        log.info("Intrupted waiting for queue", ex);
                         running.set(false);
                         status.downloadStatusChanged(false);
                         notifyListDataListeners();
@@ -98,7 +97,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                         return;
                     }
                 }
-                log.debug("Run: Queue length: {}", queue.size());
                 target = getNextDownload();
             }
 
@@ -119,7 +117,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                     connection.setRequestProperty("Range", "bytes=" + target.getDownloaded() + "-");
                 }
 
-                log.debug("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
+                log.info("Downloading {} from {} ", target.getTitle(), target.getRemoteURL());
                 connection.connect();
 
                 if (connection.getResponseCode() == 206) {
@@ -156,11 +154,16 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
                             lastDownloaded = target.getDownloaded();
                         }
 
-                        if (!running.get() || target.getState() != PVRFile.State.Downloading) {
+                        if (!running.get()) {
                             in.close();
-                            target.setState(PVRFile.State.Paused);
                             notifyListDataListeners();
                             return;
+                        }
+
+                        if (target.getState() != PVRFile.State.Downloading) {
+                            in.close();
+                            notifyListDataListeners();
+                            break;
                         }
                     }
 
@@ -206,7 +209,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
             try {
-                log.debug("Waiting for download thread to finish");
+                log.info("Waiting for download thread to finish");
                 downloadThread.join();
             } catch (InterruptedException ex) {
                 log.error("Interrupted while waiting for download thread to finish, ignoring");
@@ -267,8 +270,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
      * @param files List&ltPVRFile&gt; of files to be inserted
      */
     void insert(int row, List<PVRFile> files) {
-        log.debug("Inserting {} files at row {}", files.size(), row);
-
         for (Iterator<PVRFile> it = files.iterator(); it.hasNext();) {
             PVRFile f = it.next();
             if (!setupForQueue(f)) {
@@ -277,7 +278,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
         }
 
         if (files.isEmpty()) {
-            log.debug("Nothing left to insert");
             return;
         }
 
@@ -393,7 +393,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
     private boolean setupForQueue(PVRFile target) {
 
         if (target.getState() != PVRFile.State.Ready) {
-            log.debug("File {} isn't ready, in state {}", target.getTitle(), target.getState());
+            log.info("File {} isn't ready, in state {}", target.getTitle(), target.getState());
             return false;
         }
 
@@ -417,7 +417,6 @@ class DownloadManager implements ListModel<PVRFile>, Runnable, PVR.ConnectionLis
     boolean downloadsAvailible() {
         synchronized (queue) {
             for (PVRFile f : queue) {
-                log.debug("D {}: {}", f.getTitle(), f.getState());
                 if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
                     return true;
                 }

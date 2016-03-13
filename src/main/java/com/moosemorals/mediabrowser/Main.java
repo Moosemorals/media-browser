@@ -87,6 +87,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     private final DownloadManager downloader;
     private final PVR pvr;
     private UI ui = null;
+    private boolean connected = false;
 
     private Main(Preferences prefs) {
         this.preferences = prefs;
@@ -108,7 +109,6 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         // Running in the AWT thread
         Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
         ui = new UI(this);
-        log.debug("UI ready");
         ui.showWindow();
     }
 
@@ -210,16 +210,24 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     @Override
-    public void downloadStatusChanged(boolean running) {
+    public void downloadStatusChanged(boolean downloading) {
         rateTracker.reset();
         ui.setStartButtonStatus(downloader.downloadsAvailible(), downloader.isDownloading());
+        if (!connected) {
+            ui.setColor(UI.ICON_DISCONNECTED);
+        } else if (downloading) {
+            ui.setColor(UI.ICON_DOWNLOADING);
+        } else {
+            ui.setColor(UI.ICON_CONNECTED);
+        }
     }
 
     @Override
     public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
         String message;
 
-        message = String.format("Total %s of %s (%.0f%%)",
+        message = String.format("%s %s of %s (%.0f%%)",
+                downloader.isDownloading() ? "Downloading" : "Queued",
                 PVR.humanReadableSize(totalDownloaded),
                 PVR.humanReadableSize(totalQueued),
                 totalQueued > 0
@@ -253,13 +261,19 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
 
     @Override
     public void onConnect() {
-
+        connected = true;
+        if (ui != null) {
+            ui.setColor(UI.ICON_CONNECTED);
+        }
     }
 
     @Override
     public void onDisconnect() {
-
-        ui.setStartButtonStatus(false, false);
+        connected = false;
+        if (ui != null) {
+            ui.setStartButtonStatus(false, false);
+            ui.setColor(UI.ICON_DISCONNECTED);
+        }
     }
 
     static class ExceptionHandler implements Thread.UncaughtExceptionHandler {

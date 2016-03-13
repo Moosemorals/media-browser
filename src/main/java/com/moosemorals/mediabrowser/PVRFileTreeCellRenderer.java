@@ -74,12 +74,11 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
-                    .append(PVR.humanReadableSize(file.getSize()))
-                    .append(" ")
                     .append(DATE_FORMAT.print(file.getStart()))
                     .append(" (")
                     .append(PERIOD_FORMAT.print(length.toPeriod()))
-                    .append(")");
+                    .append(") ")
+                    .append(PVR.humanReadableSize(file.getSize()));
 
             if (file.isHighDef()) {
                 title.append(" [HD]");

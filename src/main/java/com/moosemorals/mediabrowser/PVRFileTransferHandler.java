@@ -51,7 +51,6 @@ class PVRFileTransferHandler extends TransferHandler {
 
     @Override
     public boolean importData(TransferSupport info) {
-        log.debug("import data");
         if (!canImport(info)) {
             return false;
         }
@@ -75,7 +74,7 @@ class PVRFileTransferHandler extends TransferHandler {
                         // Target list is empty, add files at the start
                         row = 0;
                     } else {
-                        // Given the same answer for "Just before the last row"
+                        // We're gven the same answer for "Just before the last row"
                         // and "Anywhere after the last row", so check if the
                         // point is actualy *within* the last row, and asuume
                         // that we're dropping after if its not.
@@ -89,7 +88,7 @@ class PVRFileTransferHandler extends TransferHandler {
                 }
                 return true;
             } catch (UnsupportedFlavorException | IOException ex) {
-                log.debug("Can't do transfer: {}", ex.getMessage(), ex);
+                log.warn("Can't do transfer: {}", ex.getMessage(), ex);
                 return false;
             }
         }
