@@ -104,8 +104,7 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
 
         text.setText(title);
 
-        setToolTipText(file.getDescription());
-
+        // setToolTipText(file.getDescription());
         if (isSelected) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
         } else {

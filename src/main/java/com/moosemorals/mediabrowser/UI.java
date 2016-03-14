@@ -289,7 +289,8 @@ class UI {
             }
         });
 
-        displayTree = new JTree();
+        displayTree = new ToolTipTree();
+
         displayTree.setModel(pvr);
         displayTree.setCellRenderer(new PVRFileTreeCellRenderer(treePopup));
         displayTree.setRootVisible(false);
