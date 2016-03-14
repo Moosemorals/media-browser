@@ -16,4 +16,11 @@ Any value defined here will override the pom.xml file value but is only applicab
         <netbeans.hint.license>mit</netbeans.hint.license>
         <netbeans.compile.on.save>none</netbeans.compile.on.save>
     </properties>
+    <spellchecker-wordlist xmlns="http://www.netbeans.org/ns/spellchecker-wordlist/1">
+        <word>DLNA</word>
+        <word>Freeview</word>
+        <word>HDR</word>
+        <word>Humax</word>
+        <word>PVR</word>
+    </spellchecker-wordlist>
 </project-shared-configuration>
