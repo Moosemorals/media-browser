@@ -27,9 +27,17 @@ import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import java.net.URL;
+import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.Icon;
+import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
-import javax.swing.JPopupMenu;
 import javax.swing.JTree;
 import javax.swing.tree.DefaultTreeCellRenderer;
 import javax.swing.tree.TreeCellRenderer;
@@ -42,15 +50,47 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
+class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
+
+    private static final DefaultTreeCellRenderer defaultTreeCellRenderer = new DefaultTreeCellRenderer();
+    private static final Icon HD_ICON = loadIcon("/icons/HD.png", 1);
+    private static final Icon LOCK_ICON = loadIcon("/icons/locked.png", 0.75);
+
+    static Icon loadIcon(String filename, double scale) {
+        URL target = PVRFileTreeCellRenderer.class.getResource(filename);
+        if (target == null) {
+            throw new RuntimeException("Can't load image from [" + filename + "]: Not found");
+        }
+
+        BufferedImage raw;
+        try {
+            raw = ImageIO.read(target);
+        } catch (IOException ex) {
+            throw new RuntimeException("Can't load image from [" + filename + "]: " + ex.getMessage(), ex);
+        }
+
+        if (scale == 1) {
+            return new ImageIcon(raw);
+        } else {
+            return new ImageIcon(raw.getScaledInstance((int) (raw.getWidth() * scale), -1, Image.SCALE_SMOOTH));
+        }
+
+    }
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
-    private final DefaultTreeCellRenderer defaultTreeCellRenderer;
-    private final JPopupMenu popup;
 
-    PVRFileTreeCellRenderer(JPopupMenu popup) {
-        this.popup = popup;
-        defaultTreeCellRenderer = new DefaultTreeCellRenderer();
+    private final JLabel text, hdIcon, lockIcon;
+
+    PVRFileTreeCellRenderer() {
+
+        setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
+
+        text = new JLabel();
+        add(text);
+        hdIcon = new JLabel();
+        add(hdIcon);
+        lockIcon = new JLabel();
+        add(lockIcon);
 
     }
 
@@ -58,11 +98,11 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
 
         if (leaf) {
-            setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
+            text.setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
         } else if (expanded) {
-            setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
+            text.setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
         } else {
-            setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
+            text.setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
         }
 
         PVR.PVRItem item = (PVR.PVRItem) value;
@@ -81,15 +121,19 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
                     .append(PVR.humanReadableSize(file.getSize()));
 
             if (file.isHighDef()) {
-                title.append(" [HD]");
+                hdIcon.setIcon(HD_ICON);
+            } else {
+                hdIcon.setIcon(null);
             }
+
             if (file.isLocked()) {
-                title.append(" [X]");
+                lockIcon.setIcon(LOCK_ICON);
+            } else {
+                lockIcon.setIcon(null);
             }
 
-            setText(title.toString());
+            text.setText(title.toString());
 
-            setToolTipText(file.getDescription());
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
 
@@ -103,7 +147,7 @@ class PVRFileTreeCellRenderer extends JLabel implements TreeCellRenderer {
                 title.append("Checking...");
             }
 
-            setText(title.toString());
+            text.setText(title.toString());
         }
 
         if (selected) {

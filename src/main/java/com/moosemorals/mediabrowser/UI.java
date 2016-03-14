@@ -292,7 +292,7 @@ class UI {
         displayTree = new ToolTipTree();
 
         displayTree.setModel(pvr);
-        displayTree.setCellRenderer(new PVRFileTreeCellRenderer(treePopup));
+        displayTree.setCellRenderer(new PVRFileTreeCellRenderer());
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
         displayTree.setDragEnabled(true);
