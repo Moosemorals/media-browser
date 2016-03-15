@@ -27,6 +27,7 @@ import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -57,7 +58,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
     private static final Icon HD_ICON = loadIcon("/icons/HD.png", 1);
     private static final Icon LOCK_ICON = loadIcon("/icons/locked.png", 0.65);
 
-    static Icon loadIcon(String filename, double scale) {
+    private static Icon loadIcon(String filename, double scale) {
         URL target = PVRFileTreeCellRenderer.class.getResource(filename);
         if (target == null) {
             throw new RuntimeException("Can't load image from [" + filename + "]: Not found");
@@ -78,13 +79,37 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
     }
 
+    private Icon buildLeafIcon() {
+
+        Icon leaf = UIManager.getIcon("Tree.leafIcon");
+
+        if (leaf == null) {
+            return null;
+        }
+
+        BufferedImage i = new BufferedImage(HD_ICON.getIconWidth(), HD_ICON.getIconHeight(), BufferedImage.TYPE_INT_ARGB);
+
+        Graphics2D g = i.createGraphics();
+
+        int Xoffset = (HD_ICON.getIconWidth() - leaf.getIconWidth()) / 2;
+        int Yoffset = (HD_ICON.getIconHeight() - leaf.getIconHeight()) / 2;
+
+        leaf.paintIcon(this, g, Xoffset, Yoffset);
+
+        g.dispose();
+        return new ImageIcon(i);
+    }
+
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
 
     private final JLabel text, lockIcon;
+    private Icon leafIcon;
 
     PVRFileTreeCellRenderer() {
         text = new JLabel();
         lockIcon = new JLabel();
+
+        leafIcon = buildLeafIcon();
 
         lockIcon.setBorder(BorderFactory.createEmptyBorder(0, LOCK_PADDING, 0, 0));
 
@@ -105,7 +130,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             if (file.isHighDef()) {
                 text.setIcon(HD_ICON);
             } else {
-                text.setIcon(UIManager.getIcon("Tree.leafIcon"));
+                text.setIcon(leafIcon);
             }
 
             Duration length = new Duration(file.getStartTime(), file.getEndTime());
