@@ -86,19 +86,21 @@ class UI {
     private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_CONNECTED, ICON_DOWNLOADING, ICON_ERROR};
     private static final int[] ICON_SIZES = {32, 24, 20, 16};
 
-    private final Map<String, List<Image>> icons;
-    private final Logger log = LoggerFactory.getLogger(UI.class);
     private final DownloadManager downloader;
-    private final PVR pvr;
-    private final Preferences prefs;
     private final JButton startButton;
-    private final JLabel statusLabel;
-    private final JTree displayTree;
-    private final JSplitPane splitPane;
-    private final JList<PVRFile> downloadList;
     private final JFrame window;
-    private final TrayIcon trayIcon;
+    private final JLabel statusLabel;
+    private final JList<PVRFile> downloadList;
+    private final JSplitPane horizontalSplitPane;
+    private final JSplitPane verticalSplitPane;
+    private final JTextArea description;
+    private final JTree displayTree;
+    private final Logger log = LoggerFactory.getLogger(UI.class);
+    private final Map<String, List<Image>> icons;
     private final Main main;
+    private final Preferences prefs;
+    private final PVR pvr;
+    private final TrayIcon trayIcon;
 
     private final Action startStopAction, queueAction, removeLockAction, chooseDefaultDownloadPathAction,
             chooseDownloadPathAction, removeSelectedAction, quitAction, setMinimiseToTrayAction,
@@ -272,7 +274,22 @@ class UI {
                     listPopup.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
+        });
 
+        downloadList.addMouseMotionListener(new MouseAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int row = downloadList.locationToIndex(e.getPoint());
+                if (row > -1) {
+                    PVRItem item = downloadList.getModel().getElementAt(row);
+                    if (item.isFile()) {
+                        description.setText(((PVRFile) item).getDescription());
+                        return;
+                    }
+                }
+
+                description.setText("");
+            }
         });
 
         downloadList.addListSelectionListener(new ListSelectionListener() {
@@ -289,7 +306,7 @@ class UI {
             }
         });
 
-        displayTree = new ToolTipTree();
+        displayTree = new JTree();
 
         displayTree.setModel(pvr);
         displayTree.setCellRenderer(new PVRFileTreeCellRenderer());
@@ -332,6 +349,24 @@ class UI {
             }
         });
 
+        displayTree.addMouseMotionListener(new MouseAdapter() {
+
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                TreePath path = displayTree.getPathForLocation(e.getX(), e.getY());
+                if (path != null) {
+                    if (path.getLastPathComponent() instanceof PVRFile) {
+                        PVRFile file = (PVRFile) path.getLastPathComponent();
+
+                        description.setText(file.getDescription());
+                        return;
+                    }
+                }
+                description.setText("");
+            }
+
+        });
+
         displayTree.addTreeSelectionListener(new TreeSelectionListener() {
             @Override
             public void valueChanged(TreeSelectionEvent e) {
@@ -356,18 +391,31 @@ class UI {
             }
         });
 
-        window.setLayout(new BorderLayout());
+        description = new JTextArea();
 
-        splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
+        description.setEditable(false);
+        description.setLineWrap(true);
+        description.setWrapStyleWord(true);
 
-        splitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
+        horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
+        verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, description);
+
+        horizontalSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
             public void propertyChange(PropertyChangeEvent evt) {
-                prefs.putInt(Main.KEY_DIVIDER_LOCATION, (Integer) evt.getNewValue());
+                prefs.putInt(Main.KEY_HORIZONTAL_DIVIDER_LOCATION, (Integer) evt.getNewValue());
             }
         });
 
-        window.add(splitPane, BorderLayout.CENTER);
+        verticalSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
+            @Override
+            public void propertyChange(PropertyChangeEvent evt) {
+                prefs.putInt(Main.KEY_VERTICAL_DIVIDER_LOCATION, (Integer) evt.getNewValue());
+            }
+        });
+
+        window.setLayout(new BorderLayout());
+        window.add(verticalSplitPane, BorderLayout.CENTER);
         window.add(statusPanel, BorderLayout.SOUTH);
 
         if (SystemTray.isSupported()) {
@@ -418,7 +466,8 @@ class UI {
                 prefs.getInt(Main.KEY_FRAME_HEIGHT, 480)
         ));
 
-        splitPane.setDividerLocation(prefs.getInt(Main.KEY_DIVIDER_LOCATION, window.getWidth() / 2));
+        horizontalSplitPane.setDividerLocation(prefs.getInt(Main.KEY_HORIZONTAL_DIVIDER_LOCATION, window.getWidth() / 2));
+        verticalSplitPane.setDividerLocation(prefs.getInt(Main.KEY_VERTICAL_DIVIDER_LOCATION, window.getHeight() - (window.getHeight() / 10)));
         window.setState(JFrame.NORMAL);
         window.setVisible(true);
     }

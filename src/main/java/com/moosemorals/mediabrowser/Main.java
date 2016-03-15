@@ -56,7 +56,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     static final String KEY_AUTO_DOWNLOAD = "auto_download";
     static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
     static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
-    static final String KEY_DIVIDER_LOCATION = "divider_location";
+    static final String KEY_HORIZONTAL_DIVIDER_LOCATION = "horizontal_divider_location";
+    static final String KEY_VERTICAL_DIVIDER_LOCATION = "vertical_divider_location";
     static final String KEY_FRAME_WIDTH = "frame_width";
     static final String KEY_FRAME_LEFT = "frame_left";
     static final String KEY_FRAME_TOP = "frame_top";
