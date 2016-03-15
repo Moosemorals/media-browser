@@ -23,7 +23,6 @@
  */
 package com.moosemorals.mediabrowser;
 
-import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
@@ -43,6 +42,8 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.tree.TreeCellRenderer;
 import org.joda.time.Duration;
+import org.joda.time.format.DateTimeFormat;
+import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -52,6 +53,8 @@ import org.slf4j.LoggerFactory;
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRenderer {
+
+    public static final DateTimeFormatter DISPLAY_DATE = DateTimeFormat.mediumDateTime();
 
     private static final int LOCK_PADDING = 4;
 
@@ -103,7 +106,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
 
     private final JLabel text, lockIcon;
-    private Icon leafIcon;
+    private final Icon leafIcon;
 
     PVRFileTreeCellRenderer() {
         text = new JLabel();
@@ -138,7 +141,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
-                    .append(DATE_FORMAT.print(file.getStartTime()))
+                    .append(DISPLAY_DATE.print(file.getStartTime()))
                     .append(" (")
                     .append(PERIOD_FORMAT.print(length.toPeriod()))
                     .append(") ")
