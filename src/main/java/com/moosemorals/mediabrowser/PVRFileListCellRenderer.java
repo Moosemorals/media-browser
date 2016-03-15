@@ -27,13 +27,15 @@ import com.moosemorals.mediabrowser.PVR.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Graphics;
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
+import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
-import javax.swing.JPanel;
 import javax.swing.JProgressBar;
 import javax.swing.ListCellRenderer;
+import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -42,11 +44,12 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile> {
+class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVRFile> {
 
     private static final Dimension progressSize = new Dimension(100, 16);
     private final Logger log = LoggerFactory.getLogger(PVRFileListCellRenderer.class);
 
+    private final JComponent[] components;
     private final JProgressBar progress;
     private final JLabel text;
     private final JLabel state;
@@ -62,6 +65,8 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
         progress.setStringPainted(true);
         state = new JLabel();
         text = new JLabel();
+
+        components = new JComponent[]{state, text};
 
         GroupLayout group = new GroupLayout(this);
 
@@ -85,7 +90,7 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
     }
 
     @Override
-    public Component getListCellRendererComponent(JList<? extends PVRFile> list, PVRFile file, int index, boolean isSelected, boolean cellHasFocus) {
+    public Component getListCellRendererComponent(JList<? extends PVRFile> list, PVRFile file, int index, boolean isSelected, boolean hasFocus) {
 
         int scaledSize = (int) (file.getSize() / PVR.MEGA);
         int scaledDownload = (int) (file.getDownloaded() / PVR.MEGA);
@@ -104,11 +109,20 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
 
         text.setText(title);
 
-        // setToolTipText(file.getDescription());
-        if (isSelected) {
+        if (hasFocus) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
+        } else if (isSelected) {
+            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.selectionBorderColor"), 1));
         } else {
-            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.background"), 1));
+        }
+
+        if (isSelected) {
+            setBackgrounds(UIManager.getColor("Tree.selectionBackground"));
+            text.setForeground(UIManager.getColor("Tree.selectionForeground"));
+        } else {
+            setBackgrounds(UIManager.getColor("Tree.textBackground"));
+            text.setForeground(UIManager.getColor("Tree.textForeground"));
         }
 
         switch (file.getState()) {
@@ -135,6 +149,19 @@ class PVRFileListCellRenderer extends JPanel implements ListCellRenderer<PVRFile
         }
 
         return this;
+    }
+
+    private void setBackgrounds(Color color) {
+        setBackground(color);
+        for (JComponent c : components) {
+            c.setBackground(color);
+        }
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        g.setColor(getBackground());
+        g.fillRect(0, 0, getWidth(), getHeight());
     }
 
 }

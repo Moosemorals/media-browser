@@ -112,7 +112,7 @@ class UI {
         setShowMessageOnCompleteAction = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
         setSaveDownloadListAction = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
         setAutoDownloadAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
-        setMinimiseToTrayAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_MINIMISE_TO_TRAY);
+        setMinimiseToTrayAction = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
 
         chooseDefaultDownloadPathAction = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
         chooseDownloadPathAction = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
@@ -307,6 +307,11 @@ class UI {
 
             @Override
             public void mousePressed(MouseEvent e) {
+                int row = displayTree.getRowForLocation(e.getX(), e.getY());
+                if (row != -1 && SwingUtilities.isRightMouseButton(e)) {
+                    displayTree.addSelectionRow(row);
+                }
+
                 maybeShowPopup(e);
             }
 
@@ -315,6 +320,8 @@ class UI {
                 int row = displayTree.getRowForLocation(e.getX(), e.getY());
                 if (row == -1) {
                     displayTree.clearSelection();
+                } else if (SwingUtilities.isRightMouseButton(e)) {
+                    displayTree.addSelectionRow(row);
                 }
             }
 

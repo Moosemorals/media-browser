@@ -27,6 +27,7 @@ import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -39,7 +40,7 @@ import javax.swing.ImageIcon;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JTree;
-import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.UIManager;
 import javax.swing.tree.TreeCellRenderer;
 import org.joda.time.Duration;
 import org.slf4j.Logger;
@@ -52,7 +53,6 @@ import org.slf4j.LoggerFactory;
  */
 class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
 
-    private static final DefaultTreeCellRenderer defaultTreeCellRenderer = new DefaultTreeCellRenderer();
     private static final Icon HD_ICON = loadIcon("/icons/HD.png", 1);
     private static final Icon LOCK_ICON = loadIcon("/icons/locked.png", 0.75);
 
@@ -81,28 +81,36 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
 
     private final JLabel text, hdIcon, lockIcon;
 
+    private final JComponent[] components;
+
     PVRFileTreeCellRenderer() {
+        text = new JLabel();
+        hdIcon = new JLabel();
+        lockIcon = new JLabel();
+
+        this.components = new JComponent[]{text, hdIcon, lockIcon};
+
+        for (JComponent c : components) {
+            c.setOpaque(true);
+        }
 
         setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
 
-        text = new JLabel();
         add(text);
-        hdIcon = new JLabel();
         add(hdIcon);
-        lockIcon = new JLabel();
         add(lockIcon);
 
     }
 
     @Override
-    public Component getTreeCellRendererComponent(JTree tree, Object value, boolean selected, boolean expanded, boolean leaf, int row, boolean hasFocus) {
+    public Component getTreeCellRendererComponent(JTree tree, Object value, boolean isSelected, boolean isExpanded, boolean leaf, int row, boolean hasFocus) {
 
         if (leaf) {
-            text.setIcon(defaultTreeCellRenderer.getDefaultLeafIcon());
-        } else if (expanded) {
-            text.setIcon(defaultTreeCellRenderer.getDefaultOpenIcon());
+            text.setIcon(UIManager.getIcon("Tree.leafIcon"));
+        } else if (isExpanded) {
+            text.setIcon(UIManager.getIcon("Tree.openIcon"));
         } else {
-            text.setIcon(defaultTreeCellRenderer.getDefaultClosedIcon());
+            text.setIcon(UIManager.getIcon("Tree.closedIcon"));
         }
 
         PVR.PVRItem item = (PVR.PVRItem) value;
@@ -121,21 +129,24 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
                     .append(PVR.humanReadableSize(file.getSize()));
 
             if (file.isHighDef()) {
-                hdIcon.setIcon(HD_ICON);
+                setIcon(hdIcon, HD_ICON);
             } else {
-                hdIcon.setIcon(null);
+                setIcon(hdIcon, null);
             }
 
             if (file.isLocked()) {
-                lockIcon.setIcon(LOCK_ICON);
+                setIcon(lockIcon, LOCK_ICON);
             } else {
-                lockIcon.setIcon(null);
+                setIcon(lockIcon, null);
             }
 
             text.setText(title.toString());
 
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
+
+            setIcon(lockIcon, null);
+            setIcon(hdIcon, null);
 
             StringBuilder title = new StringBuilder()
                     .append(folder.getRemoteFilename())
@@ -150,13 +161,48 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
             text.setText(title.toString());
         }
 
-        if (selected) {
+        if (hasFocus) {
             setBorder(BorderFactory.createDashedBorder(Color.BLACK));
+        } else if (isSelected) {
+            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.selectionBorderColor"), 1));
         } else {
-            setBorder(BorderFactory.createEmptyBorder(1, 1, 1, 1));
+            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.background"), 1));
+        }
+
+        if (isSelected) {
+
+            setBackgrounds(UIManager.getColor("Tree.selectionBackground"));
+            text.setForeground(UIManager.getColor("Tree.selectionForeground"));
+        } else {
+
+            setBackgrounds(UIManager.getColor("Tree.textBackground"));
+            text.setForeground(UIManager.getColor("Tree.textForeground"));
         }
 
         return this;
+    }
+
+    private void setIcon(JLabel label, Icon icon) {
+        if (icon != null) {
+            label.setIcon(icon);
+            label.setSize(icon.getIconWidth(), getHeight());
+        } else {
+            label.setIcon(null);
+            label.setSize(0, 0);
+        }
+    }
+
+    private void setBackgrounds(Color color) {
+        setBackground(color);
+        for (JComponent c : components) {
+            c.setBackground(color);
+        }
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        g.setColor(getBackground());
+        g.fillRect(0, 0, getWidth(), getHeight());
     }
 
 }
