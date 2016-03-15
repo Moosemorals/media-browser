@@ -23,6 +23,11 @@
  */
 package com.moosemorals.mediabrowser;
 
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import javax.swing.JComponent;
+import javax.swing.UIManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +36,46 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class PVRCellRenderer {
+public class PVRCellRenderer extends JComponent {
 
     private final Logger log = LoggerFactory.getLogger(PVRCellRenderer.class);
+
+    /**
+     * Work out the preferred size of this component.
+     *
+     * <p>
+     * Our width is the sum of the width of our child components, plus some
+     * padding for the border.</p>
+     * <p>
+     * Our height is the hight of our tallest child, plus some padding.</p>
+     *
+     * @return {@link java.awt.Dimension} size of the component
+     */
+    @Override
+    public Dimension getPreferredSize() {
+        Dimension size = new Dimension();
+
+        Dimension other;
+
+        for (Component c : getComponents()) {
+            other = c.getPreferredSize();
+            size.width += other.width;
+            if (size.height < other.height) {
+                size.height = other.height;
+            }
+        }
+
+        size.width += 2;
+        size.height += 4;
+        return size;
+    }
+
+    @Override
+    public void paintComponent(Graphics g) {
+        g.setColor(UIManager.getColor("Tree.background"));
+        g.fillRect(0, 0, getWidth(), getHeight());
+        g.setColor(getBackground());
+        g.fillRect(1, 1, getWidth() - 1, getHeight() - 2);
+    }
 
 }

@@ -27,8 +27,6 @@ import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
-import java.awt.Dimension;
-import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -38,7 +36,6 @@ import javax.swing.BorderFactory;
 import javax.swing.BoxLayout;
 import javax.swing.Icon;
 import javax.swing.ImageIcon;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JTree;
 import javax.swing.UIManager;
@@ -53,10 +50,12 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
+class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRenderer {
+
+    private static final int LOCK_PADDING = 4;
 
     private static final Icon HD_ICON = loadIcon("/icons/HD.png", 1);
-    private static final Icon LOCK_ICON = loadIcon("/icons/locked.png", 0.75);
+    private static final Icon LOCK_ICON = loadIcon("/icons/locked.png", 0.65);
 
     static Icon loadIcon(String filename, double scale) {
         URL target = PVRFileTreeCellRenderer.class.getResource(filename);
@@ -81,17 +80,17 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
 
     private final Logger log = LoggerFactory.getLogger(PVRFileTreeCellRenderer.class);
 
-    private final JLabel text, hdIcon, lockIcon;
+    private final JLabel text, lockIcon;
 
     PVRFileTreeCellRenderer() {
         text = new JLabel();
-        hdIcon = new JLabel();
         lockIcon = new JLabel();
+
+        lockIcon.setBorder(BorderFactory.createEmptyBorder(0, LOCK_PADDING, 0, 0));
 
         setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
 
         add(text);
-        add(hdIcon);
         add(lockIcon);
 
     }
@@ -99,17 +98,15 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean isSelected, boolean isExpanded, boolean leaf, int row, boolean hasFocus) {
 
-        if (leaf) {
-            text.setIcon(UIManager.getIcon("Tree.leafIcon"));
-        } else if (isExpanded) {
-            text.setIcon(UIManager.getIcon("Tree.openIcon"));
-        } else {
-            text.setIcon(UIManager.getIcon("Tree.closedIcon"));
-        }
-
         PVR.PVRItem item = (PVR.PVRItem) value;
         if (item.isFile()) {
             PVR.PVRFile file = (PVR.PVRFile) item;
+
+            if (file.isHighDef()) {
+                text.setIcon(HD_ICON);
+            } else {
+                text.setIcon(UIManager.getIcon("Tree.leafIcon"));
+            }
 
             Duration length = new Duration(file.getStartTime(), file.getEndTime());
 
@@ -122,12 +119,6 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
                     .append(") ")
                     .append(PVR.humanReadableSize(file.getSize()));
 
-            if (file.isHighDef()) {
-                setIcon(hdIcon, HD_ICON);
-            } else {
-                setIcon(hdIcon, null);
-            }
-
             if (file.isLocked()) {
                 setIcon(lockIcon, LOCK_ICON);
             } else {
@@ -139,8 +130,13 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
         } else {
             PVR.PVRFolder folder = (PVR.PVRFolder) item;
 
+            if (isExpanded) {
+                text.setIcon(UIManager.getIcon("Tree.openIcon"));
+            } else {
+                text.setIcon(UIManager.getIcon("Tree.closedIcon"));
+            }
+
             setIcon(lockIcon, null);
-            setIcon(hdIcon, null);
 
             StringBuilder title = new StringBuilder()
                     .append(folder.getRemoteFilename())
@@ -159,7 +155,6 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
 
         Border select;
         if (hasFocus) {
-            //  select = BorderFactory.createDashedBorder(Color.BLACK);
             select = BorderFactory.createLineBorder(Color.black);
         } else {
             select = BorderFactory.createEmptyBorder(1, 1, 1, 1);
@@ -178,46 +173,21 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
         return this;
     }
 
-    @Override
-    public Dimension getPreferredSize() {
-        Dimension size = new Dimension();
-
-        Dimension other;
-        // Our width is the sum of the widths of our components
-        // Our height is the height of our largest component
-        for (Component c : getComponents()) {
-            other = c.getPreferredSize();
-            size.width += other.width;
-            if (size.height < other.height) {
-                size.height = other.height;
-            }
-        }
-
-        // And then add some space for borders
-        // 1 pixel each for left, right, top, bottom for the focus border
-        // and 1 pixel top and bottom for padding
-        size.width += 2;
-        size.height += 5;
-
-        return size;
-    }
-
+    /**
+     * Set the icon on a label, and set the labels size. If the icon is null,
+     * set size to zero.
+     *
+     * @param label JLabel target label
+     * @param icon Icon icon, can be null.
+     */
     private void setIcon(JLabel label, Icon icon) {
         if (icon != null) {
             label.setIcon(icon);
-            label.setSize(icon.getIconWidth(), getHeight());
+            label.setSize(icon.getIconWidth() + LOCK_PADDING, getHeight());
         } else {
             label.setIcon(null);
             label.setSize(0, 0);
         }
-    }
-
-    @Override
-    public void paintComponent(Graphics g) {
-        g.setColor(UIManager.getColor("Tree.background"));
-        g.fillRect(0, 0, getWidth(), getHeight());
-        g.setColor(getBackground());
-        g.fillRect(1, 1, getWidth() - 1, getHeight() - 2);
     }
 
 }

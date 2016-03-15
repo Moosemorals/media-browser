@@ -27,15 +27,14 @@ import com.moosemorals.mediabrowser.PVR.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
-import java.awt.Graphics;
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
-import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
 import javax.swing.JProgressBar;
 import javax.swing.ListCellRenderer;
 import javax.swing.UIManager;
+import javax.swing.border.Border;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,15 +43,13 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVRFile> {
+class PVRFileListCellRenderer extends PVRCellRenderer implements ListCellRenderer<PVRFile> {
 
-    private static final Dimension progressSize = new Dimension(100, 16);
+    private static final Dimension progressSize = new Dimension(120, 20);
     private final Logger log = LoggerFactory.getLogger(PVRFileListCellRenderer.class);
 
-    private final JComponent[] components;
     private final JProgressBar progress;
     private final JLabel text;
-    private final JLabel state;
 
     PVRFileListCellRenderer() {
         super();
@@ -63,10 +60,7 @@ class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVR
         progress.setPreferredSize(progressSize);
         progress.setMinimum(0);
         progress.setStringPainted(true);
-        state = new JLabel();
         text = new JLabel();
-
-        components = new JComponent[]{state, text};
 
         GroupLayout group = new GroupLayout(this);
 
@@ -78,13 +72,11 @@ class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVR
         group.setHorizontalGroup(
                 group.createSequentialGroup()
                 .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addComponent(state)
                 .addComponent(text)
         );
         group.setVerticalGroup(
                 group.createParallelGroup()
-                .addComponent(progress)
-                .addComponent(state)
+                .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
                 .addComponent(text)
         );
     }
@@ -97,7 +89,32 @@ class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVR
 
         progress.setMaximum(scaledSize);
         progress.setValue(scaledDownload);
-        progress.setString(String.format("%3.0f%%", (scaledDownload / (double) scaledSize) * 100.0));
+
+        String state;
+        switch (file.getState()) {
+            case Queued:
+                state = "Queued";
+                break;
+            case Downloading:
+                state = String.format("%3.0f%%", (scaledDownload / (double) scaledSize) * 100.0);
+                break;
+            case Error:
+                state = String.format("Error - %3.0f%%", (scaledDownload / (double) scaledSize) * 100.0);
+                break;
+            case Paused:
+                state = String.format("Paused - %3.0f%%", (scaledDownload / (double) scaledSize) * 100.0);
+                break;
+            case Completed:
+                state = "Done";
+                break;
+            case Ready:
+            // Shoudn't need this one, drop through to default
+            default:
+                log.warn("Unexpedted state {}", file.getState());
+                state = "Unknown";
+        }
+
+        progress.setString(state);
 
         String title = new StringBuilder()
                 .append(file.getTitle())
@@ -109,59 +126,26 @@ class PVRFileListCellRenderer extends JComponent implements ListCellRenderer<PVR
 
         text.setText(title);
 
+        Border padding = BorderFactory.createEmptyBorder(1, 0, 1, 0);
+
+        Border select;
         if (hasFocus) {
-            setBorder(BorderFactory.createDashedBorder(Color.BLACK));
-        } else if (isSelected) {
-            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.selectionBorderColor"), 1));
+            select = BorderFactory.createLineBorder(Color.black);
         } else {
-            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.background"), 1));
+            select = BorderFactory.createEmptyBorder(1, 1, 1, 1);
         }
+
+        setBorder(BorderFactory.createCompoundBorder(padding, select));
 
         if (isSelected) {
-            setBackgrounds(UIManager.getColor("Tree.selectionBackground"));
-            text.setForeground(UIManager.getColor("Tree.selectionForeground"));
+            setBackground(UIManager.getColor("List.selectionBackground"));
+            text.setForeground(UIManager.getColor("List.selectionForeground"));
         } else {
-            setBackgrounds(UIManager.getColor("Tree.textBackground"));
-            text.setForeground(UIManager.getColor("Tree.textForeground"));
-        }
-
-        switch (file.getState()) {
-            case Queued:
-                state.setText("*");
-                break;
-            case Downloading:
-                state.setText("▶");
-                break;
-            case Error:
-                state.setText("!");
-                break;
-            case Paused:
-                state.setText("P");
-                break;
-            case Completed:
-                state.setText("✔");
-                break;
-            case Ready:
-            // Shoudn't need this one, drop through to default
-            default:
-                log.warn("Unexpedted state {}", file.getState());
-                state.setText("?");
+            setBackground(UIManager.getColor("List.textBackground"));
+            text.setForeground(UIManager.getColor("List.textForeground"));
         }
 
         return this;
-    }
-
-    private void setBackgrounds(Color color) {
-        setBackground(color);
-        for (JComponent c : components) {
-            c.setBackground(color);
-        }
-    }
-
-    @Override
-    public void paintComponent(Graphics g) {
-        g.setColor(getBackground());
-        g.fillRect(0, 0, getWidth(), getHeight());
     }
 
 }
