@@ -27,6 +27,7 @@ import static com.moosemorals.mediabrowser.PVR.DATE_FORMAT;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Graphics;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
@@ -41,6 +42,7 @@ import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JTree;
 import javax.swing.UIManager;
+import javax.swing.border.Border;
 import javax.swing.tree.TreeCellRenderer;
 import org.joda.time.Duration;
 import org.slf4j.Logger;
@@ -81,18 +83,10 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
 
     private final JLabel text, hdIcon, lockIcon;
 
-    private final JComponent[] components;
-
     PVRFileTreeCellRenderer() {
         text = new JLabel();
         hdIcon = new JLabel();
         lockIcon = new JLabel();
-
-        this.components = new JComponent[]{text, hdIcon, lockIcon};
-
-        for (JComponent c : components) {
-            c.setOpaque(true);
-        }
 
         setLayout(new BoxLayout(this, BoxLayout.LINE_AXIS));
 
@@ -161,25 +155,51 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
             text.setText(title.toString());
         }
 
+        Border padding = BorderFactory.createEmptyBorder(1, 0, 1, 0);
+
+        Border select;
         if (hasFocus) {
-            setBorder(BorderFactory.createDashedBorder(Color.BLACK));
-        } else if (isSelected) {
-            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.selectionBorderColor"), 1));
+            //  select = BorderFactory.createDashedBorder(Color.BLACK);
+            select = BorderFactory.createLineBorder(Color.black);
         } else {
-            setBorder(BorderFactory.createLineBorder(UIManager.getColor("Tree.background"), 1));
+            select = BorderFactory.createEmptyBorder(1, 1, 1, 1);
         }
 
-        if (isSelected) {
+        setBorder(BorderFactory.createCompoundBorder(padding, select));
 
-            setBackgrounds(UIManager.getColor("Tree.selectionBackground"));
+        if (isSelected) {
+            setBackground(UIManager.getColor("Tree.selectionBackground"));
             text.setForeground(UIManager.getColor("Tree.selectionForeground"));
         } else {
-
-            setBackgrounds(UIManager.getColor("Tree.textBackground"));
+            setBackground(UIManager.getColor("Tree.textBackground"));
             text.setForeground(UIManager.getColor("Tree.textForeground"));
         }
 
         return this;
+    }
+
+    @Override
+    public Dimension getPreferredSize() {
+        Dimension size = new Dimension();
+
+        Dimension other;
+        // Our width is the sum of the widths of our components
+        // Our height is the height of our largest component
+        for (Component c : getComponents()) {
+            other = c.getPreferredSize();
+            size.width += other.width;
+            if (size.height < other.height) {
+                size.height = other.height;
+            }
+        }
+
+        // And then add some space for borders
+        // 1 pixel each for left, right, top, bottom for the focus border
+        // and 1 pixel top and bottom for padding
+        size.width += 2;
+        size.height += 5;
+
+        return size;
     }
 
     private void setIcon(JLabel label, Icon icon) {
@@ -192,17 +212,12 @@ class PVRFileTreeCellRenderer extends JComponent implements TreeCellRenderer {
         }
     }
 
-    private void setBackgrounds(Color color) {
-        setBackground(color);
-        for (JComponent c : components) {
-            c.setBackground(color);
-        }
-    }
-
     @Override
     public void paintComponent(Graphics g) {
-        g.setColor(getBackground());
+        g.setColor(UIManager.getColor("Tree.background"));
         g.fillRect(0, 0, getWidth(), getHeight());
+        g.setColor(getBackground());
+        g.fillRect(1, 1, getWidth() - 1, getHeight() - 2);
     }
 
 }
