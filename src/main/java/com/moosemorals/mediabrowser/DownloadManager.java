@@ -241,8 +241,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
         if (target.getSize() == downloadTarget.length()) {
             File completed = getCompletedTarget(target);
             if (downloadTarget.renameTo(completed)) {
-                // TODO: Think about this.
-                //downloadTarget.setLastModified(target.getStartTime().getMillis());
+                completed.setLastModified(target.getStartTime().getMillis());
                 target.setState(PVRFile.State.Completed);
             } else {
                 log.error("Can't rename {} to {}", target, completed);
