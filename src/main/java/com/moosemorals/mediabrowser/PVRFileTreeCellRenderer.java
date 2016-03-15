@@ -165,12 +165,18 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
             StringBuilder title = new StringBuilder()
                     .append(folder.getRemoteFilename())
-                    .append(": ");
+                    .append(":");
 
             if (folder.getSize() >= 0) {
-                title.append(PVR.humanReadableSize(folder.getSize()));
+                title.append(PVR.humanReadableSize(folder.getSize()))
+                        .append(" (")
+                        .append(folder.getChildCount())
+                        .append(" item")
+                        .append(folder.getChildCount() == 1 ? "" : "s")
+                        .append(")");
+
             } else {
-                title.append("Checking...");
+                title.append(" Checking...");
             }
 
             text.setText(title.toString());
