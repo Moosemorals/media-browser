@@ -274,20 +274,30 @@ class UI {
                     listPopup.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                description.setText("");
+            }
         });
 
         downloadList.addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
-                int row = downloadList.locationToIndex(e.getPoint());
-                if (row > -1) {
+
+                Rectangle listBounds = downloadList.getCellBounds(0, downloadList.getModel().getSize() - 1);
+
+                if (listBounds != null && listBounds.contains(e.getPoint())) {
+
+                    int row = downloadList.locationToIndex(e.getPoint());
+
                     PVRItem item = downloadList.getModel().getElementAt(row);
                     if (item.isFile()) {
-                        description.setText(((PVRFile) item).getDescription());
+                        description.setText(buildDescription((PVRFile) item));
                         return;
                     }
-                }
 
+                }
                 description.setText("");
             }
         });
@@ -347,6 +357,12 @@ class UI {
                     treePopup.show(e.getComponent(), e.getX(), e.getY());
                 }
             }
+
+            @Override
+            public void mouseExited(MouseEvent e) {
+                description.setText("");
+            }
+
         });
 
         displayTree.addMouseMotionListener(new MouseAdapter() {
@@ -358,7 +374,7 @@ class UI {
                     if (path.getLastPathComponent() instanceof PVRFile) {
                         PVRFile file = (PVRFile) path.getLastPathComponent();
 
-                        description.setText(file.getDescription());
+                        description.setText(buildDescription(file));
                         return;
                     }
                 }
@@ -653,6 +669,30 @@ class UI {
         }
 
         return result;
+    }
+
+    private String buildDescription(PVRFile file) {
+        StringBuilder result = new StringBuilder();
+
+        result.append(file.getDescription()).append("\n");
+
+        result.append(file.getTitle());
+
+        if (file.isHighDef()) {
+            result.append(" (HD)");
+        }
+        if (file.isLocked()) {
+            result.append(" (locked)");
+        }
+
+        result.append("\n");
+
+        result.append("Channel: ").append(file.getChannelName()).append("\n");
+        result.append("Start: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getStartTime())).append("\n");
+        result.append("End: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getEndTime())).append("\n");
+        result.append("Duration: ").append(PVR.PERIOD_FORMAT.print(file.getLength().toPeriod())).append("\n");
+
+        return result.toString();
     }
 
 }
