@@ -1171,7 +1171,7 @@ class PVR implements TreeModel {
          *
          * @return true if has been seen.
          */
-        boolean isUpnp() {
+        boolean isUpnpScanned() {
             return upnp;
         }
 
@@ -1189,7 +1189,7 @@ class PVR implements TreeModel {
          *
          * @return true if seen by FTP
          */
-        boolean isFtp() {
+        boolean isFtpScanned() {
             return ftp;
         }
 

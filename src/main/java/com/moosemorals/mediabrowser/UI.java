@@ -84,6 +84,7 @@ class UI {
 
     private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_CONNECTED, ICON_DOWNLOADING, ICON_ERROR};
     private static final int[] ICON_SIZES = {32, 24, 20, 16};
+    private static final int INFOBOX_PADDING = 6;
 
     private final DownloadManager downloader;
     private final JButton startButton;
@@ -92,7 +93,7 @@ class UI {
     private final JList<PVRFile> downloadList;
     private final JSplitPane horizontalSplitPane;
     private final JSplitPane verticalSplitPane;
-    private final JTextArea description;
+    private final JTextArea infoBox;
     private final JTree displayTree;
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final Map<String, List<Image>> icons;
@@ -277,7 +278,7 @@ class UI {
 
             @Override
             public void mouseExited(MouseEvent e) {
-                description.setText("");
+                infoBox.setText("");
             }
         });
 
@@ -293,12 +294,12 @@ class UI {
 
                     PVRItem item = downloadList.getModel().getElementAt(row);
                     if (item.isFile()) {
-                        description.setText(buildDescription((PVRFile) item));
+                        infoBox.setText(buildDescription((PVRFile) item));
                         return;
                     }
 
                 }
-                description.setText("");
+                infoBox.setText("");
             }
         });
 
@@ -360,7 +361,7 @@ class UI {
 
             @Override
             public void mouseExited(MouseEvent e) {
-                description.setText("");
+                infoBox.setText("");
             }
 
         });
@@ -374,11 +375,11 @@ class UI {
                     if (path.getLastPathComponent() instanceof PVRFile) {
                         PVRFile file = (PVRFile) path.getLastPathComponent();
 
-                        description.setText(buildDescription(file));
+                        infoBox.setText(buildDescription(file));
                         return;
                     }
                 }
-                description.setText("");
+                infoBox.setText("");
             }
 
         });
@@ -407,14 +408,14 @@ class UI {
             }
         });
 
-        description = new JTextArea();
-
-        description.setEditable(false);
-        description.setLineWrap(true);
-        description.setWrapStyleWord(true);
+        infoBox = new JTextArea();
+        infoBox.setBorder(BorderFactory.createEmptyBorder(INFOBOX_PADDING, INFOBOX_PADDING, INFOBOX_PADDING, INFOBOX_PADDING));
+        infoBox.setEditable(false);
+        infoBox.setLineWrap(true);
+        infoBox.setWrapStyleWord(true);
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
-        verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, description);
+        verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, infoBox);
 
         horizontalSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
@@ -691,26 +692,43 @@ class UI {
     }
 
     private String buildDescription(PVRFile file) {
+
+        if (file == null) {
+            return "";
+        }
+
         StringBuilder result = new StringBuilder();
+        if (file.isFtpScanned()) {
 
-        result.append(file.getDescription()).append("\n");
+            String title = file.getTitle();
+            String desc = file.getDescription();
 
-        result.append(file.getTitle());
+            if (title.endsWith("...") & desc.startsWith("...")) {
+                result.append(title.substring(0, title.length() - 3));
+                result.append(" ");
+                result.append(desc.substring(3));
+            } else {
+                result.append(title).append(": ").append(desc);
+            }
 
-        if (file.isHighDef()) {
-            result.append(" (HD)");
+            if (file.isHighDef() && !desc.contains("[HD]")) {
+                result.append(" [HD]");
+            }
+            if (file.isLocked()) {
+                result.append(" [locked]");
+            }
+
+            result.append("\n");
+
+            result.append("Channel: ").append(file.getChannelName()).append("\n");
+            result.append("Start: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getStartTime())).append("\n");
+            result.append("End: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getEndTime())).append("\n");
+            result.append("Duration: ").append(PVR.PERIOD_FORMAT.print(file.getLength().toPeriod())).append("\n");
+
+        } else {
+            result.append(file.getTitle()).append("\n");
+            result.append("(Still scanning)");
         }
-        if (file.isLocked()) {
-            result.append(" (locked)");
-        }
-
-        result.append("\n");
-
-        result.append("Channel: ").append(file.getChannelName()).append("\n");
-        result.append("Start: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getStartTime())).append("\n");
-        result.append("End: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getEndTime())).append("\n");
-        result.append("Duration: ").append(PVR.PERIOD_FORMAT.print(file.getLength().toPeriod())).append("\n");
-
         return result.toString();
     }
 
