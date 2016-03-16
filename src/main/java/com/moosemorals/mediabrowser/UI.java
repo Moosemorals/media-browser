@@ -29,8 +29,6 @@ import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.Image;
-import java.awt.MenuItem;
-import java.awt.PopupMenu;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
@@ -77,6 +75,7 @@ class UI {
     static final String ACTION_REMOVE = "remove";
     static final String ACTION_QUIT = "quit";
     static final String ACTION_TRAY = "tray";
+    static final String ACTION_RESTORE = "restore";
 
     static final String ICON_CONNECTED = "Blue";
     static final String ICON_DISCONNECTED = "Grey";
@@ -103,7 +102,7 @@ class UI {
     private final TrayIcon trayIcon;
 
     private final Action startStopAction, queueAction, removeLockAction, chooseDefaultDownloadPathAction,
-            chooseDownloadPathAction, removeSelectedAction, quitAction, setMinimiseToTrayAction,
+            chooseDownloadPathAction, removeSelectedAction, quitAction, restoreAction, setMinimiseToTrayAction,
             setAutoDownloadAction, setSaveDownloadListAction, setShowMessageOnCompleteAction;
 
     UI(Main m) {
@@ -122,6 +121,7 @@ class UI {
         queueAction = new LocalAction(main, "Queue selected", ACTION_QUEUE);
         removeLockAction = new LocalAction(main, "Remove lock", ACTION_LOCK);
         removeSelectedAction = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
+        restoreAction = new LocalAction(main, "Restore window", ACTION_RESTORE);
         startStopAction = new LocalAction(main, "Start downloading", ACTION_START_STOP);
 
         pvr = main.getPVR();
@@ -183,13 +183,14 @@ class UI {
         menu = new JMenu("File");
 
         menu.add(startStopAction);
+        menu.addSeparator();
+        menu.add(chooseDefaultDownloadPathAction);
+        menu.addSeparator();
         menu.add(quitAction);
 
         menuBar.add(menu);
 
         menu = new JMenu("Options");
-
-        menu.add(chooseDefaultDownloadPathAction);
 
         JCheckBoxMenuItem jCheckBoxMenuItem;
         jCheckBoxMenuItem = new JCheckBoxMenuItem(setMinimiseToTrayAction);
@@ -435,25 +436,44 @@ class UI {
         window.add(statusPanel, BorderLayout.SOUTH);
 
         if (SystemTray.isSupported()) {
-            PopupMenu trayPopup = new PopupMenu();
+            final JPopupMenu trayPopup = new JPopupMenu();
 
-            MenuItem item;
-            item = new MenuItem(startStopAction.getValue(AbstractAction.NAME).toString());
-            item.addActionListener(startStopAction);
-            trayPopup.add(item);
-
-            item = new MenuItem(quitAction.getValue(AbstractAction.NAME).toString());
-            item.addActionListener(quitAction);
-            trayPopup.add(item);
+            trayPopup.add(restoreAction);
+            trayPopup.add(startStopAction);
+            trayPopup.add(quitAction);
 
             Image icon = getTrayIconImage(icons.get(ICON_DISCONNECTED));
             if (icon != null) {
-                trayIcon = new TrayIcon(icon, "Media Browser", trayPopup);
+                trayIcon = new TrayIcon(icon, "Media Browser");
 
                 trayIcon.setImageAutoSize(false);
 
                 trayIcon.setActionCommand(ACTION_TRAY);
                 trayIcon.addActionListener(main);
+
+                // Addapted from http://bugs.java.com/bugdatabase/view_bug.do?bug_id=6285881
+                trayIcon.addMouseListener(new MouseAdapter() {
+
+                    @Override
+                    public void mouseReleased(MouseEvent e) {
+                        maybeShowPopup(e);
+                    }
+
+                    @Override
+                    public void mousePressed(MouseEvent e) {
+                        maybeShowPopup(e);
+                    }
+
+                    private void maybeShowPopup(MouseEvent e) {
+                        log.debug("Mouse release {}", e);
+                        if (e.isPopupTrigger()) {
+                            trayPopup.setLocation(e.getX(), e.getY());
+                            trayPopup.setInvoker(trayPopup);
+                            trayPopup.setVisible(true);
+                        }
+                    }
+
+                });
 
                 try {
                     SystemTray.getSystemTray().add(trayIcon);

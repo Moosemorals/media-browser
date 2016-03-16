@@ -218,6 +218,11 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                     downloader.changeDownloadPath(selected, downloadPath);
                 }
                 break;
+            case UI.ACTION_RESTORE:
+                if (ui != null) {
+                    ui.showWindow();
+                }
+                break;
             case UI.ACTION_REMOVE:
                 downloader.remove(ui.getListSelected());
                 break;
