@@ -101,36 +101,35 @@ class UI {
     private final PVR pvr;
     private final TrayIcon trayIcon;
 
-    private final Action startStopAction, queueAction, removeLockAction, chooseDefaultDownloadPathAction,
-            chooseDownloadPathAction, removeSelectedAction, quitAction, restoreAction, setMinimiseToTrayAction,
-            setAutoDownloadAction, setSaveDownloadListAction, setShowMessageOnCompleteAction;
+    private final Action actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
+            actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
+            actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
     UI(Main m) {
 
         this.main = m;
         prefs = main.getPreferences();
 
-        setShowMessageOnCompleteAction = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
-        setSaveDownloadListAction = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
-        setAutoDownloadAction = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
-        setMinimiseToTrayAction = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
-
-        chooseDefaultDownloadPathAction = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
-        chooseDownloadPathAction = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
-        quitAction = new LocalAction(main, "Exit", ACTION_QUIT);
-        queueAction = new LocalAction(main, "Queue selected", ACTION_QUEUE);
-        removeLockAction = new LocalAction(main, "Remove lock", ACTION_LOCK);
-        removeSelectedAction = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
-        restoreAction = new LocalAction(main, "Restore window", ACTION_RESTORE);
-        startStopAction = new LocalAction(main, "Start downloading", ACTION_START_STOP);
+        actionChooseDefaultDownloadPath = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
+        actionChooseDownloadPath = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
+        actionQuit = new LocalAction(main, "Exit", ACTION_QUIT);
+        actionQueue = new LocalAction(main, "Queue selected", ACTION_QUEUE);
+        actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_LOCK);
+        actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
+        actionRestore = new LocalAction(main, "Restore window", ACTION_RESTORE);
+        actionStartStop = new LocalAction(main, "Start downloading", ACTION_START_STOP);
+        actionSetAutoDownload = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
+        actionSetMinimiseToTray = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
+        actionSetShowMessageOnComplete = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
+        actionSetSaveDownloadList = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
 
-        queueAction.setEnabled(false);
-        removeLockAction.setEnabled(false);
-        removeSelectedAction.setEnabled(false);
-        chooseDownloadPathAction.setEnabled(false);
+        actionQueue.setEnabled(false);
+        actionRemoveLock.setEnabled(false);
+        actionRemoveSelected.setEnabled(false);
+        actionChooseDownloadPath.setEnabled(false);
 
         icons = new HashMap<>();
         for (String color : ICON_COLORS) {
@@ -182,36 +181,36 @@ class UI {
         JMenu menu;
         menu = new JMenu("File");
 
-        menu.add(startStopAction);
+        menu.add(actionStartStop);
         menu.addSeparator();
-        menu.add(chooseDefaultDownloadPathAction);
+        menu.add(actionChooseDefaultDownloadPath);
         menu.addSeparator();
-        menu.add(quitAction);
+        menu.add(actionQuit);
 
         menuBar.add(menu);
 
         menu = new JMenu("Options");
 
         JCheckBoxMenuItem jCheckBoxMenuItem;
-        jCheckBoxMenuItem = new JCheckBoxMenuItem(setMinimiseToTrayAction);
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetMinimiseToTray);
         if (SystemTray.isSupported()) {
             jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_MINIMISE_TO_TRAY, true));
         } else {
-            setMinimiseToTrayAction.setEnabled(false);
+            actionSetMinimiseToTray.setEnabled(false);
             prefs.putBoolean(Main.KEY_MINIMISE_TO_TRAY, false);
             jCheckBoxMenuItem.setState(false);
         }
         menu.add(jCheckBoxMenuItem);
 
-        jCheckBoxMenuItem = new JCheckBoxMenuItem(setAutoDownloadAction);
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetAutoDownload);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, true));
         menu.add(jCheckBoxMenuItem);
 
-        jCheckBoxMenuItem = new JCheckBoxMenuItem(setShowMessageOnCompleteAction);
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetShowMessageOnComplete);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true));
         menu.add(jCheckBoxMenuItem);
 
-        jCheckBoxMenuItem = new JCheckBoxMenuItem(setSaveDownloadListAction);
+        jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetSaveDownloadList);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_SAVE_DOWNLOAD_LIST, false));
         menu.add(jCheckBoxMenuItem);
 
@@ -220,13 +219,13 @@ class UI {
         window.setJMenuBar(menuBar);
 
         final JPopupMenu treePopup = new JPopupMenu();
-        treePopup.add(queueAction);
-        treePopup.add(removeLockAction);
+        treePopup.add(actionQueue);
+        treePopup.add(actionRemoveLock);
 
         final JPopupMenu listPopup = new JPopupMenu();
-        listPopup.add(chooseDownloadPathAction);
-        listPopup.add(removeSelectedAction);
-        listPopup.add(startStopAction);
+        listPopup.add(actionChooseDownloadPath);
+        listPopup.add(actionRemoveSelected);
+        listPopup.add(actionStartStop);
 
         final JLabel downloadLabel = new JLabel(downloader.getDownloadPath().getPath());
 
@@ -242,7 +241,7 @@ class UI {
         statusLabel = new JLabel();
         statusLabel.setFocusable(false);
 
-        startButton = new JButton(startStopAction);
+        startButton = new JButton(actionStartStop);
 
         JPanel statusPanel = new JPanel();
         statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.LINE_AXIS));
@@ -306,12 +305,12 @@ class UI {
         downloadList.addListSelectionListener(new ListSelectionListener() {
             @Override
             public void valueChanged(ListSelectionEvent e) {
-                removeSelectedAction.setEnabled(false);
-                chooseDownloadPathAction.setEnabled(false);
+                actionRemoveSelected.setEnabled(false);
+                actionChooseDownloadPath.setEnabled(false);
                 if (downloadList.getSelectedIndices().length > 0) {
-                    removeSelectedAction.setEnabled(true);
+                    actionRemoveSelected.setEnabled(true);
                     if (!main.isDownloading()) {
-                        chooseDownloadPathAction.setEnabled(true);
+                        actionChooseDownloadPath.setEnabled(true);
                     }
                 }
             }
@@ -387,8 +386,8 @@ class UI {
         displayTree.addTreeSelectionListener(new TreeSelectionListener() {
             @Override
             public void valueChanged(TreeSelectionEvent e) {
-                queueAction.setEnabled(false);
-                removeLockAction.setEnabled(false);
+                actionQueue.setEnabled(false);
+                actionRemoveLock.setEnabled(false);
                 TreePath[] selectionPaths = displayTree.getSelectionPaths();
                 if (selectionPaths == null) {
                     return;
@@ -397,10 +396,10 @@ class UI {
                     if (((PVRItem) p.getLastPathComponent()).isFile()) {
                         PVRFile file = (PVRFile) p.getLastPathComponent();
                         if (!file.isHighDef()) {
-                            queueAction.setEnabled(true);
+                            actionQueue.setEnabled(true);
                         }
                         if (file.isLocked()) {
-                            removeLockAction.setEnabled(true);
+                            actionRemoveLock.setEnabled(true);
                         }
                     }
                 }
@@ -438,9 +437,9 @@ class UI {
         if (SystemTray.isSupported()) {
             final JPopupMenu trayPopup = new JPopupMenu();
 
-            trayPopup.add(restoreAction);
-            trayPopup.add(startStopAction);
-            trayPopup.add(quitAction);
+            trayPopup.add(actionRestore);
+            trayPopup.add(actionStartStop);
+            trayPopup.add(actionQuit);
 
             Image icon = getTrayIconImage(icons.get(ICON_DISCONNECTED));
             if (icon != null) {
@@ -637,11 +636,11 @@ class UI {
      * otherwise.
      */
     void setStartActionStatus(boolean enabled, boolean downloading) {
-        startStopAction.setEnabled(enabled);
+        actionStartStop.setEnabled(enabled);
         if (downloading) {
-            startStopAction.putValue(Action.NAME, "Stop downloading");
+            actionStartStop.putValue(Action.NAME, "Stop downloading");
         } else {
-            startStopAction.putValue(Action.NAME, "Start donwloading");
+            actionStartStop.putValue(Action.NAME, "Start donwloading");
         }
     }
 
