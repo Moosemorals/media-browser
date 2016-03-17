@@ -28,6 +28,9 @@ import com.moosemorals.mediabrowser.PVR.PVRItem;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontFormatException;
+import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
@@ -101,6 +104,7 @@ class UI {
     private final Preferences prefs;
     private final PVR pvr;
     private final TrayIcon trayIcon;
+    private boolean customFont = false;
 
     private final Action actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
@@ -109,6 +113,21 @@ class UI {
     UI(Main m) {
 
         this.main = m;
+
+        try {
+            GraphicsEnvironment
+                    .getLocalGraphicsEnvironment()
+                    .registerFont(
+                            Font.createFont(
+                                    Font.TRUETYPE_FONT,
+                                    getClass().getResourceAsStream("/fonts/Arimo-Regular.ttf")
+                            )
+                    );
+            customFont = true;
+        } catch (IOException | FontFormatException ex) {
+            log.warn("Can't load custom font: {}", ex.getMessage(), ex);
+        }
+
         prefs = main.getPreferences();
 
         actionChooseDefaultDownloadPath = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
@@ -413,6 +432,10 @@ class UI {
         infoBox.setEditable(false);
         infoBox.setLineWrap(true);
         infoBox.setWrapStyleWord(true);
+
+        if (customFont) {
+            infoBox.setFont(new Font("Arimo", Font.PLAIN, 12));
+        }
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
         verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, infoBox);
