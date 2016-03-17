@@ -367,8 +367,6 @@ class UI {
                 int row = displayTree.getRowForLocation(e.getX(), e.getY());
                 if (row == -1) {
                     displayTree.clearSelection();
-                } else if (SwingUtilities.isRightMouseButton(e)) {
-                    displayTree.addSelectionRow(row);
                 }
             }
 
