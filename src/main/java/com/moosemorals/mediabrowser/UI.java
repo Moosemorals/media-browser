@@ -434,7 +434,7 @@ class UI {
         infoBox.setWrapStyleWord(true);
 
         if (customFont) {
-            infoBox.setFont(new Font("Arimo", Font.PLAIN, 12));
+            infoBox.setFont(new Font("Arimo", Font.PLAIN, 13));
         }
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
@@ -723,6 +723,13 @@ class UI {
         StringBuilder result = new StringBuilder();
         if (file.isFtpScanned()) {
 
+            result.append(file.getChannelName()).append(" ");
+            result.append(PVR.DISPLAY_DATE_AND_TIME.print(file.getStartTime())).append(" to ");
+            result.append(PVR.DISPLAY_TIME.print(file.getEndTime()));
+            result.append(" (").append(PVR.PERIOD_FORMAT.print(file.getLength().toPeriod())).append(") ");
+            result.append(" (").append(PVR.humanReadableSize(file.getSize())).append(")");
+
+            result.append("\n");
             String title = file.getTitle();
             String desc = file.getDescription();
 
@@ -740,13 +747,6 @@ class UI {
             if (file.isLocked()) {
                 result.append(" [locked]");
             }
-
-            result.append("\n");
-
-            result.append("Channel: ").append(file.getChannelName()).append("\n");
-            result.append("Start: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getStartTime())).append("\n");
-            result.append("End: ").append(PVRFileTreeCellRenderer.DISPLAY_DATE.print(file.getEndTime())).append("\n");
-            result.append("Duration: ").append(PVR.PERIOD_FORMAT.print(file.getLength().toPeriod())).append("\n");
 
         } else {
             result.append(file.getTitle()).append("\n");

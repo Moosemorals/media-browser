@@ -54,7 +54,6 @@ import org.slf4j.LoggerFactory;
  */
 class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRenderer {
 
-    public static final DateTimeFormatter DISPLAY_DATE = DateTimeFormat.mediumDateTime();
 
     private static final int LOCK_PADDING = 4;
 
@@ -141,7 +140,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             StringBuilder title = new StringBuilder()
                     .append(file.getTitle())
                     .append(": ")
-                    .append(DISPLAY_DATE.print(file.getStartTime()))
+                    .append(PVR.DISPLAY_DATE_AND_TIME.print(file.getStartTime()))
                     .append(" (")
                     .append(PERIOD_FORMAT.print(length.toPeriod()))
                     .append(") ")

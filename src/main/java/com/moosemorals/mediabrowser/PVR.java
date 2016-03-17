@@ -87,15 +87,15 @@ class PVR implements TreeModel {
     private static final String FTP_ROOT = "/My Video/";
 
     static final DateTimeZone DEFAULT_TIMEZONE = DateTimeZone.forID("Europe/London");
-    static final DateTimeFormatter DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH-mm").withZone(DEFAULT_TIMEZONE);
+    static final DateTimeFormatter FILE_DATE_FORMAT = DateTimeFormat.forPattern("YYYY-MM-dd HH-mm").withZone(DEFAULT_TIMEZONE);
+    public static final DateTimeFormatter DISPLAY_DATE_AND_TIME = DateTimeFormat.forStyle("MS");
+    public static final DateTimeFormatter DISPLAY_TIME = DateTimeFormat.forStyle("-S");
 
     static final PeriodFormatter PERIOD_FORMAT = new PeriodFormatterBuilder()
             .appendHours()
             .appendSeparatorIfFieldsBefore("h")
             .appendMinutes()
             .appendSeparatorIfFieldsBefore("m")
-            .appendSeconds()
-            .appendSeparatorIfFieldsBefore("s")
             .toFormatter();
 
     static final double KILO = 1024;
@@ -611,7 +611,7 @@ class PVR implements TreeModel {
 
                     file.setLocalFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                             file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
-                            DATE_FORMAT.print(file.getStartTime()),
+                            FILE_DATE_FORMAT.print(file.getStartTime()),
                             file.isHighDef() ? "1920×1080" : "SD",
                             file.getChannelName()
                     ));
