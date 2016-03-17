@@ -662,7 +662,7 @@ class UI {
         if (downloading) {
             actionStartStop.putValue(Action.NAME, "Stop downloading");
         } else {
-            actionStartStop.putValue(Action.NAME, "Start donwloading");
+            actionStartStop.putValue(Action.NAME, "Start downloading");
         }
     }
 
