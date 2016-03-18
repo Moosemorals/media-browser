@@ -25,7 +25,6 @@ package com.moosemorals.mediabrowser;
 
 import com.moosemorals.mediabrowser.PVR.PVRFile;
 import com.moosemorals.mediabrowser.PVR.PVRFile.State;
-import java.awt.EventQueue;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -129,7 +128,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         savedPaths = getSavedPaths();
 
         pvr.start();
-        EventQueue.invokeLater(this);
+        SwingUtilities.invokeLater(this);
     }
 
     @Override
@@ -229,6 +228,9 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
             case UI.ACTION_QUIT:
             case "Exit": // Stupid TrayIcon popup doesn't support Actions!
                 stop();
+                break;
+            case UI.ACTION_ABOUT:
+                new About().start();
                 break;
             case UI.ACTION_TRAY:
                 if (!ui.isVisible()) {

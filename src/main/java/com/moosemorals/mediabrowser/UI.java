@@ -70,6 +70,7 @@ import org.slf4j.LoggerFactory;
  */
 class UI {
 
+    static final String ACTION_ABOUT = "about";
     static final String ACTION_START_STOP = "start";
     static final String ACTION_QUEUE = "queue";
     static final String ACTION_LOCK = "lock";
@@ -106,7 +107,7 @@ class UI {
     private final TrayIcon trayIcon;
     private boolean customFont = false;
 
-    private final Action actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
+    private final Action actionAbout, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
             actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
@@ -130,6 +131,7 @@ class UI {
 
         prefs = main.getPreferences();
 
+        actionAbout = new LocalAction(main, "About", ACTION_ABOUT);
         actionChooseDefaultDownloadPath = new LocalAction(main, "Set default download folder", ACTION_CHOOSE_DEFAULT);
         actionChooseDownloadPath = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
         actionQuit = new LocalAction(main, "Exit", ACTION_QUIT);
@@ -233,6 +235,11 @@ class UI {
         jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetSaveDownloadList);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_SAVE_DOWNLOAD_LIST, false));
         menu.add(jCheckBoxMenuItem);
+
+        menuBar.add(menu);
+
+        menu = new JMenu("Help");
+        menu.add(actionAbout);
 
         menuBar.add(menu);
 

@@ -21,6 +21,7 @@ Any value defined here will override the pom.xml file value but is only applicab
         <word>Freeview</word>
         <word>HDR</word>
         <word>Humax</word>
+        <word>Joda</word>
         <word>PVR</word>
     </spellchecker-wordlist>
 </project-shared-configuration>

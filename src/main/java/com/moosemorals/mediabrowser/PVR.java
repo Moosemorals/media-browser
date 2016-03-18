@@ -474,7 +474,6 @@ class PVR implements TreeModel {
         if (!ftp.retrieveFile(target, out)) {
             throw new IOException("Can't download " + file.getRemotePath() + ": Unknown reason");
         }
-
         return new HMTFile(out.toByteArray());
     }
 
@@ -599,7 +598,7 @@ class PVR implements TreeModel {
                     PVRFile file = addFile(directory, f.getName());
                     HMTFile hmt = getHMTForTs(file);
                     file.setSize(f.getSize());
-                    file.setDescription(hmt.getDesc());
+                    file.setDescription(hmt.getSynopsis());
                     file.setTitle(hmt.getRecordingTitle());
                     file.setStartTime(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
                     file.setEndTime(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
