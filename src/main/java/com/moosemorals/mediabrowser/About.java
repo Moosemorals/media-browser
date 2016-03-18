@@ -36,6 +36,7 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JScrollPane;
 import javax.swing.JTextPane;
 import javax.swing.event.HyperlinkEvent;
 import javax.swing.event.HyperlinkListener;
@@ -105,9 +106,9 @@ public class About {
             }
 
         });
-
+        window.setResizable(false);
         window.setLayout(new BorderLayout());
-        window.add(textPane, BorderLayout.CENTER);
+        window.add(new JScrollPane(textPane, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), BorderLayout.CENTER);
         window.add(close, BorderLayout.PAGE_END);
     }
 
