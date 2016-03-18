@@ -517,6 +517,10 @@ class UI {
         }
     }
 
+    List<Image> getImagesForColor(String color) {
+        return icons.get(color);
+    }
+
     /**
      * Loads the window position from preferences, and shows it.
      */

@@ -230,7 +230,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                 stop();
                 break;
             case UI.ACTION_ABOUT:
-                new About().start();
+                new About(ui.getImagesForColor(UI.ICON_CONNECTED)).start();
                 break;
             case UI.ACTION_TRAY:
                 if (!ui.isVisible()) {

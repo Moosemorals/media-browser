@@ -26,6 +26,7 @@ package com.moosemorals.mediabrowser;
 import java.awt.BorderLayout;
 import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;
+import java.awt.Image;
 import java.awt.Point;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -34,6 +35,7 @@ import java.awt.event.WindowEvent;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.util.List;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JScrollPane;
@@ -54,7 +56,7 @@ public class About {
 
     private final JFrame window;
 
-    About() {
+    About(List<Image> images) {
 
         JButton close = new JButton("OK");
 
@@ -99,6 +101,7 @@ public class About {
 
         window = new JFrame("About Media Browser");
 
+        window.setIconImages(images);
         window.addWindowStateListener(new WindowAdapter() {
             @Override
             public void windowClosed(WindowEvent e) {
