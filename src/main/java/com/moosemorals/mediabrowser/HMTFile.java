@@ -23,6 +23,8 @@
  */
 package com.moosemorals.mediabrowser;
 
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.nio.charset.Charset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,7 +36,11 @@ import org.slf4j.LoggerFactory;
  * <a href="https://myhumax.org/wiki/index.php?title=Humax_PVR_File_Formats">a
  * post on the 'My Humax' Wiki</a>, as well as
  * <a href="http://merrickchaffer.blogspot.co.uk/2012/11/how-to-remove-encryption-from-humax-hdr.html">a
- * blog post</a> that gives details of how to remove the lock.
+ * blog post</a> that gives details of how to remove the lock.</p>
+ * <p>
+ * Also
+ * <a href="https://gist.github.com/GrahamCobb/0e8c854eb75e5b00f353">https://gist.github.com/GrahamCobb/0e8c854eb75e5b00f353</a>
+ * seams to have most complete/up-to-date information.</p>
  * <p>
  * This is the part of the code most likley to make your PVR catch fire.
  *
@@ -42,11 +48,13 @@ import org.slf4j.LoggerFactory;
  */
 public class HMTFile {
 
+    private static final int VIEWED_FLAG = 0x08;
+
     private final Logger log = LoggerFactory.getLogger(HMTFile.class);
 
     private final byte[] raw;
 
-    private final Charset charset = Charset.forName("UTF8");
+    private static final Charset DEFAULT_CHARSET = Charset.forName("ISO-6937");
 
     public HMTFile(byte[] given) {
         raw = new byte[given.length];
@@ -54,32 +62,88 @@ public class HMTFile {
         System.arraycopy(given, 0, raw, 0, given.length);
     }
 
+    public boolean isViewed() {
+        return (raw[0x028d] & VIEWED_FLAG) == VIEWED_FLAG;
+    }
+
+    public int getBookmarkCount() {
+        return raw[0x0290] & 0xff;
+    }
+
+    public RecordingState getRecordingState() {
+        switch (raw[0x028C]) {
+            case 0x00:
+                return RecordingState.ZeroLength;
+            case 0x02:
+                return RecordingState.Valid;
+            case 0x03:
+                return RecordingState.Scrambled;
+            case 0x04:
+                return RecordingState.Failed;
+            default:
+                return RecordingState.PowerLoss;
+        }
+    }
+
+    public Genre getGenre() {
+
+        int genreCode = raw[0x512] & 0xff;
+        if (genreCode == 0) {
+            genreCode = raw[0x514] & 0xff;
+        }
+
+        switch (genreCode) {
+            case 0x10:
+                return Genre.Movie;
+            case 0x20:
+            case 0x70:
+            case 0x80:
+                return Genre.NewsAndFactual;
+            case 0x30:
+            case 0x60:
+                return Genre.Entertainment;
+            case 0x40:
+                return Genre.Sport;
+            case 0x50:
+                return Genre.Childrens;
+            case 0x90:
+                return Genre.Education;
+            case 0xA0:
+                return Genre.Lifestyle;
+            case 0xF0:
+                return Genre.Drama;
+            default:
+                return Genre.Unclassified;
+
+        }
+    }
+
     public String getDirectory() {
-        return nullTerminated(0x0080, 512);
+        return getStringDefaultCharset(0x0080, 512);
     }
 
     public String getRecordingFileName() {
-        return nullTerminated(0x017F, 512);
+        return getStringDefaultCharset(0x017F, 512);
     }
 
     public String getRecordingTitle() {
-        return nullTerminated(0x029A, 512);
+        return getStringDefaultCharset(0x029A, 512);
     }
 
     public String getGuidanceDescription() {
-        return nullTerminated(0x03E3, 77);
+        return getStringDefaultCharset(0x03E3, 77);
     }
 
     public String getChannelName() {
-        return nullTerminated(0x045D, 10);
+        return getStringWithCharset(0x045C, 10);
     }
 
-    public String getTitle() {
-        return nullTerminated(0x0517, 255);
+    public String getProgramName() {
+        return getStringWithCharset(0x0516, 255);
     }
 
-    public String getDesc() {
-        return nullTerminated(0x0617, 255);
+    public String getSynopsis() {
+        return getStringWithCharset(0x0616, 255);
     }
 
     public long getStartTimestamp() {
@@ -139,20 +203,134 @@ public class HMTFile {
         return copy;
     }
 
-    private String nullTerminated(int offset, int length) {
+    private String getStringWithCharset(int offset, int length) {
+        int encType = raw[offset++];
+
+        Charset charset;
+        switch (encType) {
+            case 0x01:
+                charset = Charset.forName("ISO8859_5");
+                break;
+            case 0x02:
+                charset = Charset.forName("ISO8859_6");
+                break;
+            case 0x03:
+                charset = Charset.forName("ISO8859_7");
+                break;
+            case 0x04:
+                charset = Charset.forName("ISO8859_8");
+                break;
+            case 0x05:
+                charset = Charset.forName("ISO8859_9");
+                break;
+            case 0x10:
+                charset = DEFAULT_CHARSET;
+
+                offset += 2;
+                break;
+            case 0x11:
+                charset = Charset.forName("UTF-16");
+                break;
+            default:
+                charset = DEFAULT_CHARSET;
+                break;
+        }
 
         int i = 0;
         while (i < length && raw[offset + i] != 0) {
             i += 1;
         }
 
-        String result = new String(raw, offset, i, charset);
+        String s = new String(raw, offset, i, charset);
+        return s;
+    }
 
-        // I don't know whats up with this.
-        if (result.startsWith("i7")) {
-            return result.substring(2);
-        } else {
-            return result;
+    private String getStringDefaultCharset(int offset, int length) {
+        int i = 0;
+        while (i < length && raw[offset + i] != 0) {
+            i += 1;
+        }
+
+        return new String(raw, offset, i, Charset.forName("ISO8859_1"));
+
+    }
+
+    private int twoBytesToInt(int offset) {
+        ByteBuffer bb = ByteBuffer.allocate(2);
+        bb.order(ByteOrder.BIG_ENDIAN);
+        bb.put(raw[offset]);
+        bb.put(raw[offset + 1]);
+        return bb.getShort(0) & 0xffff;
+    }
+
+    final protected static char[] hexArray = "0123456789ABCDEF".toCharArray();
+
+    private String bytesToHex(int offset, int length) {
+        char[] hexChars = new char[length * 2];
+        for (int j = 0; j < length; j++) {
+            int v = raw[offset + j] & 0xFF;
+            hexChars[j * 2] = hexArray[v >>> 4];
+            hexChars[j * 2 + 1] = hexArray[v & 0x0F];
+        }
+        return new String(hexChars);
+    }
+
+    public enum RecordingState {
+        Valid, ZeroLength, PowerLoss, Scrambled, Failed;
+
+        @Override
+        public String toString() {
+            switch (this) {
+                case Valid:
+                    return "Valid";
+                case ZeroLength:
+                    return "Zero Length";
+                case PowerLoss:
+                    return "Power Loss";
+                case Scrambled:
+                    return "Scrambled";
+                case Failed:
+                    return "Failed";
+                default:
+                    throw new IllegalArgumentException("Unknown recording state " + this.name());
+            }
+        }
+    }
+
+    public enum VideoType {
+        MPEG2, H264, Unknown
+    }
+
+    public enum AudioType {
+        MPEG, AC3, AAC, Unknown
+    }
+
+    public enum Genre {
+        Unclassified, Movie, NewsAndFactual, Entertainment,
+        Sport, Childrens, Education, Lifestyle, Drama;
+
+        @Override
+        public String toString() {
+            switch (this) {
+                default:
+                    return "Unclassified";
+                case Movie:
+                    return "Movie";
+                case NewsAndFactual:
+                    return "News and Facutal";
+                case Entertainment:
+                    return "Entertainment";
+                case Sport:
+                    return "Sport";
+                case Childrens:
+                    return "Childrens'";
+                case Education:
+                    return "Education";
+                case Lifestyle:
+                    return "Lifestyle";
+                case Drama:
+                    return "Drama";
+            }
         }
     }
 
