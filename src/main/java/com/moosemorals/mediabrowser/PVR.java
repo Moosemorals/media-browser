@@ -507,6 +507,7 @@ class PVR implements TreeModel {
                             }
                         }
                     } catch (InterruptedException ex) {
+                        log.error("IOException in upnp thread: {}", ex.getMessage(), ex);
                         return;
                     } finally {
                         upnpRunning.set(false);
@@ -598,7 +599,7 @@ class PVR implements TreeModel {
                     PVRFile file = addFile(directory, f.getName());
                     HMTFile hmt = getHMTForTs(file);
                     file.setSize(f.getSize());
-                    file.setDescription(hmt.getSynopsis());
+                    file.setDescription(hmt.getDesc());
                     file.setTitle(hmt.getRecordingTitle());
                     file.setStartTime(new DateTime(hmt.getStartTimestamp() * 1000, DEFAULT_TIMEZONE));
                     file.setEndTime(new DateTime(hmt.getEndTimestamp() * 1000, DEFAULT_TIMEZONE));
