@@ -23,8 +23,9 @@
  */
 package com.moosemorals.mediabrowser;
 
-import com.moosemorals.mediabrowser.PVR.PVRFile;
-import com.moosemorals.mediabrowser.PVR.PVRFile.State;
+import com.moosemorals.mediabrowser.PVRFile.State;
+import com.moosemorals.mediabrowser.ui.About;
+import com.moosemorals.mediabrowser.ui.UI;
 import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -47,23 +48,23 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, PVR.PVRListener {
+public class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, DeviceListener {
 
-    static final String KEY_FRAME_KNOWN = "frame_bounds";
-    static final String KEY_FRAME_HEIGHT = "frame_height";
-    static final String KEY_MESSAGE_ON_COMPLETE = "message_on_complete";
-    static final String KEY_AUTO_DOWNLOAD = "auto_download";
-    static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
-    static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
-    static final String KEY_HORIZONTAL_DIVIDER_LOCATION = "horizontal_divider_location";
-    static final String KEY_VERTICAL_DIVIDER_LOCATION = "vertical_divider_location";
-    static final String KEY_FRAME_WIDTH = "frame_width";
-    static final String KEY_FRAME_LEFT = "frame_left";
-    static final String KEY_FRAME_TOP = "frame_top";
-    static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
-    static final String KEY_SAVE_DOWNLOAD_COUNT = "save_download_count";
-    static final String KEY_SAVE_DOWNLOAD_REMOTE = "save_download_remote";
-    static final String KEY_SAVE_DOWNLOAD_LOCAL = "save_download_local";
+    public static final String KEY_FRAME_KNOWN = "frame_bounds";
+    public static final String KEY_FRAME_HEIGHT = "frame_height";
+    public static final String KEY_MESSAGE_ON_COMPLETE = "message_on_complete";
+    public static final String KEY_AUTO_DOWNLOAD = "auto_download";
+    public static final String KEY_DOWNLOAD_DIRECTORY = "download_directory";
+    public static final String KEY_MINIMISE_TO_TRAY = "minimise_to_tray";
+    public static final String KEY_HORIZONTAL_DIVIDER_LOCATION = "horizontal_divider_location";
+    public static final String KEY_VERTICAL_DIVIDER_LOCATION = "vertical_divider_location";
+    public static final String KEY_FRAME_WIDTH = "frame_width";
+    public static final String KEY_FRAME_LEFT = "frame_left";
+    public static final String KEY_FRAME_TOP = "frame_top";
+    public static final String KEY_SAVE_DOWNLOAD_LIST = "save_download_list";
+    public static final String KEY_SAVE_DOWNLOAD_COUNT = "save_download_count";
+    public static final String KEY_SAVE_DOWNLOAD_REMOTE = "save_download_remote";
+    public static final String KEY_SAVE_DOWNLOAD_LOCAL = "save_download_local";
 
     public static void main(String args[]) {
         log.info("***** STARTUP *****");
@@ -95,13 +96,11 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     private final Preferences preferences;
     private final DownloadManager downloader;
     private final PVR pvr;
+    private int scanning = 0;
 
     private UI ui = null;
     private boolean connected = false;
     private Map<String, String> savedPaths = null;
-    private boolean scanning = false;
-    private boolean upnpBrowsing = false;
-    private boolean ftpBrowsing = false;
 
     private Main(Preferences prefs) {
 
@@ -123,10 +122,8 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
 
     public void start() {
         downloader.setDownloadStatusListener(this);
-        pvr.addConnectionListener(this);
-
         savedPaths = getSavedPaths();
-
+        pvr.addDeviceListener(this);
         pvr.start();
         SwingUtilities.invokeLater(this);
     }
@@ -141,7 +138,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         ui.showWindow();
     }
 
-    PVR getPVR() {
+    public PVR getPVR() {
         return pvr;
     }
 
@@ -159,11 +156,11 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         System.exit(0);
     }
 
-    DownloadManager getDownloadManager() {
+    public DownloadManager getDownloadManager() {
         return downloader;
     }
 
-    Preferences getPreferences() {
+    public Preferences getPreferences() {
         return preferences;
     }
 
@@ -202,7 +199,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                             pvr.unlockFile(file);
                         } catch (IOException ex) {
                             log.error("Problem unlocking " + file.remotePath + "/" + file.remoteFilename + ": " + ex.getMessage(), ex);
-                            file.setState(PVR.PVRFile.State.Error);
+                            file.setState(PVRFile.State.Error);
                         }
                     }
                 }
@@ -211,7 +208,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
                 downloader.setDownloadPath(ui.showDirectoryChooser(downloader.getDownloadPath()));
                 break;
             case UI.ACTION_CHOOSE:
-                List<PVR.PVRFile> selected = ui.getListSelected();
+                List<PVRFile> selected = ui.getListSelected();
                 if (!selected.isEmpty()) {
                     File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
                     downloader.changeDownloadPath(selected, downloadPath);
@@ -243,7 +240,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         }
     }
 
-    boolean isDownloading() {
+    public boolean isDownloading() {
         return downloader.isDownloading();
     }
 
@@ -290,7 +287,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     @Override
-    public void downloadCompleted(PVR.PVRFile target) {
+    public void downloadCompleted(PVRFile target) {
         if (preferences.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
             String message = String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getLocalPath(), target.getLocalFilename());
             ui.showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
@@ -298,7 +295,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     @Override
-    public void onConnect() {
+    public void onDeviceFound() {
         connected = true;
         if (ui != null) {
             ui.setIconColor(UI.ICON_CONNECTED);
@@ -306,7 +303,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     @Override
-    public void onDisconnect() {
+    public void onDeviceLost() {
         connected = false;
         if (ui != null) {
             ui.setStartActionStatus(false, false);
@@ -314,7 +311,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         }
     }
 
-    boolean isSavingPaths() {
+    public boolean isSavingPaths() {
         return preferences.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
     }
 
@@ -359,29 +356,42 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
     }
 
     @Override
-    public void onBrowse(PVR.BrowseType type, boolean startStop) {
-        if (!scanning && startStop) {
-            scanning = true;
-            if (ui != null) {
-                ui.setStatus("Scanning ...");
+    public void onBrowseBegin(BrowseType type) {
+        if (ui != null) {
+            switch (type) {
+                case upnp:
+                    ui.setStatus("Scanning via DLNA");
+                    scanning += 1;
+                    break;
+                case ftp:
+                    ui.setStatus("Scanning via FTP");
+                    scanning += 1;
+                    break;
+                default:
+                    log.warn("Unknown browsing type: {}", type);
+                    break;
             }
         }
 
+    }
+
+    @Override
+    public void onBrowseEnd(BrowseType type) {
+
         switch (type) {
             case upnp:
-                upnpBrowsing = startStop;
+                scanning -= 1;
                 break;
             case ftp:
-                ftpBrowsing = startStop;
+                scanning -= 1;
                 break;
             default:
                 log.warn("Unknown browsing type: {}", type);
                 break;
         }
 
-        if (scanning && !upnpBrowsing && !ftpBrowsing) {
+        if (scanning == 0) {
             // Should be done scanning now
-            scanning = false;
             if (ui != null) {
                 ui.setStatus("Scan complete");
             }
@@ -389,7 +399,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
 
             pvr.treeWalk(new PVR.TreeWalker() {
                 @Override
-                public void action(PVR.PVRItem item) {
+                public void action(PVRItem item) {
                     if (item.isFile()) {
                         PVRFile file = (PVRFile) item;
                         String remotePath = file.getRemotePath();
@@ -413,7 +423,7 @@ class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusLi
         }
     }
 
-    static class ExceptionHandler implements Thread.UncaughtExceptionHandler {
+    public static class ExceptionHandler implements Thread.UncaughtExceptionHandler {
 
         @Override
         public void uncaughtException(Thread thread, Throwable thrown) {

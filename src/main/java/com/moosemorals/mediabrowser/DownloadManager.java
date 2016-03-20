@@ -23,7 +23,6 @@
  */
 package com.moosemorals.mediabrowser;
 
-import com.moosemorals.mediabrowser.PVR.PVRFile;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -53,7 +52,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class DownloadManager implements ListModel<PVRFile>, Runnable {
+public class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private static final int BUFFER_SIZE = 1024 * 4;
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
@@ -261,7 +260,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      * Stops the download thread and any in-progress downloads. Waits for the
      * download thread to finish before returning.
      */
-    void stop() {
+    public void stop() {
         if (running.compareAndSet(true, false)) {
             downloadThread.interrupt();
             try {
@@ -290,7 +289,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      * @param target
      * @return
      */
-    boolean add(PVRFile target) {
+    public boolean add(PVRFile target) {
         if (!setupForQueue(target)) {
             return false;
         }
@@ -316,13 +315,13 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @return
      */
-    List<PVRFile> getQueue() {
+    public List<PVRFile> getQueue() {
         synchronized (queue) {
             return new ArrayList<>(queue);
         }
     }
 
-    void changeDownloadPath(List<PVRFile> files, File newPath) {
+    public void changeDownloadPath(List<PVRFile> files, File newPath) {
 
     }
 
@@ -332,7 +331,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      * @param row int target row. Files will be inserted before this row.
      * @param files List&lt;PVRFile&gt; of files already in the list to move.
      */
-    void moveFiles(int row, List<PVRFile> files) {
+    public void moveFiles(int row, List<PVRFile> files) {
         synchronized (queue) {
             for (PVRFile f : files) {
                 queue.remove(f);
@@ -350,7 +349,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      * @param row int target row. Files will be inserted before this row.
      * @param files List&ltPVRFile&gt; of files to be inserted
      */
-    void insert(int row, List<PVRFile> files) {
+    public void insert(int row, List<PVRFile> files) {
         for (Iterator<PVRFile> it = files.iterator(); it.hasNext();) {
             PVRFile f = it.next();
             if (!setupForQueue(f)) {
@@ -378,7 +377,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @param files List of files to remove.
      */
-    void remove(List<PVRFile> files) {
+    public void remove(List<PVRFile> files) {
 
         for (PVRFile f : files) {
             f.setState(PVRFile.State.Ready);
@@ -403,7 +402,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @return boolean true if we're downloading, false otherwise.
      */
-    boolean isDownloading() {
+    public boolean isDownloading() {
         return running.get();
     }
 
@@ -413,7 +412,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @return File default download path.
      */
-    File getDownloadPath() {
+    public File getDownloadPath() {
         return new File(prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, System.getProperty("user.home")));
     }
 
@@ -422,7 +421,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @return boolean true if the download path has been set.
      */
-    boolean isDownloadPathSet() {
+    public boolean isDownloadPathSet() {
         return prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, null) != null;
     }
 
@@ -431,13 +430,13 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @param path File path to download to.
      */
-    void setDownloadPath(File path) {
+    public void setDownloadPath(File path) {
         if (path != null) {
             prefs.put(Main.KEY_DOWNLOAD_DIRECTORY, path.getPath());
         }
     }
 
-    void setDownloadStatusListener(DownloadStatusListener status) {
+    public void setDownloadStatusListener(DownloadStatusListener status) {
         this.status = status;
     }
 
@@ -446,7 +445,7 @@ class DownloadManager implements ListModel<PVRFile>, Runnable {
      *
      * @return boolean true if there are downloads available, false otherwise.
      */
-    boolean areDownloadsAvailible() {
+    public boolean areDownloadsAvailible() {
         synchronized (queue) {
             for (PVRFile f : queue) {
                 if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {

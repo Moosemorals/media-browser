@@ -21,50 +21,44 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser;
+package com.moosemorals.mediabrowser.ui;
 
-import com.moosemorals.mediabrowser.PVR.PVRFile;
-import java.awt.datatransfer.DataFlavor;
-import java.awt.datatransfer.Transferable;
-import java.awt.datatransfer.UnsupportedFlavorException;
-import java.io.IOException;
-import java.util.List;
+import java.awt.event.ActionEvent;
+import java.util.prefs.Preferences;
+import javax.swing.AbstractAction;
+import javax.swing.JCheckBoxMenuItem;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Part of the Drag and Drop infrastructure.
- * <p>
- * I think this is the actual object that gets passed around, but thats just a
- * guess.
+ * Extends AbstractAction for actions that are mostly meant for
+ * {@link javax.swing.JCheckBoxMenuItem} to hold yes/no preferences.
  *
- * @author Osric Wilkinson (osric@fluffypeople.com)
+ * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-class PVRFileTransferable implements Transferable {
+public class PreferenceAction extends AbstractAction {
 
-    static final DataFlavor PVRFileFlavor = new DataFlavor(PVRFile.class, "java/x-com-moosemorals-mediabrowser-PVRFile");
+    private final Logger log = LoggerFactory.getLogger(PreferenceAction.class);
 
-    private final Logger log = LoggerFactory.getLogger(PVRFileTransferable.class);
+    private final Preferences prefs;
+    private final String prefKey;
 
-    List<PVRFile> items;
-
-    PVRFileTransferable(List<PVRFile> item) {
-        this.items = item;
+    /**
+     * Create a new PreferenceAction
+     *
+     * @param prefs {@link java.util.prefs.Preferences} backing object
+     * @param name String display name
+     * @param prefKey String preferences key.
+     */
+    public PreferenceAction(Preferences prefs, String name, String prefKey) {
+        super(name);
+        this.prefs = prefs;
+        this.prefKey = prefKey;
     }
 
     @Override
-    public DataFlavor[] getTransferDataFlavors() {
-        return new DataFlavor[]{PVRFileFlavor};
-    }
-
-    @Override
-    public boolean isDataFlavorSupported(DataFlavor flavor) {
-        return PVRFileFlavor.equals(flavor);
-    }
-
-    @Override
-    public Object getTransferData(DataFlavor flavor) throws UnsupportedFlavorException, IOException {
-        return items;
+    public void actionPerformed(ActionEvent e) {
+        prefs.putBoolean(prefKey, ((JCheckBoxMenuItem) e.getSource()).getState());
     }
 
 }
