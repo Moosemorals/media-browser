@@ -21,8 +21,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser;
+package com.moosemorals.mediabrowser.ui;
 
+import com.moosemorals.mediabrowser.PVR;
+import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.PVRFolder;
+import com.moosemorals.mediabrowser.PVRItem;
 import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
@@ -125,9 +129,9 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean isSelected, boolean isExpanded, boolean leaf, int row, boolean hasFocus) {
 
-        PVR.PVRItem item = (PVR.PVRItem) value;
+        PVRItem item = (PVRItem) value;
         if (item.isFile()) {
-            PVR.PVRFile file = (PVR.PVRFile) item;
+            PVRFile file = (PVRFile) item;
 
             if (file.isHighDef()) {
                 text.setIcon(HD_ICON);
@@ -155,7 +159,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             text.setText(title.toString());
 
         } else {
-            PVR.PVRFolder folder = (PVR.PVRFolder) item;
+            PVRFolder folder = (PVRFolder) item;
 
             if (isExpanded) {
                 text.setIcon(UIManager.getIcon("Tree.openIcon"));

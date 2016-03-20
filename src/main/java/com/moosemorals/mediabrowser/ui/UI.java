@@ -22,10 +22,13 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser;
+package com.moosemorals.mediabrowser.ui;
 
-import com.moosemorals.mediabrowser.PVR.PVRFile;
-import com.moosemorals.mediabrowser.PVR.PVRItem;
+import com.moosemorals.mediabrowser.DownloadManager;
+import com.moosemorals.mediabrowser.Main;
+import com.moosemorals.mediabrowser.PVR;
+import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.PVRItem;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -69,24 +72,24 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class UI {
+public class UI {
 
-    static final String ACTION_ABOUT = "about";
-    static final String ACTION_START_STOP = "start";
-    static final String ACTION_QUEUE = "queue";
-    static final String ACTION_LOCK = "lock";
-    static final String ACTION_CHOOSE_DEFAULT = "choose_default";
-    static final String ACTION_CHOOSE = "choose";
-    static final String ACTION_RESCAN = "rescan";
-    static final String ACTION_REMOVE = "remove";
-    static final String ACTION_QUIT = "quit";
-    static final String ACTION_TRAY = "tray";
-    static final String ACTION_RESTORE = "restore";
+    public static final String ACTION_ABOUT = "about";
+    public static final String ACTION_START_STOP = "start";
+    public static final String ACTION_QUEUE = "queue";
+    public static final String ACTION_LOCK = "lock";
+    public static final String ACTION_CHOOSE_DEFAULT = "choose_default";
+    public static final String ACTION_CHOOSE = "choose";
+    public static final String ACTION_RESCAN = "rescan";
+    public static final String ACTION_REMOVE = "remove";
+    public static final String ACTION_QUIT = "quit";
+    public static final String ACTION_TRAY = "tray";
+    public static final String ACTION_RESTORE = "restore";
 
-    static final String ICON_CONNECTED = "Blue";
-    static final String ICON_DISCONNECTED = "Grey";
-    static final String ICON_DOWNLOADING = "Red";
-    static final String ICON_ERROR = "Error";
+    public static final String ICON_CONNECTED = "Blue";
+    public static final String ICON_DISCONNECTED = "Grey";
+    public static final String ICON_DOWNLOADING = "Red";
+    public static final String ICON_ERROR = "Error";
 
     private static final String[] ICON_COLORS = {ICON_DISCONNECTED, ICON_CONNECTED, ICON_DOWNLOADING, ICON_ERROR};
     private static final int[] ICON_SIZES = {32, 24, 20, 16};
@@ -113,7 +116,7 @@ class UI {
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
             actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
-    UI(Main m) {
+    public UI(Main m) {
 
         this.main = m;
 
@@ -520,14 +523,14 @@ class UI {
         }
     }
 
-    List<Image> getImagesForColor(String color) {
+    public List<Image> getImagesForColor(String color) {
         return icons.get(color);
     }
 
     /**
      * Loads the window position from preferences, and shows it.
      */
-    void showWindow() {
+    public void showWindow() {
         window.pack();
 
         window.setBounds(new Rectangle(
@@ -546,7 +549,7 @@ class UI {
     /**
      * Hides and kills the window, and removes the system tray icon.
      */
-    void stop() {
+    public void stop() {
         window.setVisible(false);
         window.dispose();
         if (SystemTray.isSupported()) {
@@ -559,7 +562,7 @@ class UI {
      *
      * @param status
      */
-    void setStatus(final String status) {
+    public void setStatus(final String status) {
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override
@@ -574,7 +577,7 @@ class UI {
      *
      * @param message
      */
-    void setTrayIconToolTip(final String message) {
+    public void setTrayIconToolTip(final String message) {
         SwingUtilities.invokeLater(new Runnable() {
 
             @Override
@@ -591,7 +594,7 @@ class UI {
      * @param body String body of the popup.
      * @param type TrayIcon.MessageType type of message (for the icon used)
      */
-    void showPopupMessage(String title, String body, TrayIcon.MessageType type) {
+    public void showPopupMessage(String title, String body, TrayIcon.MessageType type) {
         trayIcon.displayMessage(title, body, type);
     }
 
@@ -603,7 +606,7 @@ class UI {
      *
      * @param color
      */
-    void setIconColor(String color) {
+    public void setIconColor(String color) {
         window.setIconImages(icons.get(color));
         if (SystemTray.isSupported()) {
             trayIcon.setImage(getTrayIconImage(icons.get(color)));
@@ -616,7 +619,7 @@ class UI {
      * @param base File starting directory for the chooser
      * @return File chosen directory.
      */
-    File showDirectoryChooser(File base) {
+    public File showDirectoryChooser(File base) {
         final JFileChooser fc = new JFileChooser(base);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fc.setDialogTitle("Choose download folder");
@@ -634,12 +637,12 @@ class UI {
      *
      * @return List of PVRFile selected items.
      */
-    List<PVRFile> getTreeSelected() {
+    public List<PVRFile> getTreeSelected() {
         List<PVRFile> result = new ArrayList<>();
         TreePath[] selectionPaths = displayTree.getSelectionPaths();
         if (selectionPaths != null) {
             for (TreePath p : selectionPaths) {
-                PVR.PVRItem item = (PVR.PVRItem) p.getLastPathComponent();
+                PVRItem item = (PVRItem) p.getLastPathComponent();
                 if (item.isFile()) {
                     result.add((PVRFile) item);
                 }
@@ -654,7 +657,7 @@ class UI {
      *
      * @return List of PVRFile selected items.
      */
-    List<PVRFile> getListSelected() {
+    public List<PVRFile> getListSelected() {
         return downloadList.getSelectedValuesList();
     }
 
@@ -671,7 +674,7 @@ class UI {
      * @param downloading boolean true if there is an active download, false
      * otherwise.
      */
-    void setStartActionStatus(boolean enabled, boolean downloading) {
+    public void setStartActionStatus(boolean enabled, boolean downloading) {
         actionStartStop.setEnabled(enabled);
         if (downloading) {
             actionStartStop.putValue(Action.NAME, "Stop downloading");
@@ -685,11 +688,11 @@ class UI {
      *
      * @return boolean true if the top level window is visible.
      */
-    boolean isVisible() {
+    public boolean isVisible() {
         return window.isVisible();
     }
 
-    void refresh() {
+    public void refresh() {
         window.revalidate();
     }
 

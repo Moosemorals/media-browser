@@ -21,9 +21,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser;
+package com.moosemorals.mediabrowser.ui;
 
-import com.moosemorals.mediabrowser.PVR.PVRFile;
+import com.moosemorals.mediabrowser.PVR;
+import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;

@@ -21,7 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser;
+package com.moosemorals.mediabrowser.ui;
 
 import java.awt.BorderLayout;
 import java.awt.Desktop;
@@ -56,7 +56,7 @@ public class About {
 
     private final JFrame window;
 
-    About(List<Image> images) {
+    public About(List<Image> images) {
 
         JButton close = new JButton("OK");
 
@@ -115,7 +115,7 @@ public class About {
         window.add(close, BorderLayout.PAGE_END);
     }
 
-    void start() {
+    public void start() {
         Point centerPoint = GraphicsEnvironment
                 .getLocalGraphicsEnvironment()
                 .getCenterPoint();
