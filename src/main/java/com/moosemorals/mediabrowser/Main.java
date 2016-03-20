@@ -48,7 +48,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, PVR.PVRListener {
+public class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, DeviceListener {
 
     public static final String KEY_FRAME_KNOWN = "frame_bounds";
     public static final String KEY_FRAME_HEIGHT = "frame_height";
@@ -96,13 +96,11 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     private final Preferences preferences;
     private final DownloadManager downloader;
     private final PVR pvr;
+    private int scanning = 0;
 
     private UI ui = null;
     private boolean connected = false;
     private Map<String, String> savedPaths = null;
-    private boolean scanning = false;
-    private boolean upnpBrowsing = false;
-    private boolean ftpBrowsing = false;
 
     private Main(Preferences prefs) {
 
@@ -124,10 +122,8 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
 
     public void start() {
         downloader.setDownloadStatusListener(this);
-        pvr.addConnectionListener(this);
-
         savedPaths = getSavedPaths();
-
+        pvr.addDeviceListener(this);
         pvr.start();
         SwingUtilities.invokeLater(this);
     }
@@ -299,7 +295,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void onConnect() {
+    public void onDeviceFound() {
         connected = true;
         if (ui != null) {
             ui.setIconColor(UI.ICON_CONNECTED);
@@ -307,7 +303,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void onDisconnect() {
+    public void onDeviceLost() {
         connected = false;
         if (ui != null) {
             ui.setStartActionStatus(false, false);
@@ -360,29 +356,42 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void onBrowse(PVR.BrowseType type, boolean startStop) {
-        if (!scanning && startStop) {
-            scanning = true;
-            if (ui != null) {
-                ui.setStatus("Scanning ...");
+    public void onBrowseBegin(BrowseType type) {
+        if (ui != null) {
+            switch (type) {
+                case upnp:
+                    ui.setStatus("Scanning via DLNA");
+                    scanning += 1;
+                    break;
+                case ftp:
+                    ui.setStatus("Scanning via FTP");
+                    scanning += 1;
+                    break;
+                default:
+                    log.warn("Unknown browsing type: {}", type);
+                    break;
             }
         }
 
+    }
+
+    @Override
+    public void onBrowseEnd(BrowseType type) {
+
         switch (type) {
             case upnp:
-                upnpBrowsing = startStop;
+                scanning -= 1;
                 break;
             case ftp:
-                ftpBrowsing = startStop;
+                scanning -= 1;
                 break;
             default:
                 log.warn("Unknown browsing type: {}", type);
                 break;
         }
 
-        if (scanning && !upnpBrowsing && !ftpBrowsing) {
+        if (scanning == 0) {
             // Should be done scanning now
-            scanning = false;
             if (ui != null) {
                 ui.setStatus("Scan complete");
             }
