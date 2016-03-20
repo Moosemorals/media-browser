@@ -1,3 +1,4 @@
+
 /*
  * The MIT License
  *
@@ -76,6 +77,7 @@ class UI {
     static final String ACTION_LOCK = "lock";
     static final String ACTION_CHOOSE_DEFAULT = "choose_default";
     static final String ACTION_CHOOSE = "choose";
+    static final String ACTION_RESCAN = "rescan";
     static final String ACTION_REMOVE = "remove";
     static final String ACTION_QUIT = "quit";
     static final String ACTION_TRAY = "tray";
@@ -107,7 +109,7 @@ class UI {
     private final TrayIcon trayIcon;
     private boolean customFont = false;
 
-    private final Action actionAbout, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
+    private final Action actionAbout, actionRescan, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
             actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
@@ -136,6 +138,7 @@ class UI {
         actionChooseDownloadPath = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
         actionQuit = new LocalAction(main, "Exit", ACTION_QUIT);
         actionQueue = new LocalAction(main, "Queue selected", ACTION_QUEUE);
+        actionRescan = new LocalAction(main, "Trigger rescan", ACTION_RESCAN);
         actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_LOCK);
         actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
         actionRestore = new LocalAction(main, "Restore window", ACTION_RESTORE);
