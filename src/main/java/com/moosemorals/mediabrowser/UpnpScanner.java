@@ -51,11 +51,11 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-public class UpnpClient implements Runnable {
+public class UpnpScanner implements Runnable {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
 
-    private final Logger log = LoggerFactory.getLogger(UpnpClient.class);
+    private final Logger log = LoggerFactory.getLogger(UpnpScanner.class);
     private final PVR pvr;
     private final UpnpService upnpService;
     private final AtomicBoolean upnpRunning;
@@ -85,7 +85,7 @@ public class UpnpClient implements Runnable {
     private Thread upnpThread = null;
     private String remoteHostname = null;
 
-    public UpnpClient(PVR pvr) {
+    public UpnpScanner(PVR pvr) {
         this.pvr = pvr;
         upnpService = new UpnpServiceImpl(upnpListener);
         upnpQueue = new ArrayList<>();

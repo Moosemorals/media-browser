@@ -96,13 +96,13 @@ public class PVR implements TreeModel, DeviceListener {
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
-    private final PVRFolder rootFolder = new PVRFolder(null, "", "/");
+    private final PVRFolder rootFolder = new PVRFolder(null, "/", "");
 
-    private final UpnpClient upnpClient;
-    private FtpClient ftpClient;
+    private final UpnpScanner upnpClient;
+    private FtpScanner ftpClient;
 
     PVR() {
-        upnpClient = new UpnpClient(this);
+        upnpClient = new UpnpScanner(this);
     }
 
     @Override
@@ -217,7 +217,7 @@ public class PVR implements TreeModel, DeviceListener {
                     if (child.isFolder()) {
                         return (PVRFolder) child;
                     } else {
-                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.remotePath + ": Already exists as folder");
+                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.getRemotePath() + ": Already exists as folder");
                     }
                 }
             }
@@ -225,7 +225,7 @@ public class PVR implements TreeModel, DeviceListener {
             PVRFolder folder = new PVRFolder(parent, parent.getRemotePath() + folderName + "/", folderName);
             parent.addChild(folder);
 
-            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
+            onUpdateItem(folder);
             return folder;
         }
     }
@@ -237,7 +237,7 @@ public class PVR implements TreeModel, DeviceListener {
                     if (child.isFile()) {
                         return (PVRFile) child;
                     } else {
-                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.remotePath + ": Already exists as file");
+                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.getRemotePath() + ": Already exists as file");
                     }
                 }
             }
@@ -245,7 +245,7 @@ public class PVR implements TreeModel, DeviceListener {
             PVRFile file = new PVRFile(parent, parent.getRemotePath() + filename, filename);
             parent.addChild(file);
 
-            notifyListenersUpdate(new TreeModelEvent(this, parent.getTreePath()));
+            onUpdateItem(file);
             return file;
         }
     }
@@ -265,13 +265,13 @@ public class PVR implements TreeModel, DeviceListener {
 
     @Override
     public void onDeviceFound() {
-        log.debug("Connected to device");
+        log.info("Connected to device");
         notifyConnectionListners(true);
     }
 
     @Override
     public void onDeviceLost() {
-        log.debug("Disconnected from device");
+        log.info("Disconnected from device");
         notifyConnectionListners(false);
         if (ftpClient != null) {
             ftpClient.stop();
@@ -281,17 +281,21 @@ public class PVR implements TreeModel, DeviceListener {
 
     @Override
     public void onBrowseBegin(BrowseType type) {
-        log.debug("Browse for {} started", type);
+        log.info("Browse for {} started", type);
         notifyBrowseListeners(type, true);
+    }
+
+    void onUpdateItem(PVRItem item) {
+        notifyListenersUpdate(new TreeModelEvent(this, item.getParent().getTreePath()));
     }
 
     @Override
     public void onBrowseEnd(BrowseType type) {
-        log.debug("Browse for {} completed", type);
+        log.info("Browse for {} completed", type);
         TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
         notifyListenersUpdate(e);
         if (type == BrowseType.upnp) {
-            ftpClient = new FtpClient(this, upnpClient.getRemoteHostname());
+            ftpClient = new FtpScanner(this, upnpClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
             ftpClient.start();
         }
