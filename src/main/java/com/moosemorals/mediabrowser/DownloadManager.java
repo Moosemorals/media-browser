@@ -32,6 +32,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -59,6 +60,7 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     private final Preferences prefs;
     private final List<PVRFile> queue;
     private final AtomicBoolean running;
+    private boolean renaming = false;
     private final Set<ListDataListener> listDataListeners;
     private Thread downloadThread;
     private DownloadStatusListener status;
@@ -211,7 +213,6 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
                 // done here.
                 if (!running.get() || target.getState() != PVRFile.State.Downloading) {
                     in.close();
-                    notifyListDataListeners();
                     break;
                 }
             }
@@ -252,8 +253,6 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
             // Error status is set above.
             target.setState(PVRFile.State.Paused);
         }
-
-        notifyListDataListeners();
     }
 
     /**
@@ -322,7 +321,70 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     public void changeDownloadPath(List<PVRFile> files, File newPath) {
+        synchronized (queue) {
+            for (PVRFile file : files) {
+                if (queue.contains(file)) {
+                    File oldTarget, newTarget;
+                    switch (file.getState()) {
+                        case Queued:
+                            // Everything is fine, just update the path
+                            oldTarget = file.getLocalPath();
+                            file.setLocalPath(newPath);
+                            log.debug("Changed download path from {} to {}", oldTarget, file.getLocalPath());
+                            break;
 
+                        case Paused:
+                            // Not quite so easy. Need to move the partial file as well
+                            oldTarget = getDownloadTarget(file);
+                            file.setLocalPath(newPath);
+                            newTarget = getDownloadTarget(file);
+
+                            try {
+                                Files.move(oldTarget.toPath(), newTarget.toPath());
+                            } catch (IOException ex) {
+                                log.error("Paused: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                                file.setState(PVRFile.State.Error);
+                            }
+
+                            break;
+                        case Downloading:
+                            // Uh, a little more complicated. Pause the download,
+                            // move the temp file, update the path and restart
+                            // the download.
+                            renaming = true;
+                            stop();
+                            oldTarget = getDownloadTarget(file);
+                            file.setLocalPath(newPath);
+                            newTarget = getDownloadTarget(file);
+
+                            try {
+                                Files.move(oldTarget.toPath(), newTarget.toPath());
+                            } catch (IOException ex) {
+                                log.error("Downloading: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                                file.setState(PVRFile.State.Error);
+                            }
+
+                            renaming = false;
+                            // Restart downloads.
+                            start();
+
+                            break;
+                        case Completed:
+                            // Easy again. Just move the file
+                            oldTarget = getCompletedTarget(file);
+                            file.setLocalPath(newPath);
+                            newTarget = getCompletedTarget(file);
+                            try {
+                                Files.move(oldTarget.toPath(), newTarget.toPath());
+                            } catch (IOException ex) {
+                                log.error("Completed: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                                file.setState(PVRFile.State.Error);
+                            }
+                    }
+                }
+            }
+        }
+        notifyListDataListeners();
     }
 
     /**
@@ -446,6 +508,9 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
      * @return boolean true if there are downloads available, false otherwise.
      */
     public boolean areDownloadsAvailible() {
+        if (renaming) {
+            return true;
+        }
         synchronized (queue) {
             for (PVRFile f : queue) {
                 if (f.getState() == PVRFile.State.Queued || f.getState() == PVRFile.State.Paused) {
@@ -476,6 +541,10 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     }
 
     private void notifyStatusListeners(double rate) {
+        if (renaming) {
+            return;
+        }
+
         if (status == null) {
             return;
         }

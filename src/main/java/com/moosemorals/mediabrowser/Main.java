@@ -211,7 +211,9 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                 List<PVRFile> selected = ui.getListSelected();
                 if (!selected.isEmpty()) {
                     File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
-                    downloader.changeDownloadPath(selected, downloadPath);
+                    if (downloadPath != null) {
+                        downloader.changeDownloadPath(selected, downloadPath);
+                    }
                 }
                 break;
             case UI.ACTION_RESTORE:

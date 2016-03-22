@@ -317,19 +317,14 @@ public class UI {
         downloadList.addMouseMotionListener(new MouseAdapter() {
             @Override
             public void mouseMoved(MouseEvent e) {
-
                 Rectangle listBounds = downloadList.getCellBounds(0, downloadList.getModel().getSize() - 1);
-
                 if (listBounds != null && listBounds.contains(e.getPoint())) {
-
                     int row = downloadList.locationToIndex(e.getPoint());
-
                     PVRItem item = downloadList.getModel().getElementAt(row);
                     if (item.isFile()) {
                         infoBox.setText(buildDescription((PVRFile) item));
                         return;
                     }
-
                 }
                 infoBox.setText("");
             }
@@ -342,9 +337,7 @@ public class UI {
                 actionChooseDownloadPath.setEnabled(false);
                 if (downloadList.getSelectedIndices().length > 0) {
                     actionRemoveSelected.setEnabled(true);
-                    if (!main.isDownloading()) {
-                        actionChooseDownloadPath.setEnabled(true);
-                    }
+                    actionChooseDownloadPath.setEnabled(true);
                 }
             }
         });
