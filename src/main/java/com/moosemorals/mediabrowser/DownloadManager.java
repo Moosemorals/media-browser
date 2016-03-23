@@ -330,6 +330,19 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
                             // Everything is fine, just update the path
                             oldTarget = file.getLocalPath();
                             file.setLocalPath(newPath);
+                            newTarget = getDownloadTarget(file);
+                            if (newTarget.exists()) {
+                                log.debug("{} exists", newTarget);
+                                file.setDownloaded(newTarget.length());
+                                if (newTarget.length() != file.getSize()) {
+                                    file.setState(PVRFile.State.Paused);
+                                } else {
+                                    file.setState(PVRFile.State.Completed);
+                                }
+                            } else {
+                                log.debug("{} doesn't exist", newTarget);
+                                file.setDownloaded(0);
+                            }
                             log.debug("Changed download path from {} to {}", oldTarget, file.getLocalPath());
                             break;
 

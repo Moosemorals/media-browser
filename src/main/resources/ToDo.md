@@ -3,9 +3,8 @@ Tree
   * add queue and download next right click menu item
 
 Download list
-  * add "remove" to right click menu
-  * change "remove" to "delete" for completed 
-
+  * add clear queue  
+  
 Interface
   * Stop showing "Checking", or at least work out why DS9 updates but TV doesn't
 
