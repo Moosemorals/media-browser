@@ -208,9 +208,9 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                 downloader.setDownloadPath(ui.showDirectoryChooser(downloader.getDownloadPath()));
                 break;
             case UI.ACTION_CHOOSE:
-                List<PVRFile> selected = ui.getListSelected();
+                List<DownloadManager.QueueItem> selected = ui.getListSelected();
                 if (!selected.isEmpty()) {
-                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
+                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getTarget().getLocalPath());
                     if (downloadPath != null) {
                         downloader.changeDownloadPath(selected, downloadPath);
                     }
@@ -352,11 +352,12 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     private void savePaths() {
-        List<PVRFile> queue = downloader.getQueue();
+        List<DownloadManager.QueueItem> queue = downloader.getQueue();
 
         int count = 0;
 
-        for (PVRFile file : queue) {
+        for (DownloadManager.QueueItem item : queue) {
+            PVRFile file = item.getTarget();
             if (file.getState() == State.Downloading || file.getState() == State.Paused || file.getState() == State.Queued) {
                 preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
                 preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());

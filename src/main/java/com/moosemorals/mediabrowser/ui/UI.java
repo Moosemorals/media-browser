@@ -99,7 +99,7 @@ public class UI {
     private final JButton startButton;
     private final JFrame window;
     private final JLabel statusLabel;
-    private final JList<PVRFile> downloadList;
+    private final JList<DownloadManager.QueueItem> downloadList;
     private final JSplitPane horizontalSplitPane;
     private final JSplitPane verticalSplitPane;
     private final JTextArea infoBox;
@@ -320,9 +320,12 @@ public class UI {
                 Rectangle listBounds = downloadList.getCellBounds(0, downloadList.getModel().getSize() - 1);
                 if (listBounds != null && listBounds.contains(e.getPoint())) {
                     int row = downloadList.locationToIndex(e.getPoint());
-                    PVRItem item = downloadList.getModel().getElementAt(row);
-                    if (item.isFile()) {
-                        infoBox.setText(buildDescription((PVRFile) item));
+                    DownloadManager.QueueItem item = downloadList.getModel().getElementAt(row);
+
+                    PVRFile target = item.getTarget();
+
+                    if (target.isFile()) {
+                        infoBox.setText(buildDescription((PVRFile) target));
                         return;
                     }
                 }
@@ -654,7 +657,7 @@ public class UI {
      *
      * @return List of PVRFile selected items.
      */
-    public List<PVRFile> getListSelected() {
+    public List<DownloadManager.QueueItem> getListSelected() {
         return downloadList.getSelectedValuesList();
     }
 
