@@ -27,6 +27,7 @@ import java.awt.EventQueue;
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.event.TreeModelEvent;
 import javax.swing.event.TreeModelListener;
 import javax.swing.tree.TreeModel;
@@ -97,12 +98,13 @@ public class PVR implements TreeModel, DeviceListener {
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "/", "");
-
+    private final AtomicBoolean running;
     private final UpnpScanner upnpClient;
     private FtpScanner ftpClient;
 
     PVR() {
         upnpClient = new UpnpScanner(this);
+        running = new AtomicBoolean(false);
     }
 
     @Override
@@ -167,21 +169,25 @@ public class PVR implements TreeModel, DeviceListener {
      * returns. New devices will be reported asynchronously..
      */
     public void start() {
-        upnpClient.addDeviceListener(this);
-        upnpClient.startSearch();
+        if (running.compareAndSet(false, true)) {
+            upnpClient.addDeviceListener(this);
+            upnpClient.startSearch();
+        }
     }
 
     /**
      * Stop any running threads and tidy up.
      */
     public void stop() {
-        upnpClient.stop();
-        if (ftpClient != null) {
-            ftpClient.stop();
-        }
+        if (running.compareAndSet(true, false)) {
+            upnpClient.stop();
+            if (ftpClient != null) {
+                ftpClient.stop();
+            }
 
-        rootFolder.clearChildren();
-        notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+            rootFolder.clearChildren();
+            notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+        }
     }
 
     public void treeWalk(TreeWalker walker) {
@@ -294,7 +300,7 @@ public class PVR implements TreeModel, DeviceListener {
         log.info("Browse for {} completed", type);
         TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
         notifyListenersUpdate(e);
-        if (type == BrowseType.upnp) {
+        if (running.get() && type == BrowseType.upnp) {
             ftpClient = new FtpScanner(this, upnpClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
             ftpClient.start();
