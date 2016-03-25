@@ -23,7 +23,6 @@
  */
 package com.moosemorals.mediabrowser;
 
-import java.io.File;
 import org.joda.time.DateTime;
 import org.joda.time.Duration;
 import org.slf4j.Logger;
@@ -36,17 +35,15 @@ import org.slf4j.LoggerFactory;
 public class PVRFile extends PVRItem {
 
     private final Logger log = LoggerFactory.getLogger(PVRFile.class);
-    State state;
+
     boolean upnp = false;
     boolean ftp = false;
     long size = -1;
-    long downloaded = -1;
+
     String remoteURL = null;
     String description = "";
     String title = "";
     String channelName = "Unknown";
-    File localPath = null;
-    String localFilename = null;
     DateTime startTime;
     DateTime endTime;
     Duration length;
@@ -55,9 +52,7 @@ public class PVRFile extends PVRItem {
 
     protected PVRFile(PVRFolder parent, String path, String filename) {
         super(parent, path, filename);
-        state = State.Ready;
         title = filename;
-        localFilename = filename;
     }
 
     @Override
@@ -91,15 +86,6 @@ public class PVRFile extends PVRItem {
     }
 
     /**
-     * Sets the queue state of this file.
-     *
-     * @param newState
-     */
-    void setState(State newState) {
-        this.state = newState;
-    }
-
-    /**
      * Sets the human readable title of this file.
      *
      * @param title String human readable title.
@@ -118,79 +104,12 @@ public class PVRFile extends PVRItem {
     }
 
     /**
-     * Set the local folder where this file should be saved.
-     *
-     * @param localPath File local folder
-     * @throws IllegalArgumentException if localPath is not a folder.
-     */
-    void setLocalPath(File localPath) {
-        if (!localPath.isDirectory()) {
-            throw new IllegalArgumentException(localPath + " is not a folder");
-        }
-        this.localPath = localPath;
-    }
-
-    /**
-     * Get the local folder where this file should be saved.
-     *
-     * @return File local folder
-     */
-    public File getLocalPath() {
-        return localPath;
-    }
-
-    /**
-     * Get the filename that will be used when this file is saved locally.
-     *
-     * @return String local filename
-     */
-    public String getLocalFilename() {
-        return localFilename;
-    }
-
-    /**
-     * Set the local filename to use when saving this file locally.
-     *
-     * @param localFilename local filename
-     */
-    void setLocalFilename(String localFilename) {
-        this.localFilename = localFilename;
-    }
-
-    /**
-     * Get the current queue/download state.
-     *
-     * @return
-     */
-    public State getState() {
-        return state;
-    }
-
-    /**
      * Set the size of this file, in bytes.
      *
      * @param size long size of file, in bytes.
      */
     void setSize(long size) {
         this.size = size;
-    }
-
-    /**
-     * Get how many bytes of this file have been downloaded.
-     *
-     * @return long downloaded bytes.
-     */
-    public long getDownloaded() {
-        return downloaded;
-    }
-
-    /**
-     * Set how many bytes of this file have been downloaded.
-     *
-     * @param downloaded
-     */
-    void setDownloaded(long downloaded) {
-        this.downloaded = downloaded;
     }
 
     /**
@@ -375,61 +294,6 @@ public class PVRFile extends PVRItem {
 
     void setFtp(boolean ftp) {
         this.ftp = ftp;
-    }
-
-    @Override
-    public String toString() {
-        StringBuilder result = new StringBuilder();
-        result.append(title);
-        result.append(": ");
-        switch (state) {
-            case Ready:
-                result.append(PVR.humanReadableSize(size));
-                break;
-            case Queued:
-                result.append(PVR.humanReadableSize(size)).append(" Queued");
-                break;
-            case Downloading:
-                result.append(String.format("%s of %s (%3.0f%%) Downloading", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
-                break;
-            case Paused:
-                result.append(String.format("%s of %s (%3.0f%%) Paused", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
-                break;
-            case Completed:
-                result.append(PVR.humanReadableSize(downloaded)).append(" Completed");
-                break;
-            case Error:
-                result.append(String.format("%s of %s (%3.0f%%) Broken", PVR.humanReadableSize(downloaded), PVR.humanReadableSize(size), (downloaded / (double) size) * 100.0));
-                break;
-        }
-        return result.toString();
-    }
-
-    /**
-     * Indicates the queued/downloading state of a file.
-     */
-    public static enum State {
-        /**
-         * Found, in the tree, but not queued.
-         */
-        Ready, /**
-         * In the download queue.
-         */
-        Queued, /**
-         * Currently downloading. Should only be one PVRFile in this state.
-         *
-         */
-        Downloading, /**
-         * Download started, but not finished. Proabably means theres a
-         * '.partial' file in the localPath folder.
-         */
-        Paused, /**
-         * File has downloaded succesfully. At least, as far as we can tell....
-         */
-        Completed, /**
-         * The file got broken somehow.
-         */
-        Error
     }
 
 }

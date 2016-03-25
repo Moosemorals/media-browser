@@ -112,14 +112,26 @@ class QueueItemTransferHandler extends TransferHandler {
             if (selectionPaths == null) {
                 return null;
             }
+            DownloadManager dm = DownloadManager.getInstance();
             for (TreePath p : selectionPaths) {
                 Object o = p.getLastPathComponent();
                 if (o instanceof PVRFile) {
-                    files.add(new QueueItem((PVRFile) o));
+                    PVRFile target = (PVRFile) o;
+
+                    if (dm.isQueuable(target)) {
+                        QueueItem item = dm.createQueueItem(target, null);
+                        item.checkTarget();
+                        files.add(item);
+                    }
                 }
             }
             ((JTree) c).clearSelection();
-            return new QueueItemTransferable(files);
+            if (files.size() > 0) {
+                return new QueueItemTransferable(files);
+            } else {
+                log.debug("Nothing to transfer");
+                return null;
+            }
         } else {
             log.warn("Unexpected data souce component {}", c);
             return null;

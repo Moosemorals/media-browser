@@ -23,7 +23,8 @@
  */
 package com.moosemorals.mediabrowser;
 
-import com.moosemorals.mediabrowser.PVRFile.State;
+import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
+import com.moosemorals.mediabrowser.DownloadManager.QueueItem.State;
 import com.moosemorals.mediabrowser.ui.About;
 import com.moosemorals.mediabrowser.ui.UI;
 import java.awt.TrayIcon;
@@ -200,7 +201,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                             pvr.unlockFile(file);
                         } catch (IOException ex) {
                             log.error("Problem unlocking " + file.remotePath + "/" + file.remoteFilename + ": " + ex.getMessage(), ex);
-                            file.setState(PVRFile.State.Error);
+                            // TODO: Show error?
                         }
                     }
                 }
@@ -211,7 +212,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
             case UI.ACTION_CHOOSE:
                 List<DownloadManager.QueueItem> selected = ui.getListSelected();
                 if (!selected.isEmpty()) {
-                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getTarget().getLocalPath());
+                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
                     if (downloadPath != null) {
                         downloader.changeDownloadPath(selected, downloadPath);
                     }
@@ -290,9 +291,9 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void downloadCompleted(PVRFile target) {
+    public void downloadCompleted(QueueItem item) {
         if (preferences.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
-            String message = String.format("%s has downloaded to %s/%s.ts", target.getTitle(), target.getLocalPath(), target.getLocalFilename());
+            String message = String.format("%s has downloaded to %s/%s.ts", item.getTarget().getTitle(), item.getLocalPath(), item.getLocalFilename());
             ui.showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
         }
     }
@@ -353,14 +354,14 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     private void savePaths() {
-        List<DownloadManager.QueueItem> queue = downloader.getQueue();
+        List<QueueItem> queue = downloader.getQueue();
 
         int count = 0;
 
-        for (DownloadManager.QueueItem item : queue) {
+        for (QueueItem item : queue) {
             PVRFile file = item.getTarget();
-            if (file.getState() == State.Downloading || file.getState() == State.Paused || file.getState() == State.Queued) {
-                preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, file.getLocalPath().getPath());
+            if (item.getState() == State.Downloading || item.getState() == State.Paused || item.getState() == State.Queued) {
+                preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, item.getLocalPath().getPath());
                 preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
                 count += 1;
             }
@@ -417,9 +418,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                         PVRFile file = (PVRFile) item;
                         String remotePath = file.getRemotePath();
                         if (savedPaths.containsKey(remotePath)) {
-                            String localPath = savedPaths.get(remotePath);
-                            file.setLocalPath(new File(localPath));
-                            downloader.add(file);
+                            downloader.add(file, savedPaths.get(remotePath));
                         }
                     }
                     if (ui != null) {

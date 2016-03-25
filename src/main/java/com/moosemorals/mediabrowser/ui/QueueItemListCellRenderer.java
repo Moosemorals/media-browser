@@ -92,14 +92,14 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
             throw new RuntimeException("File is null!");
         }
 
-        int scaledSize = (int) (file.getSize() / PVR.MEGA);
-        int scaledDownload = (int) (file.getDownloaded() / PVR.MEGA);
+        int scaledSize = (int) (item.getSize() / PVR.MEGA);
+        int scaledDownload = (int) (item.getDownloaded() / PVR.MEGA);
 
         progress.setMaximum(scaledSize);
         progress.setValue(scaledDownload);
 
         String state;
-        switch (file.getState()) {
+        switch (item.getState()) {
             case Queued:
                 state = "Queued";
                 break;
@@ -118,7 +118,7 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
             case Ready:
             // Shoudn't need this one, drop through to default
             default:
-                log.warn("Unexpedted state {}", file.getState());
+                log.warn("Unexpedted state {}", item.getState());
                 state = "Unknown";
         }
 
@@ -127,9 +127,9 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
         String title = new StringBuilder()
                 .append(file.getTitle())
                 .append(" → ")
-                .append(file.getLocalPath().getPath())
+                .append(item.getLocalPath().getPath())
                 .append("/")
-                .append(file.getLocalFilename())
+                .append(item.getLocalFilename())
                 .toString();
 
         text.setText(title);

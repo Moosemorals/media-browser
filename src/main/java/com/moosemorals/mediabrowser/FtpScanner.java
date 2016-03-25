@@ -238,7 +238,6 @@ public class FtpScanner implements Runnable {
             file.setLocked(hmt.isLocked());
             file.setChannelName(hmt.getChannelName());
             file.setFtp(true);
-            file.setLocalFilename(String.format("%s - %s - [%s - Freeview - %s] UNEDITED", file.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"), PVR.FILE_DATE_FORMAT.print(file.getStartTime()), file.isHighDef() ? "1920\u00d71080" : "SD", file.getChannelName()));
             pvr.onUpdateItem(file);
         }
     }
