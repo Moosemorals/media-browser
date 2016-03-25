@@ -116,7 +116,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
         });
 
         pvr = new PVR();
-        downloader = new DownloadManager(preferences);
+        downloader = new DownloadManager(this);
         rateTracker = new RateTracker(15);
     }
 
@@ -310,6 +310,15 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
         if (ui != null) {
             ui.setStartActionStatus(false, false);
             ui.setIconColor(UI.ICON_DISCONNECTED);
+        }
+    }
+
+    public boolean askYesNoQuestion(String question) {
+        if (ui != null) {
+            return ui.askYesNoQuestion(question);
+        } else {
+            log.warn("Asking question [{}] but no UI.", question);
+            return false;
         }
     }
 

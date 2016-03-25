@@ -606,6 +606,10 @@ public class UI {
         }
     }
 
+    public boolean askYesNoQuestion(String question) {
+        return JOptionPane.showConfirmDialog(window, question, "Question", JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION;
+    }
+
     /**
      * Show a {@link javax.swing.JFileChooser} to pick a directory.
      *

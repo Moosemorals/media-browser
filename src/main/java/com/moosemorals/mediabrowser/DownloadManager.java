@@ -57,6 +57,7 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
 
     private static final int BUFFER_SIZE = 1024 * 4;
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
+    private final Main main;
     private final Preferences prefs;
     private final List<PVRFile> queue;
     private final AtomicBoolean running;
@@ -65,8 +66,9 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
     private Thread downloadThread;
     private DownloadStatusListener status;
 
-    DownloadManager(Preferences prefs) {
-        this.prefs = prefs;
+    DownloadManager(Main main) {
+        this.main = main;
+        this.prefs = main.getPreferences();
         this.queue = new ArrayList<>();
         this.running = new AtomicBoolean(false);
         this.listDataListeners = new HashSet<>();
@@ -324,13 +326,22 @@ public class DownloadManager implements ListModel<PVRFile>, Runnable {
         synchronized (queue) {
             for (PVRFile file : files) {
                 if (queue.contains(file)) {
-                    File oldTarget, newTarget;
+                    File oldTarget, newTarget, newComplete;
+
+                    newComplete = getCompletedTarget(file);
+
+                    if (newComplete.exists() && !main.askYesNoQuestion("Target file already exists, overwrite?")) {
+                        continue;
+                    }
+
                     switch (file.getState()) {
                         case Queued:
                             // Everything is fine, just update the path
+
                             oldTarget = file.getLocalPath();
                             file.setLocalPath(newPath);
                             newTarget = getDownloadTarget(file);
+
                             if (newTarget.exists()) {
                                 log.debug("{} exists", newTarget);
                                 file.setDownloaded(newTarget.length());
