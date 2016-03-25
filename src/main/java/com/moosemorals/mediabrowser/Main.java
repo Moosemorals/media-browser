@@ -125,6 +125,7 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     public void start() {
         downloader.setDownloadStatusListener(this);
         savedPaths = getSavedPaths();
+        clearSavedPaths();
         pvr.addDeviceListener(this);
         pvr.start();
         SwingUtilities.invokeLater(this);
@@ -375,11 +376,11 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
             switch (type) {
                 case upnp:
                     ui.setStatus("Scanning via DLNA");
-                    scanning += 1;
+
                     break;
                 case ftp:
                     ui.setStatus("Scanning via FTP");
-                    scanning += 1;
+
                     break;
                 default:
                     log.warn("Unknown browsing type: {}", type);
@@ -394,22 +395,21 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
 
         switch (type) {
             case upnp:
-                scanning -= 1;
+                scanning += 1;
                 break;
             case ftp:
-                scanning -= 1;
+                scanning += 1;
                 break;
             default:
                 log.warn("Unknown browsing type: {}", type);
                 break;
         }
 
-        if (scanning == 0) {
+        if (scanning == 2) {
             // Should be done scanning now
             if (ui != null) {
                 ui.setStatus("Scan complete");
             }
-            clearSavedPaths();
 
             pvr.treeWalk(new PVR.TreeWalker() {
                 @Override
@@ -421,17 +421,18 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                             downloader.add(file, savedPaths.get(remotePath));
                         }
                     }
-                    if (ui != null) {
-                        SwingUtilities.invokeLater(new Runnable() {
-                            @Override
-                            public void run() {
-                                ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
-                                ui.refresh();
-                            }
-                        });
-                    }
                 }
             });
+
+            if (ui != null) {
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+                        ui.refresh();
+                    }
+                });
+            }
         }
     }
 

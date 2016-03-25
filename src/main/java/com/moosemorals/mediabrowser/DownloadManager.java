@@ -53,7 +53,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
+public final class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
 
     private static final int BUFFER_SIZE = 1024 * 4;
     private static DownloadManager instance;
@@ -82,7 +82,7 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
         return instance;
     }
 
-    public static DownloadManager createInstance(Main main) {
+    static DownloadManager createInstance(Main main) {
         instance = new DownloadManager(main);
         return instance;
     }

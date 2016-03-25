@@ -81,10 +81,11 @@ public class PVRFolder extends PVRItem {
      *
      * @param child PVRItem child to add
      */
-    void addChild(PVRItem child) {
+    int addChild(PVRItem child) {
         synchronized (children) {
             children.add(child);
             Collections.sort(children);
+            return children.indexOf(child);
         }
     }
 
@@ -97,6 +98,12 @@ public class PVRFolder extends PVRItem {
     public PVRItem getChild(int index) {
         synchronized (children) {
             return children.get(index);
+        }
+    }
+
+    public int getChildIndex(PVRItem child) {
+        synchronized (children) {
+            return children.indexOf(child);
         }
     }
 

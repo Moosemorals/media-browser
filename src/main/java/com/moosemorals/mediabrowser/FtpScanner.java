@@ -158,7 +158,7 @@ public class FtpScanner implements Runnable {
                 disconnect();
             }
         }
-        pvr.onUpdateItem(target);
+        pvr.updateItem(target);
     }
 
     /**
@@ -202,7 +202,7 @@ public class FtpScanner implements Runnable {
             List<PVRFolder> queue = new ArrayList<>();
             queue.add((PVRFolder) pvr.getRoot());
 
-            while (!(queue.isEmpty() || !ftpThread.isInterrupted())) {
+            while (!queue.isEmpty() && !ftpThread.isInterrupted()) {
                 PVRFolder directory = queue.remove(0);
                 if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getRemotePath())) {
                     throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getRemotePath());
@@ -214,11 +214,13 @@ public class FtpScanner implements Runnable {
                     }
                     if (f.isDirectory()) {
                         PVRFolder next = pvr.addFolder(directory, f.getName());
+                        pvr.updateItem(next);
                         queue.add(next);
                     } else if (f.isFile() && f.getName().endsWith(".ts")) {
                         PVRFile file = pvr.addFile(directory, f.getName());
                         file.setSize(f.getSize());
                         updateFromHMT(file);
+                        pvr.updateItem(file);
                     }
                 }
             }
@@ -239,7 +241,6 @@ public class FtpScanner implements Runnable {
             file.setLocked(hmt.isLocked());
             file.setChannelName(hmt.getChannelName());
             file.setFtp(true);
-            pvr.onUpdateItem(file);
         }
     }
 
@@ -288,4 +289,5 @@ public class FtpScanner implements Runnable {
             }
         }
     }
+
 }

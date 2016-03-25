@@ -24,12 +24,13 @@
 package com.moosemorals.mediabrowser.ui;
 
 import com.moosemorals.mediabrowser.PVR;
+import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import com.moosemorals.mediabrowser.PVRFile;
 import com.moosemorals.mediabrowser.PVRFolder;
 import com.moosemorals.mediabrowser.PVRItem;
-import static com.moosemorals.mediabrowser.PVR.PERIOD_FORMAT;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Dimension;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.image.BufferedImage;
@@ -46,8 +47,6 @@ import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.tree.TreeCellRenderer;
 import org.joda.time.Duration;
-import org.joda.time.format.DateTimeFormat;
-import org.joda.time.format.DateTimeFormatter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -57,7 +56,6 @@ import org.slf4j.LoggerFactory;
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
 class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRenderer {
-
 
     private static final int LOCK_PADDING = 4;
 
@@ -171,19 +169,13 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
             StringBuilder title = new StringBuilder()
                     .append(folder.getRemoteFilename())
-                    .append(": ");
-
-            if (folder.getSize() >= 0) {
-                title.append(PVR.humanReadableSize(folder.getSize()))
-                        .append(" (")
-                        .append(folder.getChildCount())
-                        .append(" item")
-                        .append(folder.getChildCount() == 1 ? "" : "s")
-                        .append(")");
-
-            } else {
-                title.append("Checking...");
-            }
+                    .append(": ")
+                    .append(PVR.humanReadableSize(folder.getSize()))
+                    .append(" (")
+                    .append(folder.getChildCount())
+                    .append(" item")
+                    .append(folder.getChildCount() == 1 ? "" : "s")
+                    .append(")");
 
             text.setText(title.toString());
         }
@@ -206,6 +198,12 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             setBackground(UIManager.getColor("Tree.textBackground"));
             text.setForeground(UIManager.getColor("Tree.textForeground"));
         }
+
+        Dimension preferredSize = getPreferredSize();
+
+        preferredSize.width = tree.getWidth();
+
+        setSize(preferredSize);
 
         return this;
     }

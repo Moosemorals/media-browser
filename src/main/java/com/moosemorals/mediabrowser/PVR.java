@@ -90,8 +90,10 @@ public class PVR implements TreeModel, DeviceListener {
             return String.format(SIZE_FORMAT, size / MEGA, "M");
         } else if (size > KILO) {
             return String.format(SIZE_FORMAT, size / MEGA, "k");
-        } else {
+        } else if (size >= 0) {
             return String.format("%db", size);
+        } else {
+            return "-b";
         }
     }
 
@@ -186,7 +188,7 @@ public class PVR implements TreeModel, DeviceListener {
             }
 
             rootFolder.clearChildren();
-            notifyListenersUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
+            notifyTreeStructureUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
         }
     }
 
@@ -231,7 +233,8 @@ public class PVR implements TreeModel, DeviceListener {
             PVRFolder folder = new PVRFolder(parent, parent.getRemotePath() + folderName + "/", folderName);
             parent.addChild(folder);
 
-            onUpdateItem(folder);
+            notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(folder)}, new Object[]{folder}));
+            notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
             return folder;
         }
     }
@@ -251,18 +254,45 @@ public class PVR implements TreeModel, DeviceListener {
             PVRFile file = new PVRFile(parent, parent.getRemotePath() + filename, filename);
             parent.addChild(file);
 
-            onUpdateItem(file);
+            notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(file)}, new Object[]{file}));
+            notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
             return file;
         }
     }
 
-    void notifyListenersUpdate(final TreeModelEvent e) {
+    void notifyTreeNodeInserted(final TreeModelEvent e) {
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (treeModelListeners) {
+                    for (final TreeModelListener l : treeModelListeners) {
+                        l.treeNodesInserted(e);
+                    }
+                }
+            }
+        });
+    }
+
+    void notifyTreeStructureUpdate(final TreeModelEvent e) {
         EventQueue.invokeLater(new Runnable() {
             @Override
             public void run() {
                 synchronized (treeModelListeners) {
                     for (final TreeModelListener l : treeModelListeners) {
                         l.treeStructureChanged(e);
+                    }
+                }
+            }
+        });
+    }
+
+    void notifyTreeNodeChanged(final TreeModelEvent e) {
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (treeModelListeners) {
+                    for (final TreeModelListener l : treeModelListeners) {
+                        l.treeNodesChanged(e);
                     }
                 }
             }
@@ -291,15 +321,20 @@ public class PVR implements TreeModel, DeviceListener {
         notifyBrowseListeners(type, true);
     }
 
-    void onUpdateItem(PVRItem item) {
-        notifyListenersUpdate(new TreeModelEvent(this, item.getParent().getTreePath()));
+    void updateItem(PVRItem item) {
+
+        while (!item.equals(rootFolder)) {
+            notifyTreeNodeChanged(new TreeModelEvent(this, item.getParent().getTreePath(), new int[]{item.getParent().getChildIndex(item)}, new Object[]{item}));
+
+            item = item.getParent();
+
+        }
+
     }
 
     @Override
     public void onBrowseEnd(BrowseType type) {
         log.info("Browse for {} completed", type);
-        TreeModelEvent e = new TreeModelEvent(this, rootFolder.getTreePath());
-        notifyListenersUpdate(e);
         if (running.get() && type == BrowseType.upnp) {
             ftpClient = new FtpScanner(this, upnpClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
@@ -341,6 +376,7 @@ public class PVR implements TreeModel, DeviceListener {
                     l.onDeviceFound();
                 } else {
                     l.onDeviceLost();
+
                 }
             }
         }

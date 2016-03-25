@@ -188,10 +188,12 @@ public class UpnpScanner implements Runnable {
 
             for (Container c : containers) {
                 PVRFolder folder = pvr.addFolder(parent, c.getTitle());
+                pvr.updateItem(folder);
                 synchronized (upnpQueue) {
                     upnpQueue.add(new DeviceBrowse(service, c.getId(), folder));
                     upnpQueue.notifyAll();
                 }
+
             }
             List<Item> items = didl.getItems();
 
@@ -204,7 +206,7 @@ public class UpnpScanner implements Runnable {
                 if (res != null) {
                     file.setRemoteURL(res.getValue());
                 }
-
+                pvr.updateItem(file);
             }
             synchronized (flag) {
                 flag.notifyAll();

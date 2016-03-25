@@ -325,7 +325,7 @@ public class UI {
                     PVRFile target = item.getTarget();
 
                     if (target.isFile()) {
-                        infoBox.setText(buildDescription((PVRFile) target));
+                        infoBox.setText(buildDescription(target));
                         return;
                     }
                 }
@@ -346,7 +346,7 @@ public class UI {
         });
 
         displayTree = new JTree();
-
+        displayTree.setLargeModel(true);
         displayTree.setModel(pvr);
         displayTree.setCellRenderer(new PVRFileTreeCellRenderer());
         displayTree.setRootVisible(false);
