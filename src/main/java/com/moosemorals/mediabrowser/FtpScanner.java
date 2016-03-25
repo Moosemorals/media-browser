@@ -104,6 +104,7 @@ public class FtpScanner implements Runnable {
             try {
                 log.info("Waitng for ftpThread to finish");
                 ftpThread.join();
+
             } catch (InterruptedException ex) {
                 log.error("Unexpected interruption waiting for ftpThread to finish");
             }
@@ -201,7 +202,7 @@ public class FtpScanner implements Runnable {
             List<PVRFolder> queue = new ArrayList<>();
             queue.add((PVRFolder) pvr.getRoot());
 
-            while (!queue.isEmpty()) {
+            while (!(queue.isEmpty() || !ftpThread.isInterrupted())) {
                 PVRFolder directory = queue.remove(0);
                 if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getRemotePath())) {
                     throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getRemotePath());
