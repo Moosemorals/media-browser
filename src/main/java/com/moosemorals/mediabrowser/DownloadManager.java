@@ -65,7 +65,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     private final AtomicBoolean running;
     private final Set<ListDataListener> listDataListeners;
 
-    private boolean renaming = false;
     private Thread downloadThread;
     private DownloadStatusListener status;
     private QueueItem current;
@@ -392,12 +391,9 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      * @return boolean true if there are downloads available, false otherwise.
      */
     public boolean areDownloadsAvailible() {
-        if (renaming) {
-            return true;
-        }
         synchronized (queue) {
             for (QueueItem i : queue) {
-                if (i.getState() == QueueItem.State.Queued || i.getState() == QueueItem.State.Paused) {
+                if (i.getState() == QueueItem.State.Queued || i.getState() == QueueItem.State.Paused || i.getState() == QueueItem.State.Moving) {
                     return true;
                 }
             }
@@ -425,9 +421,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     private void notifyStatusListeners(double rate) {
-        if (renaming) {
-            return;
-        }
 
         if (status == null) {
             return;
@@ -696,6 +689,19 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 return;
             }
 
+            // Check for move
+            if (getState() == State.Moving) {
+
+                try {
+                    Files.move(downloadTarget.toPath(), getDownloadTarget().toPath());
+                    setState(State.Paused);
+                } catch (IOException ex) {
+                    log.error("Downloading: Rename from [{}] to [{}] failed: {}", downloadTarget, getDownloadTarget(), ex, ex.getMessage());
+                    setState(State.Error);
+                }
+
+            }
+
             // Assume that if the file on disk is the same size as the
             // file we were told about then then file has downloaded
             // ok. Oh, for some kind of hash from the remote end.
@@ -750,38 +756,17 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
                 case Paused:
                     // Not quite so easy. Need to move the partial file as well
-                    oldTarget = getDownloadTarget();
                     setLocalPath(newPath);
-                    newTarget = getDownloadTarget();
-
-                    try {
-                        Files.move(oldTarget.toPath(), newTarget.toPath());
-                    } catch (IOException ex) {
-                        log.error("Paused: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                        setState(State.Error);
-                    }
+                    setState(State.Moving);
 
                     break;
                 case Downloading:
                     // Uh, a little more complicated. Pause the download,
                     // move the temp file, update the path and restart
                     // the download.
-                    parent.renaming = true;
-                    parent.stop();
-                    oldTarget = getDownloadTarget();
+
                     setLocalPath(newPath);
-                    newTarget = getDownloadTarget();
-
-                    try {
-                        Files.move(oldTarget.toPath(), newTarget.toPath());
-                    } catch (IOException ex) {
-                        log.error("Downloading: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                        setState(State.Error);
-                    }
-
-                    parent.renaming = false;
-                    // Restart downloads.
-                    parent.start();
+                    setState(State.Moving);
 
                     break;
                 case Completed:
@@ -838,7 +823,13 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
              * Download started, but not finished. Proabably means theres a
              * '.partial' file in the localPath folder.
              */
-            Paused, /**
+            Paused,
+            /**
+             * File is being moved.
+             *
+             */
+            Moving,
+            /**
              * File has downloaded succesfully. At least, as far as we can
              * tell....
              */

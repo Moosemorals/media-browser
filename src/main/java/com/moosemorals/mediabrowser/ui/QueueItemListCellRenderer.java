@@ -94,7 +94,7 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
 
         int scaledSize = (int) (item.getSize() / PVR.MEGA);
         int scaledDownload = (int) (item.getDownloaded() / PVR.MEGA);
-
+        progress.setIndeterminate(false);
         progress.setMaximum(scaledSize);
         progress.setValue(scaledDownload);
 
@@ -115,8 +115,10 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
             case Completed:
                 state = "Done";
                 break;
-            case Ready:
-            // Shoudn't need this one, drop through to default
+            case Moving:
+                state = "Moving";
+                progress.setIndeterminate(true);
+                break;
             default:
                 log.warn("Unexpedted state {}", item.getState());
                 state = "Unknown";
