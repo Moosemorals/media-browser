@@ -23,8 +23,7 @@
  */
 package com.moosemorals.mediabrowser.ui;
 
-import com.moosemorals.mediabrowser.PVRFile;
-import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.DownloadManager;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -41,26 +40,26 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileTransferable implements Transferable {
+class QueueItemTransferable implements Transferable {
 
-    static final DataFlavor PVRFileFlavor = new DataFlavor(PVRFile.class, "java/x-com-moosemorals-mediabrowser-PVRFile");
+    static final DataFlavor QueueItemFlavor = new DataFlavor(DownloadManager.QueueItem.class, "java/x-com-moosemorals-mediabrowser-QueueItem");
 
-    private final Logger log = LoggerFactory.getLogger(PVRFileTransferable.class);
+    private final Logger log = LoggerFactory.getLogger(QueueItemTransferable.class);
 
-    List<PVRFile> items;
+    List<DownloadManager.QueueItem> items;
 
-    PVRFileTransferable(List<PVRFile> item) {
+    QueueItemTransferable(List<DownloadManager.QueueItem> item) {
         this.items = item;
     }
 
     @Override
     public DataFlavor[] getTransferDataFlavors() {
-        return new DataFlavor[]{PVRFileFlavor};
+        return new DataFlavor[]{QueueItemFlavor};
     }
 
     @Override
     public boolean isDataFlavorSupported(DataFlavor flavor) {
-        return PVRFileFlavor.equals(flavor);
+        return QueueItemFlavor.equals(flavor);
     }
 
     @Override

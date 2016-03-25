@@ -285,10 +285,10 @@ public class UI {
         statusPanel.add(statusLabel);
 
         downloadList = new JList(downloader);
-        downloadList.setCellRenderer(new PVRFileListCellRenderer());
+        downloadList.setCellRenderer(new QueueItemListCellRenderer());
         downloadList.setDragEnabled(true);
         downloadList.setDropMode(DropMode.INSERT);
-        downloadList.setTransferHandler(new PVRFileTransferHandler());
+        downloadList.setTransferHandler(new QueueItemTransferHandler());
 
         downloadList.addMouseListener(new MouseAdapter() {
 
@@ -352,7 +352,7 @@ public class UI {
         displayTree.setRootVisible(false);
         displayTree.setShowsRootHandles(true);
         displayTree.setDragEnabled(true);
-        displayTree.setTransferHandler(new PVRFileTransferHandler());
+        displayTree.setTransferHandler(new QueueItemTransferHandler());
         displayTree.setDropTarget(null);
 
         displayTree.addMouseListener(new MouseAdapter() {

@@ -35,6 +35,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -55,23 +56,35 @@ import org.slf4j.LoggerFactory;
 public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
 
     private static final int BUFFER_SIZE = 1024 * 4;
+    private static DownloadManager instance;
+
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
     private final Main main;
     private final Preferences prefs;
     private final List<QueueItem> queue;
     private final AtomicBoolean running;
-    private boolean renaming = false;
     private final Set<ListDataListener> listDataListeners;
+
+    private boolean renaming = false;
     private Thread downloadThread;
     private DownloadStatusListener status;
     private QueueItem current;
 
-    DownloadManager(Main main) {
+    private DownloadManager(Main main) {
         this.main = main;
         this.prefs = main.getPreferences();
         this.queue = new ArrayList<>();
         this.running = new AtomicBoolean(false);
         this.listDataListeners = new HashSet<>();
+    }
+
+    public static DownloadManager getInstance() {
+        return instance;
+    }
+
+    public static DownloadManager createInstance(Main main) {
+        instance = new DownloadManager(main);
+        return instance;
     }
 
     void start() {
@@ -134,7 +147,7 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
 
                 current = next;
                 try {
-                    next.run();
+                    next.download();
                 } catch (IOException ex) {
                     log.error("Unexpected issue with download: {}", ex.getMessage(), ex);
                     next.getTarget().setState(PVRFile.State.Error);
@@ -205,12 +218,13 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
         }
 
         synchronized (queue) {
-            if (queue.contains(target)) {
-                // already queued
-                return false;
+            for (QueueItem item : queue) {
+                if (item.getTarget().equals(target)) {
+                    return false;
+                }
             }
 
-            queue.add(new DownloadQueueItem(this, target));
+            queue.add(new QueueItem(target));
             queue.notifyAll();
         }
 
@@ -234,87 +248,7 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
     public void changeDownloadPath(List<QueueItem> files, File newPath) {
         synchronized (queue) {
             for (QueueItem item : files) {
-                PVRFile file = item.getTarget();
-
-                File oldTarget, newTarget, newComplete;
-
-                newComplete = getCompletedTarget(file);
-
-                if (newComplete.exists() && !main.askYesNoQuestion("Target file already exists, overwrite?")) {
-                    continue;
-                }
-
-                switch (file.getState()) {
-                    case Queued:
-                        // Everything is fine, just update the path
-
-                        oldTarget = file.getLocalPath();
-                        file.setLocalPath(newPath);
-                        newTarget = getDownloadTarget(file);
-
-                        if (newTarget.exists()) {
-                            log.debug("{} exists", newTarget);
-                            file.setDownloaded(newTarget.length());
-                            if (newTarget.length() != file.getSize()) {
-                                file.setState(PVRFile.State.Paused);
-                            } else {
-                                file.setState(PVRFile.State.Completed);
-                            }
-                        } else {
-                            log.debug("{} doesn't exist", newTarget);
-                            file.setDownloaded(0);
-                        }
-                        log.debug("Changed download path from {} to {}", oldTarget, file.getLocalPath());
-                        break;
-
-                    case Paused:
-                        // Not quite so easy. Need to move the partial file as well
-                        oldTarget = getDownloadTarget(file);
-                        file.setLocalPath(newPath);
-                        newTarget = getDownloadTarget(file);
-
-                        try {
-                            Files.move(oldTarget.toPath(), newTarget.toPath());
-                        } catch (IOException ex) {
-                            log.error("Paused: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                            file.setState(PVRFile.State.Error);
-                        }
-
-                        break;
-                    case Downloading:
-                        // Uh, a little more complicated. Pause the download,
-                        // move the temp file, update the path and restart
-                        // the download.
-                        renaming = true;
-                        stop();
-                        oldTarget = getDownloadTarget(file);
-                        file.setLocalPath(newPath);
-                        newTarget = getDownloadTarget(file);
-
-                        try {
-                            Files.move(oldTarget.toPath(), newTarget.toPath());
-                        } catch (IOException ex) {
-                            log.error("Downloading: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                            file.setState(PVRFile.State.Error);
-                        }
-
-                        renaming = false;
-                        // Restart downloads.
-                        start();
-
-                        break;
-                    case Completed:
-                        // Easy again. Just move the file
-                        oldTarget = getCompletedTarget(file);
-                        file.setLocalPath(newPath);
-                        newTarget = getCompletedTarget(file);
-                        try {
-                            Files.move(oldTarget.toPath(), newTarget.toPath());
-                        } catch (IOException ex) {
-                            log.error("Completed: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                            file.setState(PVRFile.State.Error);
-                        }
-                }
+                item.rename(newPath);
             }
         }
         notifyListDataListeners();
@@ -342,22 +276,27 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
      * Queue a list of files not already queued.
      *
      * @param row int target row. Files will be inserted before this row.
-     * @param files List&ltPVRFile&gt; of files to be inserted
+     * @param items List&ltPVRFile&gt; of files to be inserted
      */
-    public void insert(int row, List<PVRFile> files) {
-        List<QueueItem> queueItems = new ArrayList<>();
-        for (PVRFile f : files) {
-            if (setupForQueue(f)) {
-                queueItems.add(new DownloadQueueItem(this, f));
-            }
-        }
+    public void insert(int row, List<QueueItem> items) {
 
-        if (queueItems.isEmpty()) {
+        if (items.isEmpty()) {
             return;
         }
 
+        for (Iterator<QueueItem> it = items.iterator(); it.hasNext();) {
+            QueueItem item = it.next();
+            if (!setupForQueue(item.getTarget())) {
+                it.remove();
+            }
+        }
+
         synchronized (queue) {
-            queue.addAll(row, queueItems);
+            int len = queue.size();
+            queue.removeAll(items);
+            len = len - queue.size();
+            log.debug("Move: row {}, len {}, queue {}", row, len, queue.size());
+            queue.addAll(row, items);
             queue.notifyAll();
         }
 
@@ -560,19 +499,18 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
         public void downloadCompleted(PVRFile target);
     }
 
-    public static abstract class QueueItem {
+    public static class QueueItem {
 
-        protected final AtomicBoolean running;
-        protected final DownloadManager parent;
-        protected final PVRFile target;
+        private final Logger log = LoggerFactory.getLogger(QueueItem.class);
+        private final AtomicBoolean running;
+        private final DownloadManager parent;
+        private final PVRFile target;
 
-        public QueueItem(DownloadManager parent, PVRFile target) {
-            this.parent = parent;
-            this.target = target;
+        public QueueItem(PVRFile target) {
             this.running = new AtomicBoolean(false);
+            this.parent = DownloadManager.getInstance();
+            this.target = target;
         }
-
-        abstract public void run() throws IOException;
 
         public void stop() {
             if (running.compareAndSet(true, false)) {
@@ -583,18 +521,8 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
         public PVRFile getTarget() {
             return target;
         }
-    }
 
-    private static class DownloadQueueItem extends QueueItem {
-
-        private final Logger log = LoggerFactory.getLogger(DownloadQueueItem.class);
-
-        public DownloadQueueItem(DownloadManager parent, PVRFile target) {
-            super(parent, target);
-        }
-
-        @Override
-        public void run() throws IOException {
+        public void download() throws IOException {
             running.set(true);
 
             File downloadTarget = getDownloadTarget(target);
@@ -692,5 +620,88 @@ public class DownloadManager implements ListModel<DownloadManager.QueueItem>, Ru
                 target.setState(PVRFile.State.Paused);
             }
         }
+
+        public void rename(File newPath) {
+            File oldTarget, newTarget, newComplete;
+
+            newComplete = getCompletedTarget(target);
+
+            if (newComplete.exists() && !parent.main.askYesNoQuestion("Target file already exists, overwrite?")) {
+                return;
+            }
+
+            switch (target.getState()) {
+                case Queued:
+                    // Everything is fine, just update the path
+
+                    oldTarget = target.getLocalPath();
+                    target.setLocalPath(newPath);
+                    newTarget = getDownloadTarget(target);
+
+                    if (newTarget.exists()) {
+                        log.debug("{} exists", newTarget);
+                        target.setDownloaded(newTarget.length());
+                        if (newTarget.length() != target.getSize()) {
+                            target.setState(PVRFile.State.Paused);
+                        } else {
+                            target.setState(PVRFile.State.Completed);
+                        }
+                    } else {
+                        log.debug("{} doesn't exist", newTarget);
+                        target.setDownloaded(0);
+                    }
+                    log.debug("Changed download path from {} to {}", oldTarget, target.getLocalPath());
+                    break;
+
+                case Paused:
+                    // Not quite so easy. Need to move the partial file as well
+                    oldTarget = getDownloadTarget(target);
+                    target.setLocalPath(newPath);
+                    newTarget = getDownloadTarget(target);
+
+                    try {
+                        Files.move(oldTarget.toPath(), newTarget.toPath());
+                    } catch (IOException ex) {
+                        log.error("Paused: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                        target.setState(PVRFile.State.Error);
+                    }
+
+                    break;
+                case Downloading:
+                    // Uh, a little more complicated. Pause the download,
+                    // move the temp file, update the path and restart
+                    // the download.
+                    parent.renaming = true;
+                    parent.stop();
+                    oldTarget = getDownloadTarget(target);
+                    target.setLocalPath(newPath);
+                    newTarget = getDownloadTarget(target);
+
+                    try {
+                        Files.move(oldTarget.toPath(), newTarget.toPath());
+                    } catch (IOException ex) {
+                        log.error("Downloading: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                        target.setState(PVRFile.State.Error);
+                    }
+
+                    parent.renaming = false;
+                    // Restart downloads.
+                    parent.start();
+
+                    break;
+                case Completed:
+                    // Easy again. Just move the file
+                    oldTarget = getCompletedTarget(target);
+                    target.setLocalPath(newPath);
+                    newTarget = getCompletedTarget(target);
+                    try {
+                        Files.move(oldTarget.toPath(), newTarget.toPath());
+                    } catch (IOException ex) {
+                        log.error("Completed: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                        target.setState(PVRFile.State.Error);
+                    }
+            }
+        }
+
     }
 }

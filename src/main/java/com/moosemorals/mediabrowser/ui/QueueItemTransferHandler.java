@@ -24,7 +24,7 @@
 package com.moosemorals.mediabrowser.ui;
 
 import com.moosemorals.mediabrowser.DownloadManager;
-import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
 import com.moosemorals.mediabrowser.PVRFile;
 import java.awt.Component;
 import java.awt.Point;
@@ -45,11 +45,11 @@ import org.slf4j.LoggerFactory;
 /**
  * Part of the Drag and Drop infrastructure.
  *
- * @author Osric Wilkinson )osric@fluffypeople.com)
+ * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileTransferHandler extends TransferHandler {
+class QueueItemTransferHandler extends TransferHandler {
 
-    private final Logger log = LoggerFactory.getLogger(PVRFileTransferHandler.class);
+    private final Logger log = LoggerFactory.getLogger(QueueItemTransferHandler.class);
 
     @Override
     public boolean importData(TransferSupport info) {
@@ -59,7 +59,7 @@ class PVRFileTransferHandler extends TransferHandler {
 
         Component component = info.getComponent();
         if (component instanceof JList) {
-            JList<PVRFile> list = (JList<PVRFile>) component;
+            JList<QueueItem> list = (JList<QueueItem>) component;
 
             Point dropPoint = info.getDropLocation().getDropPoint();
             int row = list.locationToIndex(dropPoint);
@@ -67,7 +67,7 @@ class PVRFileTransferHandler extends TransferHandler {
             DownloadManager dlManager = (DownloadManager) list.getModel();
 
             try {
-                List<PVRFile> files = (List<PVRFile>) info.getTransferable().getTransferData(PVRFileTransferable.PVRFileFlavor);
+                List<QueueItem> files = (List<QueueItem>) info.getTransferable().getTransferData(QueueItemTransferable.QueueItemFlavor);
 
                 if (info.getDropAction() == MOVE) {
                     dlManager.moveFiles(row, files);
@@ -101,21 +101,25 @@ class PVRFileTransferHandler extends TransferHandler {
     @Override
     protected Transferable createTransferable(JComponent c) {
         if (c instanceof JList) {
-            PVRFileTransferable pvrFileTransferable = new PVRFileTransferable(((JList<PVRFile>) c).getSelectedValuesList());
+            QueueItemTransferable pvrFileTransferable = new QueueItemTransferable(((JList<QueueItem>) c).getSelectedValuesList());
 
-            ((JList<PVRFile>) c).clearSelection();
+            ((JList<QueueItem>) c).clearSelection();
 
             return pvrFileTransferable;
         } else if (c instanceof JTree) {
-            List<PVRFile> files = new ArrayList<>();
-            for (TreePath p : ((JTree) c).getSelectionPaths()) {
+            List<QueueItem> files = new ArrayList<>();
+            TreePath[] selectionPaths = ((JTree) c).getSelectionPaths();
+            if (selectionPaths == null) {
+                return null;
+            }
+            for (TreePath p : selectionPaths) {
                 Object o = p.getLastPathComponent();
                 if (o instanceof PVRFile) {
-                    files.add((PVRFile) o);
+                    files.add(new QueueItem((PVRFile) o));
                 }
             }
             ((JTree) c).clearSelection();
-            return new PVRFileTransferable(files);
+            return new QueueItemTransferable(files);
         } else {
             log.warn("Unexpected data souce component {}", c);
             return null;
@@ -133,7 +137,7 @@ class PVRFileTransferHandler extends TransferHandler {
 
     @Override
     public boolean canImport(TransferSupport info) {
-        return info.isDataFlavorSupported(PVRFileTransferable.PVRFileFlavor);
+        return info.isDataFlavorSupported(QueueItemTransferable.QueueItemFlavor);
     }
 
 }

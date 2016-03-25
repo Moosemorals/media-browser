@@ -116,7 +116,8 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
         });
 
         pvr = new PVR();
-        downloader = new DownloadManager(this);
+        downloader = DownloadManager.createInstance(this);
+
         rateTracker = new RateTracker(15);
     }
 

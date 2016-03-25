@@ -23,7 +23,7 @@
  */
 package com.moosemorals.mediabrowser.ui;
 
-import com.moosemorals.mediabrowser.DownloadManager;
+import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
 import com.moosemorals.mediabrowser.PVR;
 import com.moosemorals.mediabrowser.PVRFile;
 import java.awt.Color;
@@ -45,15 +45,15 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class PVRFileListCellRenderer extends PVRCellRenderer implements ListCellRenderer<DownloadManager.QueueItem> {
+class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRenderer<QueueItem> {
 
     private static final Dimension progressSize = new Dimension(120, 20);
-    private final Logger log = LoggerFactory.getLogger(PVRFileListCellRenderer.class);
+    private final Logger log = LoggerFactory.getLogger(QueueItemListCellRenderer.class);
 
     private final JProgressBar progress;
     private final JLabel text;
 
-    PVRFileListCellRenderer() {
+    QueueItemListCellRenderer() {
         super();
 
         progress = new JProgressBar();
@@ -84,9 +84,13 @@ class PVRFileListCellRenderer extends PVRCellRenderer implements ListCellRendere
     }
 
     @Override
-    public Component getListCellRendererComponent(JList<? extends DownloadManager.QueueItem> list, DownloadManager.QueueItem item, int index, boolean isSelected, boolean hasFocus) {
+    public Component getListCellRendererComponent(JList<? extends QueueItem> list, QueueItem item, int index, boolean isSelected, boolean hasFocus) {
 
         PVRFile file = item.getTarget();
+
+        if (file == null) {
+            throw new RuntimeException("File is null!");
+        }
 
         int scaledSize = (int) (file.getSize() / PVR.MEGA);
         int scaledDownload = (int) (file.getDownloaded() / PVR.MEGA);
