@@ -263,29 +263,19 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate) {
+    public void downloadProgress(long totalQueued, long totalDownloaded, double rate) {
         String message;
 
-        message = String.format("%s %s of %s (%.0f%%)",
-                downloader.isDownloading() ? "Downloading" : "Queued",
-                PVR.humanReadableSize(totalDownloaded),
+        rateTracker.addRate(rate);
+
+        message = String.format("Queued %s - Downloaded %s (%.0f%%) - Rate %s/s",
                 PVR.humanReadableSize(totalQueued),
+                PVR.humanReadableSize(totalDownloaded),
                 totalQueued > 0
                         ? (totalDownloaded / (double) totalQueued) * 100.0
-                        : 0
+                        : 0,
+                PVR.humanReadableSize((long) rateTracker.getRate())
         );
-
-        if (rate >= 0) {
-            rateTracker.addRate(rate);
-            message += String.format(" - Current %s of %s (%.0f%%) - Rate %s/s",
-                    PVR.humanReadableSize(currentDownloaded),
-                    PVR.humanReadableSize(currentFile),
-                    currentFile > 0
-                            ? (currentDownloaded / (double) currentFile) * 100.0
-                            : 0,
-                    PVR.humanReadableSize((long) rateTracker.getRate())
-            );
-        }
 
         ui.setStatus(message);
         ui.setTrayIconToolTip(message);

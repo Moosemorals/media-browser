@@ -450,7 +450,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
         }
 
-        status.downloadProgress(totalQueued, totalDownloaded, currentFile, currentDownload, rate);
+        status.downloadProgress(totalQueued, totalDownloaded, rate);
     }
 
     public QueueItem createQueueItem(PVRFile target, String path) {
@@ -477,7 +477,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
         public void downloadStatusChanged(boolean running);
 
-        public void downloadProgress(long totalQueued, long totalDownloaded, long currentFile, long currentDownloaded, double rate);
+        public void downloadProgress(long totalQueued, long totalDownloaded, double rate);
 
         public void downloadCompleted(QueueItem target);
     }
