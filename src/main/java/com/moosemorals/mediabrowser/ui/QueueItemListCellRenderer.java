@@ -116,8 +116,10 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
                 state = "Done";
                 break;
             case Moving:
-                state = "Moving";
-                progress.setIndeterminate(true);
+                state = String.format("Moving - %3.0f%%", item.getMoveProgress() * 100.0);
+                progress.setMaximum(100);
+                progress.setValue((int) item.getMoveProgress() * 100);
+
                 break;
             default:
                 log.warn("Unexpedted state {}", item.getState());

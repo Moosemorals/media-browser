@@ -26,17 +26,22 @@ package com.moosemorals.mediabrowser;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.Preferences;
@@ -55,7 +60,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
 
-    private static final int BUFFER_SIZE = 1024 * 4;
+    private static final int BUFFER_SIZE = 1024 * 4; // bytes
+    private static final int UPDATE_INTERVAL = 500; // miliseconds
     private static DownloadManager instance;
 
     private final Logger log = LoggerFactory.getLogger(DownloadManager.class);
@@ -64,6 +70,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     private final List<QueueItem> queue;
     private final AtomicBoolean running;
     private final Set<ListDataListener> listDataListeners;
+    private final MoveManager moveManager;
 
     private Thread downloadThread;
     private DownloadStatusListener status;
@@ -75,6 +82,8 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         this.queue = new ArrayList<>();
         this.running = new AtomicBoolean(false);
         this.listDataListeners = new HashSet<>();
+        this.moveManager = new MoveManager(this);
+        moveManager.start();
     }
 
     public static DownloadManager getInstance() {
@@ -88,6 +97,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
     void start() {
         if (running.compareAndSet(false, true)) {
+
             if (areDownloadsAvailible()) {
                 downloadThread = new Thread(this, "Download");
                 downloadThread.start();
@@ -479,16 +489,18 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         private final DownloadManager parent;
         private final PVRFile target;
 
+        private float moveProgress = 0;
         private long downloaded = -1;
         private File localPath = null;
         private String localFilename = null;
         private State state;
+        private State oldState;
 
         public QueueItem(PVRFile target) {
             this.running = new AtomicBoolean(false);
             this.parent = DownloadManager.getInstance();
             this.target = target;
-            this.state = State.Ready;
+            this.state = this.oldState = State.Ready;
 
             localFilename = String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                     target.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
@@ -572,6 +584,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
          * @param newState
          */
         void setState(State newState) {
+            oldState = this.state;
             this.state = newState;
         }
 
@@ -582,6 +595,10 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
          */
         public State getState() {
             return state;
+        }
+
+        State getOldState() {
+            return oldState;
         }
 
         public long getSize() {
@@ -602,11 +619,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
         }
 
-        public File getDownloadTarget() {
+        File getDownloadTarget() {
             return new File(getLocalPath(), getLocalFilename() + ".partial");
         }
 
-        private File getCompletedTarget() {
+        File getCompletedTarget() {
             return new File(getLocalPath(), getLocalFilename() + ".ts");
         }
 
@@ -634,7 +651,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
             setState(State.Downloading);
 
-            long lastCheck = System.currentTimeMillis();
+            long lastDisplay = System.currentTimeMillis();
             long lastDownloaded = getDownloaded();
 
             try (InputStream in = new BufferedInputStream(connection.getInputStream()); OutputStream out = new BufferedOutputStream(new FileOutputStream(downloadTarget, append))) {
@@ -649,16 +666,16 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     setDownloaded(count);
 
                     long timeNow = System.currentTimeMillis();
-                    if ((timeNow - lastCheck) > 750) {
+                    if ((timeNow - lastDisplay) > UPDATE_INTERVAL) {
                         // calculate rate, in bytes/ms
-                        double rate = (getDownloaded() - lastDownloaded) / (double) (timeNow - lastCheck);
+                        double rate = (getDownloaded() - lastDownloaded) / (double) (timeNow - lastDisplay);
                         // Make it bytes/second
                         rate *= 1000;
 
                         parent.notifyListDataListeners();
                         parent.notifyStatusListeners(rate);
 
-                        lastCheck = timeNow;
+                        lastDisplay = timeNow;
                         lastDownloaded = getDownloaded();
                     }
 
@@ -691,7 +708,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
             // Check for move
             if (getState() == State.Moving) {
-
                 try {
                     Files.move(downloadTarget.toPath(), getDownloadTarget().toPath());
                     setState(State.Paused);
@@ -699,7 +715,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     log.error("Downloading: Rename from [{}] to [{}] failed: {}", downloadTarget, getDownloadTarget(), ex, ex.getMessage());
                     setState(State.Error);
                 }
-
             }
 
             // Assume that if the file on disk is the same size as the
@@ -753,34 +768,29 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     }
                     log.debug("Changed download path from {} to {}", oldTarget, getLocalPath());
                     break;
-
-                case Paused:
-                    // Not quite so easy. Need to move the partial file as well
-                    setLocalPath(newPath);
-                    setState(State.Moving);
-
-                    break;
                 case Downloading:
-                    // Uh, a little more complicated. Pause the download,
-                    // move the temp file, update the path and restart
-                    // the download.
 
                     setLocalPath(newPath);
                     setState(State.Moving);
 
                     break;
                 case Completed:
-                    // Easy again. Just move the file
-                    oldTarget = getCompletedTarget();
-                    setLocalPath(newPath);
-                    newTarget = getCompletedTarget();
-                    try {
-                        Files.move(oldTarget.toPath(), newTarget.toPath());
-                    } catch (IOException ex) {
-                        log.error("Completed: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
-                        setState(State.Error);
-                    }
+                case Paused:
+
+                    setState(State.Moving);
+                    parent.moveManager.add(this, newPath);
+
+                    break;
+
             }
+        }
+
+        public float getMoveProgress() {
+            return moveProgress;
+        }
+
+        void setMoveProgress(float p) {
+            moveProgress = p;
         }
 
         @Override
@@ -837,7 +847,176 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
              * The file got broken somehow.
              */
             Error
+
+            /**
+             * Queue and handle move operation for items that aren't being
+             * downloaded.
+             *
+             * @author Osric Wilkinson <osric@fluffypeople.com>
+             */
         }
 
+    }
+
+    private static class MoveManager implements Runnable {
+
+        private final Logger log = LoggerFactory.getLogger(MoveManager.class);
+        private final List<Pair> queue;
+        private final AtomicBoolean running;
+        private final DownloadManager parent;
+        private Thread moveThread;
+
+        MoveManager(DownloadManager parent) {
+            this.parent = parent;
+            queue = new LinkedList<>();
+            running = new AtomicBoolean(false);
+        }
+
+        void start() {
+            if (running.compareAndSet(false, true)) {
+                log.debug("starting move thread");
+                moveThread = new Thread(this, "Move");
+                moveThread.start();
+            }
+        }
+
+        void stop() {
+            if (running.compareAndSet(true, false)) {
+                log.debug("Stopping move thread");
+                if (moveThread != null) {
+                    moveThread.interrupt();
+                }
+            }
+        }
+
+        void add(QueueItem item, File newPath) {
+            log.debug("add {}, {}", item, newPath);
+            synchronized (queue) {
+                Pair p = new Pair(item, newPath);
+                for (Pair q : queue) {
+                    if (q.queueItem.equals(item)) {
+                        log.debug("already queued, updating destination path", item, newPath);
+                        q.newPath = newPath;
+                        break;
+                    }
+                }
+                if (!queue.contains(p)) {
+                    log.debug("Not already queued, adding");
+                    queue.add(p);
+                }
+                queue.notifyAll();
+            }
+        }
+
+        @Override
+        public void run() {
+            while (running.get()) {
+                Pair next;
+                try {
+                    synchronized (queue) {
+                        while (queue.isEmpty()) {
+                            log.debug("Waiting for next move");
+                            queue.wait();
+                        }
+                        next = queue.remove(0);
+                    }
+                } catch (InterruptedException ex) {
+                    // Interrupted while waiting
+                    return;
+                }
+                File oldTarget;
+                File newTarget;
+                switch (next.queueItem.getOldState()) {
+                    case Paused:
+                        oldTarget = next.queueItem.getDownloadTarget();
+                        next.queueItem.setLocalPath(next.newPath);
+                        newTarget = next.queueItem.getDownloadTarget();
+                        break;
+                    case Completed:
+                        oldTarget = next.queueItem.getDownloadTarget();
+                        next.queueItem.setLocalPath(next.newPath);
+                        newTarget = next.queueItem.getDownloadTarget();
+                        break;
+                    default:
+                        log.error("Queue item in unexpected state {}, not moving", next.queueItem.getOldState());
+                        next.queueItem.setState(QueueItem.State.Error);
+                        continue;
+                }
+                log.debug("Moving {} from {} to {}", next.queueItem, oldTarget, newTarget);
+                try {
+                    try {
+                        Files.move(oldTarget.toPath(), newTarget.toPath(), StandardCopyOption.ATOMIC_MOVE);
+                        log.debug("Setting state from {} back to {}", next.queueItem.getState(), next.queueItem.getOldState());
+                        next.queueItem.setState(next.queueItem.getOldState());
+                    } catch (AtomicMoveNotSupportedException ex) {
+
+                        long oldSize = oldTarget.length();
+                        long copied = 0;
+
+                        long lastDisplay = System.currentTimeMillis();
+                        try (InputStream in = new BufferedInputStream(new FileInputStream(oldTarget));
+                                OutputStream out = new BufferedOutputStream(new FileOutputStream(newTarget))) {
+                            byte[] buff = new byte[BUFFER_SIZE];
+                            int read;
+                            while ((read = in.read(buff)) != -1) {
+                                out.write(buff, 0, read);
+
+                                copied += read;
+                                next.queueItem.setMoveProgress((float) copied / oldSize);
+                                long now = System.currentTimeMillis();
+                                if ((now - lastDisplay) > UPDATE_INTERVAL) {
+                                    parent.notifyListDataListeners();
+                                    lastDisplay = now;
+                                }
+                            }
+                            out.flush();
+                        }
+                        if (!oldTarget.delete()) {
+                            log.error("Can't delete old partial download {}: Unkown reason", oldTarget);
+                        }
+                        log.debug("Setting state from {} back to {}", next.queueItem.getState(), next.queueItem.getOldState());
+                        next.queueItem.setState(next.queueItem.getOldState());
+                    }
+                } catch (IOException ex) {
+                    log.error("Error: Rename from [{}] to [{}] failed: {}", oldTarget, newTarget, ex, ex.getMessage());
+                    next.queueItem.setState(QueueItem.State.Error);
+                }
+                parent.notifyListDataListeners();
+            }
+        }
+
+        private static class Pair {
+
+            final QueueItem queueItem;
+            File newPath;
+
+            public Pair(QueueItem queueItem, File newPath) {
+                super();
+                this.queueItem = queueItem;
+                this.newPath = newPath;
+            }
+
+            @Override
+            public int hashCode() {
+                int hash = 7;
+                hash = 67 * hash + Objects.hashCode(this.queueItem);
+                return hash;
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                if (this == obj) {
+                    return true;
+                }
+                if (obj == null) {
+                    return false;
+                }
+                if (getClass() != obj.getClass()) {
+                    return false;
+                }
+                final Pair other = (Pair) obj;
+                return Objects.equals(this.queueItem, other.queueItem);
+            }
+        }
     }
 }
