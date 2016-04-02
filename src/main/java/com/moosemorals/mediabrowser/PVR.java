@@ -316,9 +316,9 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     @Override
-    public void onBrowseBegin(BrowseType type) {
+    public void onScanStart(ScanType type) {
         log.info("Browse for {} started", type);
-        notifyBrowseListeners(type, true);
+        notifyScanListeners(type, true);
     }
 
     void updateItem(PVRItem item) {
@@ -333,14 +333,19 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     @Override
-    public void onBrowseEnd(BrowseType type) {
+    public void onScanProgress(ScanType type, long total, long completed) {
+        notifyScanisteners(type, total, completed);
+    }
+
+    @Override
+    public void onScanComplete(ScanType type) {
         log.info("Browse for {} completed", type);
-        if (running.get() && type == BrowseType.upnp) {
+        if (running.get() && type == ScanType.upnp) {
             ftpClient = new FtpScanner(this, upnpClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
             ftpClient.start();
         }
-        notifyBrowseListeners(type, false);
+        notifyScanListeners(type, false);
     }
 
     private final Set<DeviceListener> deviceListener = new HashSet<>();
@@ -357,14 +362,22 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
-    private void notifyBrowseListeners(BrowseType type, boolean startStop) {
+    private void notifyScanListeners(ScanType type, boolean startStop) {
         synchronized (deviceListener) {
             for (DeviceListener l : deviceListener) {
                 if (startStop) {
-                    l.onBrowseBegin(type);
+                    l.onScanStart(type);
                 } else {
-                    l.onBrowseEnd(type);
+                    l.onScanComplete(type);
                 }
+            }
+        }
+    }
+
+    private void notifyScanisteners(ScanType type, long total, long completed) {
+        synchronized (deviceListener) {
+            for (DeviceListener l : deviceListener) {
+                l.onScanProgress(type, total, completed);
             }
         }
     }

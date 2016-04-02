@@ -24,6 +24,7 @@
  */
 package com.moosemorals.mediabrowser.ui;
 
+import com.moosemorals.mediabrowser.DeviceListener;
 import com.moosemorals.mediabrowser.DownloadManager;
 import com.moosemorals.mediabrowser.Main;
 import com.moosemorals.mediabrowser.PVR;
@@ -73,7 +74,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class UI {
+public class UI implements DeviceListener {
 
     public static final String ACTION_ABOUT = "about";
     public static final String ACTION_START_STOP = "start";
@@ -682,13 +683,19 @@ public class UI {
      * @param downloading boolean true if there is an active download, false
      * otherwise.
      */
-    public void setStartActionStatus(boolean enabled, boolean downloading) {
-        actionStartStop.setEnabled(enabled);
-        if (downloading) {
-            actionStartStop.putValue(Action.NAME, "Stop downloading");
-        } else {
-            actionStartStop.putValue(Action.NAME, "Start downloading");
-        }
+    public void setStartActionStatus(final boolean enabled, final boolean downloading) {
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                actionStartStop.setEnabled(enabled);
+                if (downloading) {
+                    actionStartStop.putValue(Action.NAME, "Stop downloading");
+                } else {
+                    actionStartStop.putValue(Action.NAME, "Start downloading");
+                }
+            }
+        });
+
     }
 
     /**
@@ -700,7 +707,7 @@ public class UI {
         return window.isVisible();
     }
 
-    public void refresh() {
+    private void refresh() {
         window.revalidate();
     }
 
@@ -776,6 +783,48 @@ public class UI {
             result.append("(Still scanning)");
         }
         return result.toString();
+    }
+
+    @Override
+    public void onDeviceFound() {
+        setIconColor(UI.ICON_CONNECTED);
+    }
+
+    @Override
+    public void onDeviceLost() {
+        setStartActionStatus(false, false);
+        setIconColor(UI.ICON_DISCONNECTED);
+    }
+
+    @Override
+    public void onScanStart(ScanType type) {
+
+        switch (type) {
+            case upnp:
+                setStatus("Scanning via DLNA");
+
+                break;
+            case ftp:
+                setStatus("Scanning via FTP");
+
+                break;
+            default:
+                log.warn("Unknown browsing type: {}", type);
+                break;
+
+        }
+    }
+
+    @Override
+    public void onScanProgress(ScanType type, long total, long completed) {
+        // does nothing - yet
+    }
+
+    @Override
+    public void onScanComplete(ScanType type) {
+        setStatus("Scan complete");
+        setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+        refresh();
     }
 
 }

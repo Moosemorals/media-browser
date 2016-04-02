@@ -28,8 +28,8 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -81,7 +81,7 @@ public class FtpScanner implements Runnable {
         if (ftpRunning.compareAndSet(false, true)) {
             ftpThread = new Thread(this, "FTP");
             ftpThread.start();
-            notifyBrowseListeners(DeviceListener.BrowseType.ftp, true);
+            notifyBrowseListeners(DeviceListener.ScanType.ftp, true);
         }
     }
 
@@ -93,7 +93,7 @@ public class FtpScanner implements Runnable {
             log.error("FTP problem: {}", ex.getMessage(), ex);
             stop();
         } finally {
-            notifyBrowseListeners(DeviceListener.BrowseType.ftp, false);
+            notifyBrowseListeners(DeviceListener.ScanType.ftp, false);
             ftpRunning.set(false);
         }
     }
@@ -199,7 +199,7 @@ public class FtpScanner implements Runnable {
     private void scrapeFTP() throws IOException {
         synchronized (ftp) {
             connect();
-            List<PVRFolder> queue = new ArrayList<>();
+            List<PVRFolder> queue = new LinkedList<>();
             queue.add((PVRFolder) pvr.getRoot());
 
             while (!queue.isEmpty() && !ftpThread.isInterrupted()) {
@@ -214,8 +214,10 @@ public class FtpScanner implements Runnable {
                     }
                     if (f.isDirectory()) {
                         PVRFolder next = pvr.addFolder(directory, f.getName());
+                        queue.add(0, next);
                         pvr.updateItem(next);
-                        queue.add(next);
+                        // Do directories first
+
                     } else if (f.isFile() && f.getName().endsWith(".ts")) {
                         PVRFile file = pvr.addFile(directory, f.getName());
                         file.setSize(f.getSize());
@@ -278,13 +280,13 @@ public class FtpScanner implements Runnable {
         }
     }
 
-    private void notifyBrowseListeners(DeviceListener.BrowseType type, boolean startStop) {
+    private void notifyBrowseListeners(DeviceListener.ScanType type, boolean startStop) {
         synchronized (deviceListener) {
             for (DeviceListener l : deviceListener) {
                 if (startStop) {
-                    l.onBrowseBegin(type);
+                    l.onScanStart(type);
                 } else {
-                    l.onBrowseEnd(type);
+                    l.onScanComplete(type);
                 }
             }
         }

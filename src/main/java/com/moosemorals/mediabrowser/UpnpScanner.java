@@ -100,7 +100,7 @@ public class UpnpScanner implements Runnable {
         if (upnpRunning.compareAndSet(false, true)) {
             upnpThread = new Thread(this, "UPNP");
             upnpThread.start();
-            notifyBrowseListeners(DeviceListener.BrowseType.upnp, true);
+            notifyBrowseListeners(DeviceListener.ScanType.upnp, true);
         }
     }
 
@@ -130,7 +130,7 @@ public class UpnpScanner implements Runnable {
             log.error("IOException in upnp thread: {}", ex.getMessage(), ex);
         } finally {
             upnpRunning.set(false);
-            notifyBrowseListeners(DeviceListener.BrowseType.upnp, false);
+            notifyBrowseListeners(DeviceListener.ScanType.upnp, false);
         }
     }
 
@@ -240,13 +240,13 @@ public class UpnpScanner implements Runnable {
         }
     }
 
-    private void notifyBrowseListeners(DeviceListener.BrowseType type, boolean startStop) {
+    private void notifyBrowseListeners(DeviceListener.ScanType type, boolean startStop) {
         synchronized (deviceListener) {
             for (DeviceListener l : deviceListener) {
                 if (startStop) {
-                    l.onBrowseBegin(type);
+                    l.onScanStart(type);
                 } else {
-                    l.onBrowseEnd(type);
+                    l.onScanComplete(type);
                 }
             }
         }

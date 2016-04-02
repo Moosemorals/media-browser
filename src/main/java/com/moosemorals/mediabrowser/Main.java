@@ -134,9 +134,9 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     @Override
     public void run() {
         // Running in the AWT thread
-        Thread.currentThread().setUncaughtExceptionHandler(new ExceptionHandler());
-        ui = new UI(this);
 
+        ui = new UI(this);
+        pvr.addDeviceListener(ui);
         ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         ui.showWindow();
     }
@@ -292,18 +292,11 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     @Override
     public void onDeviceFound() {
         connected = true;
-        if (ui != null) {
-            ui.setIconColor(UI.ICON_CONNECTED);
-        }
     }
 
     @Override
     public void onDeviceLost() {
         connected = false;
-        if (ui != null) {
-            ui.setStartActionStatus(false, false);
-            ui.setIconColor(UI.ICON_DISCONNECTED);
-        }
     }
 
     public boolean askYesNoQuestion(String question) {
@@ -361,27 +354,18 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     @Override
-    public void onBrowseBegin(BrowseType type) {
-        if (ui != null) {
-            switch (type) {
-                case upnp:
-                    ui.setStatus("Scanning via DLNA");
-
-                    break;
-                case ftp:
-                    ui.setStatus("Scanning via FTP");
-
-                    break;
-                default:
-                    log.warn("Unknown browsing type: {}", type);
-                    break;
-            }
-        }
+    public void onScanStart(ScanType type) {
+        // do nothing
 
     }
 
     @Override
-    public void onBrowseEnd(BrowseType type) {
+    public void onScanProgress(ScanType type, long total, long completed) {
+        // Does nothing
+    }
+
+    @Override
+    public void onScanComplete(ScanType type) {
 
         switch (type) {
             case upnp:
@@ -396,11 +380,6 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
         }
 
         if (scanning == 2) {
-            // Should be done scanning now
-            if (ui != null) {
-                ui.setStatus("Scan complete");
-            }
-
             pvr.treeWalk(new PVR.TreeWalker() {
                 @Override
                 public void action(PVRItem item) {
@@ -413,16 +392,6 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
                     }
                 }
             });
-
-            if (ui != null) {
-                SwingUtilities.invokeLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
-                        ui.refresh();
-                    }
-                });
-            }
         }
     }
 

@@ -32,7 +32,7 @@ public interface DeviceListener {
     /**
      * Used to indicate what type of browsing we're doing.
      */
-    public enum BrowseType {
+    public enum ScanType {
         upnp, ftp
     };
 
@@ -40,8 +40,10 @@ public interface DeviceListener {
 
     public void onDeviceLost();
 
-    public void onBrowseBegin(BrowseType type);
+    public void onScanStart(ScanType type);
 
-    public void onBrowseEnd(BrowseType type);
+    public void onScanProgress(ScanType type, long total, long completed);
+
+    public void onScanComplete(ScanType type);
 
 }
