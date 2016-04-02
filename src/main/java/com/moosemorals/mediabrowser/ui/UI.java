@@ -36,6 +36,7 @@ import java.awt.Font;
 import java.awt.FontFormatException;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
@@ -260,7 +261,13 @@ public class UI {
         listPopup.add(actionRemoveSelected);
         listPopup.add(actionStartStop);
 
-        final JLabel downloadLabel = new JLabel(downloader.getDownloadPath().getPath());
+        final JButton downloadLabel = new JButton(actionChooseDefaultDownloadPath);
+        downloadLabel.setText(downloader.getDownloadPath().getPath());
+        downloadLabel.setFocusPainted(false);
+        downloadLabel.setMargin(new Insets(0, 0, 0, 0));
+        downloadLabel.setContentAreaFilled(false);
+        downloadLabel.setBorderPainted(false);
+        downloadLabel.setOpaque(false);
 
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
             @Override
@@ -495,7 +502,6 @@ public class UI {
                     }
 
                     private void maybeShowPopup(MouseEvent e) {
-                        log.debug("Mouse release {}", e);
                         if (e.isPopupTrigger()) {
                             trayPopup.setLocation(e.getX(), e.getY());
                             trayPopup.setInvoker(trayPopup);
@@ -623,6 +629,8 @@ public class UI {
         final JFileChooser fc = new JFileChooser(base);
         fc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
         fc.setDialogTitle("Choose download folder");
+        fc.setApproveButtonMnemonic('S');
+        fc.setApproveButtonText("Set");
 
         int returnVal = fc.showOpenDialog(window);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
