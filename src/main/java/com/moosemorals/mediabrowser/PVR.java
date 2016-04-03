@@ -234,12 +234,22 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     private void treeWalk(PVRFolder target, TreeWalker walker) {
+
         for (PVRItem child : target.children) {
             walker.action(child);
             if (child.isFolder()) {
                 treeWalk((PVRFolder) child, walker);
             }
         }
+
+        int[] indexes = new int[target.children.size()];
+        Object[] changed = new Object[target.children.size()];
+        for (int i = 0; i < indexes.length; i += 1) {
+            indexes[i] = i;
+            changed[i] = target.children.get(i);
+        }
+
+        notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
     }
 
     public void unlockFile(List<PVRFile> files) throws IOException {
@@ -362,6 +372,15 @@ public class PVR implements TreeModel, DeviceListener {
             ftpClient.stop();
             ftpClient = null;
         }
+        treeWalk(new TreeWalker() {
+            @Override
+            public void action(PVRItem item) {
+                if (item.isFile()) {
+                    PVRFile file = (PVRFile) item;
+                    file.setDlna(false);
+                }
+            }
+        });
     }
 
     @Override
