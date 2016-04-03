@@ -160,7 +160,7 @@ public class Main implements Runnable, ActionListener {
                 }
 
                 for (PVRFile file : ui.getTreeSelected()) {
-                    if (!file.isHighDef()) {
+                    if (!file.isLocked()) {
                         if (downloader.add(file)) {
                             ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
                         }

@@ -240,15 +240,22 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     public boolean add(PVRFile target, String localPath) {
+        log.debug("Can we queue {}?", target);
 
         if (!isQueuable(target)) {
+            log.debug("Can't queue {}", target);
             return false;
         }
+
+        log.debug("Can queue {}", target);
 
         synchronized (queue) {
             for (QueueItem item : queue) {
                 if (item.getTarget().equals(target)) {
                     item.checkTarget();
+                    log.debug("already queued {}", target);
+                    notifyListDataListeners();
+                    notifyStatusListeners();
                     return false;
                 }
             }
@@ -373,7 +380,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     public boolean isQueuable(PVRFile target) {
-        return !(target.isFolder() || target.isHighDef() || target.getRemoteURL() == null);
+        return !(target.isFolder() || target.isLocked() || target.getRemoteURL() == null);
     }
 
     /**
@@ -670,7 +677,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             localFilename = String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
                     target.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
                     PVR.FILE_DATE_FORMAT.print(target.getStartTime()),
-                    target.isHighDef() ? "1920\u00d71080" : "SD",
+                    target.isHighDef() ? "1920x1080" : "SD",
                     target.getChannelName()
             );
 
@@ -942,7 +949,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
         void start() {
             if (running.compareAndSet(false, true)) {
-                log.debug("starting move thread");
                 moveThread = new Thread(this, "Move");
                 moveThread.start();
             }
@@ -950,7 +956,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
         void stop() {
             if (running.compareAndSet(true, false)) {
-                log.debug("Stopping move thread");
                 if (moveThread != null) {
                     moveThread.interrupt();
                 }
@@ -958,7 +963,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
 
         void add(QueueItem item, File newPath) {
-            log.debug("add {}, {}", item, newPath);
             synchronized (queue) {
                 Pair p = new Pair(item, newPath);
                 for (Pair q : queue) {

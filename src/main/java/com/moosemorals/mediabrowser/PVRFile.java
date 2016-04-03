@@ -296,4 +296,11 @@ public class PVRFile extends PVRItem {
         this.ftp = ftp;
     }
 
+    @Override
+    public String toString() {
+
+        return super.toString() + " remoteURL: " + remoteURL;
+
+    }
+
 }

@@ -290,7 +290,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         statusProgress = new JProgressBar();
         statusProgress.setPreferredSize(QueueItemListCellRenderer.PROGRESS_SIZE);
 
-        statusLabel = new JLabel();
+        statusLabel = new JLabel("Waiting for PVR");
         statusLabel.setFocusable(false);
 
         startButton = new JButton(actionStartStop);
@@ -458,11 +458,11 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
                 for (TreePath p : selectionPaths) {
                     if (((PVRItem) p.getLastPathComponent()).isFile()) {
                         PVRFile file = (PVRFile) p.getLastPathComponent();
-                        if (!file.isHighDef()) {
-                            actionQueue.setEnabled(true);
-                        }
+
                         if (file.isLocked()) {
                             actionRemoveLock.setEnabled(true);
+                        } else {
+                            actionQueue.setEnabled(true);
                         }
                     }
                 }
