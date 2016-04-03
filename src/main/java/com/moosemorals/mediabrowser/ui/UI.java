@@ -881,13 +881,16 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
         rateTracker.addRate(rate);
 
-        message = String.format("Queued %s - Downloaded %s (%.0f%%) - Rate %s/s",
+        double r = rateTracker.getRate();
+
+        message = String.format("Queued %s - Downloaded %s (%.0f%%) - Rate %s/s - ETA %s",
                 PVR.humanReadableSize(totalQueued),
                 PVR.humanReadableSize(totalDownloaded),
                 totalQueued > 0
                         ? (totalDownloaded / (double) totalQueued) * 100.0
                         : 0,
-                PVR.humanReadableSize((long) rateTracker.getRate())
+                PVR.humanReadableSize((long) r),
+                etaFormat(totalQueued, totalDownloaded, rate)
         );
 
         setStatus(message);
@@ -902,4 +905,35 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         }
     }
 
+    private static String etaFormat(long totalQueued, long totalDownloaded, double rate) {
+
+        if (totalQueued == 0 || totalQueued == totalDownloaded) {
+            return "-";
+        } else if (rate <= 0) {
+            return "∞";
+        } else {
+
+            // rate is in bytes/second
+            double etaSeconds = (totalQueued - totalDownloaded) / rate;
+
+            long eta;
+            String name;
+
+            if (etaSeconds > 24 * 60 * 60) {
+                eta = Math.round(etaSeconds / (24 * 60 * 60));
+                name = "day";
+            } else if (etaSeconds > 60 * 60) {
+                eta = Math.round(etaSeconds / (60 * 60));
+                name = "hour";
+            } else if (etaSeconds > 60) {
+                eta = Math.round(etaSeconds / 60);
+                name = "minute";
+            } else {
+                eta = Math.round(etaSeconds);
+                name = "second";
+            }
+
+            return String.format("%d %s%s", eta, name, eta != 1 ? "s" : "");
+        }
+    }
 }

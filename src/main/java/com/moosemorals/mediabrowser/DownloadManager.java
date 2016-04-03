@@ -521,10 +521,27 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
     public interface DownloadStatusListener {
 
+        /**
+         * Called when downloads start (true) or stop (false).
+         *
+         * @param running boolean true if downloading, false otherwise.
+         */
         public void onDownloadStatusChanged(boolean running);
 
+        /**
+         * Update listeners with the progress of ongoing downloads.
+         *
+         * @param totalQueued long How many bytes are queued.
+         * @param totalDownloaded long How many bytes have been downloaded.
+         * @param rate double current download speed, in bytes/second
+         */
         public void onDownloadProgress(long totalQueued, long totalDownloaded, double rate);
 
+        /**
+         * Called when a QueueItem has finished downloading.
+         *
+         * @param target QueueItem that has finished downloading.
+         */
         public void onDownloadCompleted(QueueItem target);
     }
 
