@@ -111,14 +111,14 @@ public class PVR implements TreeModel, DeviceListener {
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
     private final PVRFolder rootFolder = new PVRFolder(null, "/", "");
     private final AtomicBoolean running;
-    private final UpnpScanner upnpClient;
+    private final DlnaScanner dlnaClient;
     private final Preferences prefs;
     private FtpScanner ftpClient;
     private final Map<String, String> savedPaths;
 
     PVR(Preferences prefs) {
         this.prefs = prefs;
-        upnpClient = new UpnpScanner(this);
+        dlnaClient = new DlnaScanner(this);
         running = new AtomicBoolean(false);
 
         if (isSavingPaths()) {
@@ -203,8 +203,8 @@ public class PVR implements TreeModel, DeviceListener {
     public void start() {
         if (running.compareAndSet(false, true)) {
 
-            upnpClient.addDeviceListener(this);
-            upnpClient.startSearch();
+            dlnaClient.addDeviceListener(this);
+            dlnaClient.startSearch();
         }
     }
 
@@ -214,7 +214,7 @@ public class PVR implements TreeModel, DeviceListener {
     public void stop() {
         if (running.compareAndSet(true, false)) {
             log.debug("Stopping");
-            upnpClient.stop();
+            dlnaClient.stop();
             if (ftpClient != null) {
                 ftpClient.stop();
             }
@@ -386,8 +386,8 @@ public class PVR implements TreeModel, DeviceListener {
     @Override
     public void onScanComplete(ScanType type) {
         notifyScanListeners(type, false);
-        if (running.get() && type == ScanType.upnp) {
-            ftpClient = new FtpScanner(this, upnpClient.getRemoteHostname());
+        if (running.get() && type == ScanType.dlna) {
+            ftpClient = new FtpScanner(this, dlnaClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
             ftpClient.start();
         }

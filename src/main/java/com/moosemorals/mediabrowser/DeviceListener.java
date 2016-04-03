@@ -33,7 +33,7 @@ public interface DeviceListener {
      * Used to indicate what type of browsing we're doing.
      */
     public enum ScanType {
-        upnp, ftp
+        dlna, ftp
     };
 
     public void onDeviceFound();

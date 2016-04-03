@@ -36,7 +36,7 @@ public class PVRFile extends PVRItem {
 
     private final Logger log = LoggerFactory.getLogger(PVRFile.class);
 
-    boolean upnp = false;
+    boolean dlna = false;
     boolean ftp = false;
     long size = -1;
 
@@ -266,21 +266,21 @@ public class PVRFile extends PVRItem {
     }
 
     /**
-     * Has been seen by Upnp
+     * Has been seen by DLNA
      *
      * @return true if has been seen.
      */
-    public boolean isUpnpScanned() {
-        return upnp;
+    public boolean isDlnaScanned() {
+        return dlna;
     }
 
     /**
-     * Set if has been seen by upnp
+     * Set if has been seen by dlna
      *
-     * @param upnp
+     * @param dlna
      */
-    void setUpnp(boolean upnp) {
-        this.upnp = upnp;
+    void setDlna(boolean dlna) {
+        this.dlna = dlna;
     }
 
     /**

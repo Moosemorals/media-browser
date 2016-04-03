@@ -51,17 +51,17 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson <osric@fluffypeople.com>
  */
-public class UpnpScanner implements Runnable {
+public class DlnaScanner implements Runnable {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
 
-    private final Logger log = LoggerFactory.getLogger(UpnpScanner.class);
+    private final Logger log = LoggerFactory.getLogger(DlnaScanner.class);
     private final PVR pvr;
     private final UpnpService upnpService;
-    private final AtomicBoolean upnpRunning;
-    private final List<DeviceBrowse> upnpQueue;
+    private final AtomicBoolean running;
+    private final List<DeviceBrowse> queue;
     private final Object flag = new Object();
-    private final DefaultRegistryListener upnpListener = new DefaultRegistryListener() {
+    private final DefaultRegistryListener registryListener = new DefaultRegistryListener() {
         private RemoteDevice connectedDevice = null;
 
         @Override
@@ -82,14 +82,14 @@ public class UpnpScanner implements Runnable {
             }
         }
     };
-    private Thread upnpThread = null;
+    private Thread dlnaThread = null;
     private String remoteHostname = null;
 
-    public UpnpScanner(PVR pvr) {
+    public DlnaScanner(PVR pvr) {
         this.pvr = pvr;
-        upnpService = new UpnpServiceImpl(upnpListener);
-        upnpQueue = new ArrayList<>();
-        upnpRunning = new AtomicBoolean(false);
+        upnpService = new UpnpServiceImpl(registryListener);
+        queue = new ArrayList<>();
+        running = new AtomicBoolean(false);
     }
 
     void startSearch() {
@@ -97,10 +97,10 @@ public class UpnpScanner implements Runnable {
     }
 
     void startBrowse() {
-        if (upnpRunning.compareAndSet(false, true)) {
-            upnpThread = new Thread(this, "UPNP");
-            upnpThread.start();
-            notifyBrowseListeners(DeviceListener.ScanType.upnp, true);
+        if (running.compareAndSet(false, true)) {
+            dlnaThread = new Thread(this, "DLNA");
+            dlnaThread.start();
+            notifyBrowseListeners(DeviceListener.ScanType.dlna, true);
         }
     }
 
@@ -108,40 +108,40 @@ public class UpnpScanner implements Runnable {
     public void run() {
         DeviceBrowse next;
         try {
-            while (upnpRunning.get()) {
-                synchronized (upnpQueue) {
-                    while (upnpQueue.isEmpty()) {
-                        upnpQueue.wait();
+            while (running.get()) {
+                synchronized (queue) {
+                    while (queue.isEmpty()) {
+                        queue.wait();
                     }
-                    next = upnpQueue.remove(0);
+                    next = queue.remove(0);
                 }
                 upnpService.getControlPoint().execute(next);
                 synchronized (flag) {
                     flag.wait();
                 }
-                synchronized (upnpQueue) {
-                    if (upnpQueue.isEmpty()) {
+                synchronized (queue) {
+                    if (queue.isEmpty()) {
                         log.info("Browse complete");
                         return;
                     }
                 }
             }
         } catch (InterruptedException ex) {
-            log.error("IOException in upnp thread: {}", ex.getMessage(), ex);
+            log.error("IOException in DLNA thread: {}", ex.getMessage(), ex);
         } finally {
-            upnpRunning.set(false);
-            notifyBrowseListeners(DeviceListener.ScanType.upnp, false);
+            running.set(false);
+            notifyBrowseListeners(DeviceListener.ScanType.dlna, false);
         }
     }
 
     void stop() {
-        if (upnpRunning.compareAndSet(true, false) && upnpThread != null) {
-            upnpThread.interrupt();
-            log.info("Waiting for upnpThread to finish");
+        if (running.compareAndSet(true, false) && dlnaThread != null) {
+            dlnaThread.interrupt();
+            log.info("Waiting for dlnaThread to finish");
             try {
-                upnpThread.join();
+                dlnaThread.join();
             } catch (InterruptedException ex) {
-                log.error("Unexpected interruption waiting for upnpThread, ignored");
+                log.error("Unexpected interruption waiting for dlnaThread, ignored");
             }
         }
     }
@@ -154,10 +154,11 @@ public class UpnpScanner implements Runnable {
         remoteHostname = device.getIdentity().getDescriptorURL().getHost();
         Service service = device.findService(new UDAServiceType("ContentDirectory"));
         if (service != null) {
-            synchronized (upnpQueue) {
-                upnpQueue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
-                upnpQueue.notifyAll();
+            synchronized (queue) {
+                queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
+                queue.notifyAll();
             }
+            // TODO: Remove this
             startBrowse();
         }
         notifyConnectionListeners(true);
@@ -168,7 +169,7 @@ public class UpnpScanner implements Runnable {
     }
 
     /**
-     * Part of the Cing framework. This class implements the upnp device search
+     * Part of the Cing framework. This class implements the dlna device search
      * stuff.
      */
     private class DeviceBrowse extends Browse {
@@ -189,9 +190,9 @@ public class UpnpScanner implements Runnable {
             for (Container c : containers) {
                 PVRFolder folder = pvr.addFolder(parent, c.getTitle());
                 pvr.updateItem(folder);
-                synchronized (upnpQueue) {
-                    upnpQueue.add(new DeviceBrowse(service, c.getId(), folder));
-                    upnpQueue.notifyAll();
+                synchronized (queue) {
+                    queue.add(new DeviceBrowse(service, c.getId(), folder));
+                    queue.notifyAll();
                 }
 
             }
@@ -200,7 +201,7 @@ public class UpnpScanner implements Runnable {
             for (Item i : items) {
                 PVRFile file = pvr.addFile(parent, i.getTitle());
 
-                file.setUpnp(true);
+                file.setDlna(true);
 
                 Res res = i.getFirstResource();
                 if (res != null) {

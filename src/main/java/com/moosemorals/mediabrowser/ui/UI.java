@@ -834,7 +834,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         log.debug("Scan start {}", type);
         statusProgress.setIndeterminate(true);
         switch (type) {
-            case upnp:
+            case dlna:
                 setStatus("Scanning via DLNA");
                 break;
             case ftp:
