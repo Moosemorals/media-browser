@@ -240,20 +240,14 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     public boolean add(PVRFile target, String localPath) {
-        log.debug("Can we queue {}?", target);
-
         if (!isQueuable(target)) {
-            log.debug("Can't queue {}", target);
             return false;
         }
-
-        log.debug("Can queue {}", target);
 
         synchronized (queue) {
             QueueItem item = null;
             for (QueueItem i : queue) {
                 if (i.getTarget().equals(target)) {
-                    log.debug("already queued {}", target);
                     item = i;
                     break;
                 }
