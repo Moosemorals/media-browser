@@ -242,9 +242,15 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
-    public void unlockFile(PVRFile file) throws IOException {
+    public void unlockFile(List<PVRFile> files) throws IOException {
         if (ftpClient != null) {
-            ftpClient.unlockFile(file);
+            ftpClient.unlockFile(files);
+        }
+    }
+
+    public void rename(List<PVRFile> files) throws IOException {
+        if (ftpClient != null) {
+            ftpClient.renameFile(files);
         }
     }
 

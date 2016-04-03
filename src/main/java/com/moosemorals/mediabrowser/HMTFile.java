@@ -23,6 +23,8 @@
  */
 package com.moosemorals.mediabrowser;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.Charset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,7 +61,29 @@ public class HMTFile {
     }
 
     public String getRecordingFileName() {
-        return nullTerminated(0x017F, 512);
+        String result = nullTerminated(0x017F, 512);
+        if (result.isEmpty()) {
+            result = nullTerminated(0x0180, 512);
+        }
+        return result;
+    }
+
+    public void setRecordingFileName(String filename) {
+
+        byte[] filenameBytes = filename.getBytes(charset);
+
+        int offset = 0x17F;
+        if (raw[offset] == 0) {
+            offset = 0x0180;
+        }
+
+        int length = filenameBytes.length < 510 ? filenameBytes.length : 510;
+
+        System.arraycopy(filenameBytes, 0, raw, offset, length);
+
+        for (int i = length; i < 512; i += 1) {
+            raw[offset + i] = (byte) 0;
+        }
     }
 
     public String getRecordingTitle() {
@@ -137,6 +161,10 @@ public class HMTFile {
 
         System.arraycopy(raw, 0, copy, 0, raw.length);
         return copy;
+    }
+
+    public void write(OutputStream out) throws IOException {
+        out.write(raw);
     }
 
     private String nullTerminated(int offset, int length) {

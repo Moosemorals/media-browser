@@ -146,6 +146,9 @@ public class Main implements Runnable, ActionListener {
             cmd = "UKNOWN";
         }
 
+        List<DownloadManager.QueueItem> listSelected;
+        List<PVRFile> treeSelected;
+
         switch (cmd) {
             case UI.ACTION_START_STOP:
                 if (downloader.isDownloading()) {
@@ -167,27 +170,26 @@ public class Main implements Runnable, ActionListener {
                     }
                 }
                 break;
-            case UI.ACTION_LOCK:
-                for (PVRFile file : ui.getTreeSelected()) {
-                    if (file.isLocked()) {
-                        try {
-                            pvr.unlockFile(file);
-                        } catch (IOException ex) {
-                            log.error("Problem unlocking " + file.remotePath + "/" + file.remoteFilename + ": " + ex.getMessage(), ex);
-                            // TODO: Show error?
-                        }
-                    }
+            case UI.ACTION_UNLOCK:
+
+                try {
+                    pvr.unlockFile(ui.getTreeSelected());
+                } catch (IOException ex) {
+                    log.error("Problem unlocking: {}", ex.getMessage(), ex);
+                    // TODO: Show error?
                 }
+
                 break;
             case UI.ACTION_CHOOSE_DEFAULT:
                 downloader.setDownloadPath(ui.showDirectoryChooser(downloader.getDownloadPath()));
                 break;
             case UI.ACTION_CHOOSE:
-                List<DownloadManager.QueueItem> selected = ui.getListSelected();
-                if (!selected.isEmpty()) {
-                    File downloadPath = ui.showDirectoryChooser(selected.get(0).getLocalPath());
+
+                listSelected = ui.getListSelected();
+                if (!listSelected.isEmpty()) {
+                    File downloadPath = ui.showDirectoryChooser(listSelected.get(0).getLocalPath());
                     if (downloadPath != null) {
-                        downloader.changeDownloadPath(selected, downloadPath);
+                        downloader.changeDownloadPath(listSelected, downloadPath);
                     }
                 }
                 break;
@@ -209,6 +211,17 @@ public class Main implements Runnable, ActionListener {
             case UI.ACTION_TRAY:
                 if (!ui.isVisible()) {
                     ui.showWindow();
+                }
+                break;
+            case UI.ACTION_RENAME:
+
+                treeSelected = ui.getTreeSelected();
+                if (treeSelected != null && !treeSelected.isEmpty()) {
+                    try {
+                        pvr.rename(treeSelected);
+                    } catch (IOException ex) {
+                        log.error("Can't rename remote: {}", ex.getMessage(), ex);
+                    }
                 }
                 break;
             default:

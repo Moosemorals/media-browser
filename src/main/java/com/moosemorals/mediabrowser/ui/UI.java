@@ -82,9 +82,10 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     public static final String ACTION_ABOUT = "about";
     public static final String ACTION_START_STOP = "start";
     public static final String ACTION_QUEUE = "queue";
-    public static final String ACTION_LOCK = "lock";
+    public static final String ACTION_UNLOCK = "lock";
     public static final String ACTION_CHOOSE_DEFAULT = "choose_default";
     public static final String ACTION_CHOOSE = "choose";
+    public static final String ACTION_RENAME = "rename";
     public static final String ACTION_RESCAN = "rescan";
     public static final String ACTION_REMOVE = "remove";
     public static final String ACTION_QUIT = "quit";
@@ -121,7 +122,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     private boolean connected = false;
 
     private final Action actionAbout, actionRescan, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
-            actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
+            actionChooseDownloadPath, actionRemoveSelected, actionRename, actionQuit, actionRestore, actionSetMinimiseToTray,
             actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
     public UI(Main m) {
@@ -151,8 +152,9 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionChooseDownloadPath = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
         actionQuit = new LocalAction(main, "Exit", ACTION_QUIT);
         actionQueue = new LocalAction(main, "Queue selected", ACTION_QUEUE);
+        actionRename = new LocalAction(main, "Rename remote file", ACTION_RENAME);
         actionRescan = new LocalAction(main, "Trigger rescan", ACTION_RESCAN);
-        actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_LOCK);
+        actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_UNLOCK);
         actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
         actionRestore = new LocalAction(main, "Restore window", ACTION_RESTORE);
         actionStartStop = new LocalAction(main, "Start downloading", ACTION_START_STOP);
@@ -264,6 +266,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         final JPopupMenu treePopup = new JPopupMenu();
         treePopup.add(actionQueue);
         treePopup.add(actionRemoveLock);
+        //  treePopup.add(actionRename);
 
         final JPopupMenu listPopup = new JPopupMenu();
         listPopup.add(actionChooseDownloadPath);

@@ -382,7 +382,18 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     public boolean isQueuable(PVRFile target) {
-        return !(target.isFolder() || target.isLocked() || target.getRemoteURL() == null);
+        if (target.isFolder()) {
+            log.warn("Can't queue folder {}", target);
+            return false;
+        } else if (target.isLocked()) {
+            log.warn("Can't queue locked file: {}", target);
+            return false;
+        } else if (target.getRemoteURL() == null) {
+            log.warn("Can't queue item with no remote url: {}", target);
+            return false;
+        }
+        return true;
+        //return !(target.isFolder() || target.isLocked() || target.getRemoteURL() == null);
     }
 
     /**

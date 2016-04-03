@@ -33,6 +33,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.net.PrintCommandListener;
 import org.apache.commons.net.ftp.FTPClient;
 import org.apache.commons.net.ftp.FTPClientConfig;
@@ -54,7 +55,7 @@ public class FtpScanner implements Runnable {
     private final Logger log = LoggerFactory.getLogger(FtpScanner.class);
     private final FTPClient ftp;
     private final AtomicBoolean ftpRunning;
-    private final boolean debugFTP = false;
+    private final boolean debugFTP = true;
     private final PVR pvr;
     private final String remoteHostname;
 
@@ -125,40 +126,107 @@ public class FtpScanner implements Runnable {
      * <a href="https://en.wikipedia.org/wiki/Anti-circumvention">this Wikipedia
      * article</a> to start with, and then talk to a lawyer.</p>
      *
-     * @param target
+     * @param targets List of PVRFiles to unlock
      * @throws IOException
      */
-    public void unlockFile(PVRFile target) throws IOException {
+    public void unlockFile(List<PVRFile> targets) throws IOException {
         synchronized (ftp) {
             boolean connected = connect();
-            if (!target.getRemoteFilename().endsWith(".ts")) {
-                throw new IllegalArgumentException("Target must be a .ts file: " + target.getRemoteFilename());
+            for (PVRFile target : targets) {
+
+                if (!target.isLocked()) {
+                    continue;
+                }
+
+                if (!target.getRemoteFilename().endsWith(".ts")) {
+                    throw new IllegalArgumentException("Target must be a .ts file: " + target.getRemoteFilename());
+                }
+
+                if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getRemotePath())) {
+                    throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getRemotePath());
+                }
+                HMTFile hmt = getHMTForTs(target);
+                if (!hmt.isLocked()) {
+                    log.info("Unlock failed: {} is already unlocked", target.getRemoteFilename());
+                    return;
+                }
+
+                hmt.clearLock();
+
+                String uploadFilename = target.getRemoteFilename().replaceAll("\\.ts$", ".hmt");
+                log.info("Uploading unlocked hmt file to {}{}", target.getParent().getRemotePath(), uploadFilename);
+
+                if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
+                    throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
+                }
+
+                renameInPlace(target);
+                updateFromHMT(target);
+                pvr.updateItem(target);
             }
 
-            if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getRemotePath())) {
-                throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getRemotePath());
-            }
-            HMTFile hmt = getHMTForTs(target);
-            if (!hmt.isLocked()) {
-                log.info("Unlock failed: {} is already unlocked", target.getRemoteFilename());
-                return;
+            if (connected) {
+                disconnect();
             }
 
-            hmt.clearLock();
+        }
 
-            String uploadFilename = target.getRemoteFilename().replaceAll("\\.ts$", ".hmt");
-            log.info("Uploading unlocked hmt file to {}{}", target.getParent().getRemotePath(), uploadFilename);
+    }
 
-            if (!ftp.storeFile(uploadFilename, new ByteArrayInputStream(hmt.getBytes()))) {
-                throw new IOException("Can't upload unlocked hmt to " + uploadFilename);
+    /**
+     * Triggers a DLNA server rescan (on the PVR). Skips a lot of checks on the
+     * assumtion that its called from unlock only.
+     *
+     * @param target
+     */
+    private void renameInPlace(PVRFile target) throws IOException {
+
+        String basename = FilenameUtils.getBaseName(target.getRemoteFilename());
+
+        for (FTPFile f : ftp.listFiles()) {
+            String oldName = f.getName();
+            if (basename.equals(FilenameUtils.getBaseName(oldName))) {
+
+                String extension = FilenameUtils.getExtension(oldName);
+
+                String newName;
+                if (basename.endsWith("-")) {
+                    newName = basename.substring(0, basename.length() - 1) + extension;
+                } else {
+                    newName = basename + "-." + extension;
+                }
+
+                log.debug("Moving {} to {} ", oldName, newName);
+
+                if (!ftp.rename(oldName, newName)) {
+                    throw new IOException("Can't rename " + target.getRemoteFilename());
+                }
+
+                if (extension.equals("ts")) {
+                    target.setRemoteFilename(newName);
+                }
+
+            }
+        }
+
+    }
+
+    public void renameFile(List<PVRFile> targets) throws IOException {
+        synchronized (ftp) {
+            boolean connected = connect();
+
+            for (PVRFile target : targets) {
+                if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getRemotePath())) {
+                    throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getRemotePath());
+                }
+
+                pvr.updateItem(target);
             }
 
-            updateFromHMT(target);
             if (connected) {
                 disconnect();
             }
         }
-        pvr.updateItem(target);
     }
 
     /**

@@ -36,7 +36,7 @@ public abstract class PVRItem implements Comparable<PVRItem> {
 
     private final Logger log = LoggerFactory.getLogger(PVRItem.class);
 
-    protected final String remoteFilename;
+    protected String remoteFilename;
     protected final String remotePath;
     protected final PVRFolder parent;
     protected final TreePath treePath;
@@ -123,6 +123,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
      */
     public String getRemoteFilename() {
         return remoteFilename;
+    }
+
+    void setRemoteFilename(String remoteFilename) {
+        this.remoteFilename = remoteFilename;
     }
 
     /**
