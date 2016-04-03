@@ -85,6 +85,12 @@ public class PVRFile extends PVRItem {
         return size;
     }
 
+    @Override
+    public boolean isQueueable() {
+        log.debug("Is {} queuable? {}", remoteFilename, dlna);
+        return dlna;
+    }
+
     /**
      * Sets the human readable title of this file.
      *

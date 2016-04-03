@@ -464,7 +464,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
                         if (file.isLocked()) {
                             actionRemoveLock.setEnabled(true);
-                        } else {
+                        } else if (file.isQueueable()) {
                             actionQueue.setEnabled(true);
                         }
                     }

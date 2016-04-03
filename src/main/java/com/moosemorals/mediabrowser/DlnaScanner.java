@@ -158,8 +158,6 @@ public class DlnaScanner implements Runnable {
                 queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
                 queue.notifyAll();
             }
-            // TODO: Remove this
-            startBrowse();
         }
         notifyConnectionListeners(true);
     }

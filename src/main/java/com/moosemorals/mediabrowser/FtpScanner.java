@@ -55,7 +55,7 @@ public class FtpScanner implements Runnable {
     private final Logger log = LoggerFactory.getLogger(FtpScanner.class);
     private final FTPClient ftp;
     private final AtomicBoolean ftpRunning;
-    private final boolean debugFTP = true;
+    private final boolean debugFTP = false;
     private final PVR pvr;
     private final String remoteHostname;
 

@@ -127,6 +127,14 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean isSelected, boolean isExpanded, boolean leaf, int row, boolean hasFocus) {
 
+        if (isSelected) {
+            setBackground(UIManager.getColor("Tree.selectionBackground"));
+            text.setForeground(UIManager.getColor("Tree.selectionForeground"));
+        } else {
+            setBackground(UIManager.getColor("Tree.textBackground"));
+            text.setForeground(UIManager.getColor("Tree.textForeground"));
+        }
+
         PVRItem item = (PVRItem) value;
         if (item.isFile()) {
             PVRFile file = (PVRFile) item;
@@ -156,6 +164,10 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
             text.setText(title.toString());
 
+            if (!file.isDlnaScanned()) {
+                float[] colorComponents = text.getForeground().getRGBComponents(null);
+                text.setForeground(new Color(colorComponents[0], colorComponents[1], colorComponents[2], 0.5f));
+            }
         } else {
             PVRFolder folder = (PVRFolder) item;
 
@@ -190,14 +202,6 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
         }
 
         setBorder(BorderFactory.createCompoundBorder(padding, select));
-
-        if (isSelected) {
-            setBackground(UIManager.getColor("Tree.selectionBackground"));
-            text.setForeground(UIManager.getColor("Tree.selectionForeground"));
-        } else {
-            setBackground(UIManager.getColor("Tree.textBackground"));
-            text.setForeground(UIManager.getColor("Tree.textForeground"));
-        }
 
         Dimension preferredSize = getPreferredSize();
 

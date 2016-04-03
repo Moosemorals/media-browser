@@ -94,6 +94,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
                 .toString();
     }
 
+    public boolean isQueueable() {
+        return false;
+    }
+
     /**
      * Returns true if this is a PVRFile.
      *

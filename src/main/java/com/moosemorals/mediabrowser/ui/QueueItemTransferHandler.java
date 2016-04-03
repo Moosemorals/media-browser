@@ -118,7 +118,7 @@ class QueueItemTransferHandler extends TransferHandler {
                 if (o instanceof PVRFile) {
                     PVRFile target = (PVRFile) o;
 
-                    if (dm.isQueuable(target)) {
+                    if (target.isQueueable()) {
                         QueueItem item = dm.createQueueItem(target, null);
                         item.checkTarget();
                         files.add(item);

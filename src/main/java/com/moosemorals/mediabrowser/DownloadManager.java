@@ -240,7 +240,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     public boolean add(PVRFile target, String localPath) {
-        if (!isQueuable(target)) {
+        if (!target.isQueueable()) {
             return false;
         }
 
@@ -379,21 +379,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      */
     public boolean isDownloading() {
         return running.get();
-    }
-
-    public boolean isQueuable(PVRFile target) {
-        if (target.isFolder()) {
-            log.warn("Can't queue folder {}", target);
-            return false;
-        } else if (target.isLocked()) {
-            log.warn("Can't queue locked file: {}", target);
-            return false;
-        } else if (target.getRemoteURL() == null) {
-            log.warn("Can't queue item with no remote url: {}", target);
-            return false;
-        }
-        return true;
-        //return !(target.isFolder() || target.isLocked() || target.getRemoteURL() == null);
     }
 
     /**

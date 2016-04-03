@@ -346,6 +346,12 @@ public class PVR implements TreeModel, DeviceListener {
     public void onDeviceFound() {
         log.info("Connected to device");
         notifyConnectionListners(true);
+
+        if (ftpClient == null) {
+            ftpClient = new FtpScanner(this, dlnaClient.getRemoteHostname());
+            ftpClient.addDeviceListener(this);
+            ftpClient.start();
+        }
     }
 
     @Override
@@ -386,10 +392,8 @@ public class PVR implements TreeModel, DeviceListener {
     @Override
     public void onScanComplete(ScanType type) {
         notifyScanListeners(type, false);
-        if (running.get() && type == ScanType.dlna) {
-            ftpClient = new FtpScanner(this, dlnaClient.getRemoteHostname());
-            ftpClient.addDeviceListener(this);
-            ftpClient.start();
+        if (running.get() && type == ScanType.ftp) {
+            dlnaClient.startBrowse();
         }
     }
 
