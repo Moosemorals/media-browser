@@ -42,7 +42,7 @@ public interface DeviceListener {
 
     public void onScanStart(ScanType type);
 
-    public void onScanProgress(ScanType type, long total, long completed);
+    public void onScanProgress(ScanType type, int total, int completed);
 
     public void onScanComplete(ScanType type);
 

@@ -160,11 +160,11 @@ public class UpnpScanner implements Runnable {
             }
             startBrowse();
         }
-        notifyConnectionListners(false);
+        notifyConnectionListeners(true);
     }
 
     private void onDisconnect(RemoteDevice device) {
-        notifyConnectionListners(false);
+        notifyConnectionListeners(false);
     }
 
     /**
@@ -252,7 +252,7 @@ public class UpnpScanner implements Runnable {
         }
     }
 
-    private void notifyConnectionListners(boolean connect) {
+    private void notifyConnectionListeners(boolean connect) {
         synchronized (deviceListener) {
             for (DeviceListener l : deviceListener) {
                 if (connect) {

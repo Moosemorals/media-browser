@@ -70,10 +70,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     private final List<QueueItem> queue;
     private final AtomicBoolean running;
     private final Set<ListDataListener> listDataListeners;
+    private final Set<DownloadStatusListener> statusListeners;
     private final MoveManager moveManager;
 
     private Thread downloadThread;
-    private DownloadStatusListener status;
+
     private QueueItem current;
 
     private DownloadManager(Main main) {
@@ -82,6 +83,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         this.queue = new ArrayList<>();
         this.running = new AtomicBoolean(false);
         this.listDataListeners = new HashSet<>();
+        this.statusListeners = new HashSet<>();
         this.moveManager = new MoveManager(this);
         moveManager.start();
     }
@@ -101,7 +103,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             if (areDownloadsAvailible()) {
                 downloadThread = new Thread(this, "Download");
                 downloadThread.start();
-                status.downloadStatusChanged(true);
+                notifyDownloadStatusChanged(true);
             }
         }
     }
@@ -131,6 +133,18 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     public void removeListDataListener(ListDataListener ll) {
         synchronized (listDataListeners) {
             listDataListeners.remove(ll);
+        }
+    }
+
+    public void addDownloadStatusListener(DownloadStatusListener dsl) {
+        synchronized (statusListeners) {
+            statusListeners.add(dsl);
+        }
+    }
+
+    public void removeDownloadStatusListener(DownloadStatusListener dsl) {
+        synchronized (statusListeners) {
+            statusListeners.remove(dsl);
         }
     }
 
@@ -177,7 +191,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
         } finally {
             running.set(false);
-            status.downloadStatusChanged(false);
+            notifyDownloadStatusChanged(false);
 
             notifyListDataListeners();
             notifyStatusListeners();
@@ -234,6 +248,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         synchronized (queue) {
             for (QueueItem item : queue) {
                 if (item.getTarget().equals(target)) {
+                    item.checkTarget();
                     return false;
                 }
             }
@@ -391,10 +406,6 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
     }
 
-    public void setDownloadStatusListener(DownloadStatusListener status) {
-        this.status = status;
-    }
-
     /**
      * Check if there are files queued and ready to download.
      *
@@ -423,7 +434,46 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 }
             }
         });
+    }
 
+    private void notifyListDataListeners(QueueItem item) {
+        int index;
+        synchronized (queue) {
+            index = queue.indexOf(item);
+        }
+        if (index == -1) {
+            // probably shouldn't happen
+            log.error("Not notifying listeners of an item that isn't queued: {}", item);
+            return;
+        }
+
+        final ListDataEvent lde = new ListDataEvent(this, ListDataEvent.CONTENTS_CHANGED, index, index + 1);
+        SwingUtilities.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (listDataListeners) {
+                    for (ListDataListener ll : listDataListeners) {
+                        ll.contentsChanged(lde);
+                    }
+                }
+            }
+        });
+    }
+
+    private void notifyDownloadStatusChanged(boolean status) {
+        synchronized (statusListeners) {
+            for (DownloadStatusListener dsl : statusListeners) {
+                dsl.onDownloadStatusChanged(status);
+            }
+        }
+    }
+
+    private void notifyDownloadCompleted(QueueItem target) {
+        synchronized (statusListeners) {
+            for (DownloadStatusListener dsl : statusListeners) {
+                dsl.onDownloadCompleted(target);
+            }
+        }
     }
 
     private void notifyStatusListeners() {
@@ -432,25 +482,21 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
     private void notifyStatusListeners(double rate) {
 
-        if (status == null) {
-            return;
-        }
         long totalQueued = 0;
         long totalDownloaded = 0;
-        long currentFile = 0;
-        long currentDownload = 0;
+
         synchronized (queue) {
             for (QueueItem i : queue) {
                 totalQueued += i.getTarget().getSize();
                 totalDownloaded += i.getDownloaded();
-                if (i.getState() == QueueItem.State.Downloading) {
-                    currentFile = i.getTarget().getSize();
-                    currentDownload = i.getDownloaded();
-                }
             }
         }
 
-        status.downloadProgress(totalQueued, totalDownloaded, rate);
+        synchronized (statusListeners) {
+            for (DownloadStatusListener dsl : statusListeners) {
+                dsl.onDownloadProgress(totalQueued, totalDownloaded, rate);
+            }
+        }
     }
 
     public QueueItem createQueueItem(PVRFile target, String path) {
@@ -475,11 +521,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
 
     public interface DownloadStatusListener {
 
-        public void downloadStatusChanged(boolean running);
+        public void onDownloadStatusChanged(boolean running);
 
-        public void downloadProgress(long totalQueued, long totalDownloaded, double rate);
+        public void onDownloadProgress(long totalQueued, long totalDownloaded, double rate);
 
-        public void downloadCompleted(QueueItem target);
+        public void onDownloadCompleted(QueueItem target);
     }
 
     public static class QueueItem {
@@ -502,12 +548,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             this.target = target;
             this.state = this.oldState = State.Ready;
 
-            localFilename = String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
-                    target.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
-                    PVR.FILE_DATE_FORMAT.print(target.getStartTime()),
-                    target.isHighDef() ? "1920\u00d71080" : "SD",
-                    target.getChannelName()
-            );
+            localFilename = target.getRemoteFilename();
         }
 
         public void stop() {
@@ -558,6 +599,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
          */
         void setLocalFilename(String localFilename) {
             this.localFilename = localFilename;
+            parent.notifyListDataListeners(this);
         }
 
         /**
@@ -576,6 +618,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
          */
         void setDownloaded(long downloaded) {
             this.downloaded = downloaded;
+            parent.notifyListDataListeners(this);
         }
 
         /**
@@ -586,6 +629,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         void setState(State newState) {
             oldState = this.state;
             this.state = newState;
+            parent.notifyListDataListeners(this);
         }
 
         /**
@@ -606,6 +650,13 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
 
         public void checkTarget() {
+            localFilename = String.format("%s - %s - [%s - Freeview - %s] UNEDITED",
+                    target.getTitle().replaceAll("[/?<>\\:*|\"^]", "_"),
+                    PVR.FILE_DATE_FORMAT.print(target.getStartTime()),
+                    target.isHighDef() ? "1920\u00d71080" : "SD",
+                    target.getChannelName()
+            );
+
             final File downloadTarget = getDownloadTarget();
             if (downloadTarget.exists()) {
                 setDownloaded(downloadTarget.length());
@@ -729,7 +780,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     log.error("Can't rename {} to {}", target, completed);
                     setState(State.Error);
                 }
-                parent.status.downloadCompleted(this);
+                parent.notifyDownloadCompleted(this);
             } else {
                 // Assume that we got interrupted for a good and proper reason.
                 // Error status is set above.

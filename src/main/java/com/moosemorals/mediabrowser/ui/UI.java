@@ -26,10 +26,12 @@ package com.moosemorals.mediabrowser.ui;
 
 import com.moosemorals.mediabrowser.DeviceListener;
 import com.moosemorals.mediabrowser.DownloadManager;
+import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
 import com.moosemorals.mediabrowser.Main;
 import com.moosemorals.mediabrowser.PVR;
 import com.moosemorals.mediabrowser.PVRFile;
 import com.moosemorals.mediabrowser.PVRItem;
+import com.moosemorals.mediabrowser.RateTracker;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -61,6 +63,7 @@ import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.imageio.ImageIO;
 import javax.swing.*;
+import javax.swing.GroupLayout.Alignment;
 import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.TreeSelectionEvent;
@@ -74,7 +77,7 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class UI implements DeviceListener {
+public class UI implements DeviceListener, DownloadManager.DownloadStatusListener {
 
     public static final String ACTION_ABOUT = "about";
     public static final String ACTION_START_STOP = "start";
@@ -97,6 +100,7 @@ public class UI implements DeviceListener {
     private static final int[] ICON_SIZES = {32, 24, 20, 16};
     private static final int INFOBOX_PADDING = 6;
 
+    private final RateTracker rateTracker;
     private final DownloadManager downloader;
     private final JButton startButton;
     private final JFrame window;
@@ -106,6 +110,7 @@ public class UI implements DeviceListener {
     private final JSplitPane verticalSplitPane;
     private final JTextArea infoBox;
     private final JTree displayTree;
+    private final JProgressBar statusProgress;
     private final Logger log = LoggerFactory.getLogger(UI.class);
     private final Map<String, List<Image>> icons;
     private final Main main;
@@ -113,6 +118,7 @@ public class UI implements DeviceListener {
     private final PVR pvr;
     private final TrayIcon trayIcon;
     private boolean customFont = false;
+    private boolean connected = false;
 
     private final Action actionAbout, actionRescan, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
@@ -121,6 +127,8 @@ public class UI implements DeviceListener {
     public UI(Main m) {
 
         this.main = m;
+
+        rateTracker = new RateTracker(15);
 
         try {
             GraphicsEnvironment
@@ -262,22 +270,25 @@ public class UI implements DeviceListener {
         listPopup.add(actionRemoveSelected);
         listPopup.add(actionStartStop);
 
-        final JButton downloadLabel = new JButton(actionChooseDefaultDownloadPath);
-        downloadLabel.setText(downloader.getDownloadPath().getPath());
-        downloadLabel.setFocusPainted(false);
-        downloadLabel.setMargin(new Insets(0, 0, 0, 0));
-        downloadLabel.setContentAreaFilled(false);
-        downloadLabel.setBorderPainted(false);
-        downloadLabel.setOpaque(false);
+        final JButton defaultFolderButton = new JButton(actionChooseDefaultDownloadPath);
+        defaultFolderButton.setText(downloader.getDownloadPath().getPath());
+        defaultFolderButton.setFocusPainted(false);
+        defaultFolderButton.setMargin(new Insets(0, 0, 0, 0));
+        defaultFolderButton.setContentAreaFilled(false);
+        defaultFolderButton.setBorderPainted(false);
+        defaultFolderButton.setOpaque(false);
 
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
             @Override
             public void preferenceChange(PreferenceChangeEvent evt) {
                 if (evt.getKey().equals(Main.KEY_DOWNLOAD_DIRECTORY)) {
-                    downloadLabel.setText(evt.getNewValue());
+                    defaultFolderButton.setText(evt.getNewValue());
                 }
             }
         });
+
+        statusProgress = new JProgressBar();
+        statusProgress.setPreferredSize(QueueItemListCellRenderer.PROGRESS_SIZE);
 
         statusLabel = new JLabel();
         statusLabel.setFocusable(false);
@@ -285,12 +296,29 @@ public class UI implements DeviceListener {
         startButton = new JButton(actionStartStop);
 
         JPanel statusPanel = new JPanel();
-        statusPanel.setLayout(new BoxLayout(statusPanel, BoxLayout.LINE_AXIS));
-        statusPanel.add(startButton);
-        statusPanel.add(Box.createHorizontalStrut(8));
-        statusPanel.add(downloadLabel);
-        statusPanel.add(Box.createHorizontalStrut(8));
-        statusPanel.add(statusLabel);
+        GroupLayout group = new GroupLayout(statusPanel);
+
+        statusPanel.setBorder(BorderFactory.createEmptyBorder(3, 3, 1, 3));
+        statusPanel.setLayout(group);
+
+        group.setAutoCreateGaps(true);
+        group.setAutoCreateContainerGaps(false);
+
+        group.setHorizontalGroup(
+                group.createSequentialGroup()
+                .addComponent(startButton)
+                .addComponent(defaultFolderButton)
+                .addComponent(statusProgress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addComponent(statusLabel)
+        );
+
+        group.setVerticalGroup(
+                group.createParallelGroup(Alignment.CENTER)
+                .addComponent(startButton)
+                .addComponent(defaultFolderButton)
+                .addComponent(statusProgress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                .addComponent(statusLabel)
+        );
 
         downloadList = new JList(downloader);
         downloadList.setCellRenderer(new QueueItemListCellRenderer());
@@ -787,22 +815,24 @@ public class UI implements DeviceListener {
 
     @Override
     public void onDeviceFound() {
+        connected = true;
         setIconColor(UI.ICON_CONNECTED);
     }
 
     @Override
     public void onDeviceLost() {
+        connected = false;
         setStartActionStatus(false, false);
         setIconColor(UI.ICON_DISCONNECTED);
     }
 
     @Override
     public void onScanStart(ScanType type) {
-
+        log.debug("Scan start {}", type);
+        statusProgress.setIndeterminate(true);
         switch (type) {
             case upnp:
                 setStatus("Scanning via DLNA");
-
                 break;
             case ftp:
                 setStatus("Scanning via FTP");
@@ -811,20 +841,65 @@ public class UI implements DeviceListener {
             default:
                 log.warn("Unknown browsing type: {}", type);
                 break;
-
         }
     }
 
     @Override
-    public void onScanProgress(ScanType type, long total, long completed) {
-        // does nothing - yet
+    public void onScanProgress(ScanType type, int total, int completed) {
+        // ignored. Sigh.
     }
 
     @Override
     public void onScanComplete(ScanType type) {
+        log.debug("Scan complete {}", type);
+        statusProgress.setIndeterminate(false);
         setStatus("Scan complete");
         setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         refresh();
+    }
+
+    @Override
+    public void onDownloadStatusChanged(boolean downloading) {
+        rateTracker.reset();
+        setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+        if (!connected) {
+            setIconColor(ICON_DISCONNECTED);
+        } else if (downloading) {
+            setIconColor(ICON_DOWNLOADING);
+        } else {
+            setIconColor(ICON_CONNECTED);
+        }
+    }
+
+    @Override
+    public void onDownloadProgress(long totalQueued, long totalDownloaded, double rate) {
+        String message;
+
+        statusProgress.setIndeterminate(false);
+        statusProgress.setMaximum((int) (totalQueued / PVR.MEGA));
+        statusProgress.setValue((int) (totalDownloaded / PVR.MEGA));
+
+        rateTracker.addRate(rate);
+
+        message = String.format("Queued %s - Downloaded %s (%.0f%%) - Rate %s/s",
+                PVR.humanReadableSize(totalQueued),
+                PVR.humanReadableSize(totalDownloaded),
+                totalQueued > 0
+                        ? (totalDownloaded / (double) totalQueued) * 100.0
+                        : 0,
+                PVR.humanReadableSize((long) rateTracker.getRate())
+        );
+
+        setStatus(message);
+        setTrayIconToolTip(message);
+    }
+
+    @Override
+    public void onDownloadCompleted(QueueItem target) {
+        if (prefs.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
+            String message = String.format("%s has downloaded to %s/%s.ts", target.getTarget().getTitle(), target.getLocalPath(), target.getLocalFilename());
+            showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
+        }
     }
 
 }

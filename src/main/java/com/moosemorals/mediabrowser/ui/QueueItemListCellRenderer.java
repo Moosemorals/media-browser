@@ -47,7 +47,7 @@ import org.slf4j.LoggerFactory;
  */
 class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRenderer<QueueItem> {
 
-    private static final Dimension progressSize = new Dimension(120, 20);
+    static final Dimension PROGRESS_SIZE = new Dimension(120, 20);
     private final Logger log = LoggerFactory.getLogger(QueueItemListCellRenderer.class);
 
     private final JProgressBar progress;
@@ -58,8 +58,8 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
 
         progress = new JProgressBar();
 
-        progress.setSize(progressSize);
-        progress.setPreferredSize(progressSize);
+        progress.setSize(PROGRESS_SIZE);
+        progress.setPreferredSize(PROGRESS_SIZE);
         progress.setMinimum(0);
         progress.setStringPainted(true);
         text = new JLabel();

@@ -23,20 +23,13 @@
  */
 package com.moosemorals.mediabrowser;
 
-import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
-import com.moosemorals.mediabrowser.DownloadManager.QueueItem.State;
 import com.moosemorals.mediabrowser.ui.About;
 import com.moosemorals.mediabrowser.ui.UI;
-import java.awt.TrayIcon;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
-import java.util.prefs.PreferenceChangeEvent;
-import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -49,7 +42,7 @@ import org.slf4j.bridge.SLF4JBridgeHandler;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-public class Main implements Runnable, ActionListener, DownloadManager.DownloadStatusListener, DeviceListener {
+public class Main implements Runnable, ActionListener {
 
     public static final String KEY_FRAME_KNOWN = "frame_bounds";
     public static final String KEY_FRAME_HEIGHT = "frame_height";
@@ -93,40 +86,23 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     }
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);
-    private final RateTracker rateTracker;
+
     private final Preferences preferences;
-    private final DownloadManager downloader;
+    private DownloadManager downloader;
     private final PVR pvr;
-    private int scanning = 0;
 
     private UI ui = null;
-    private boolean connected = false;
-    private Map<String, String> savedPaths = null;
 
     private Main(Preferences prefs) {
 
         this.preferences = prefs;
 
-        preferences.addPreferenceChangeListener(new PreferenceChangeListener() {
-            @Override
-            public void preferenceChange(PreferenceChangeEvent evt) {
-                if (evt.getKey().equals(KEY_SAVE_DOWNLOAD_LIST) && evt.getNewValue().equals("false")) {
-                    clearSavedPaths();
-                }
-            }
-        });
+        pvr = new PVR(prefs);
 
-        pvr = new PVR();
-        downloader = DownloadManager.createInstance(this);
-
-        rateTracker = new RateTracker(15);
     }
 
     public void start() {
-        downloader.setDownloadStatusListener(this);
-        savedPaths = getSavedPaths();
-        clearSavedPaths();
-        pvr.addDeviceListener(this);
+        downloader = DownloadManager.createInstance(this);
         pvr.start();
         SwingUtilities.invokeLater(this);
     }
@@ -134,9 +110,9 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     @Override
     public void run() {
         // Running in the AWT thread
-
         ui = new UI(this);
         pvr.addDeviceListener(ui);
+        downloader.addDownloadStatusListener(ui);
         ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         ui.showWindow();
     }
@@ -148,10 +124,6 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
     public void stop() {
         pvr.stop();
         downloader.stop();
-
-        if (isSavingPaths()) {
-            savePaths();
-        }
 
         if (ui != null) {
             ui.stop();
@@ -245,153 +217,12 @@ public class Main implements Runnable, ActionListener, DownloadManager.DownloadS
         }
     }
 
-    public boolean isDownloading() {
-        return downloader.isDownloading();
-    }
-
-    @Override
-    public void downloadStatusChanged(boolean downloading) {
-        rateTracker.reset();
-        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
-        if (!connected) {
-            ui.setIconColor(UI.ICON_DISCONNECTED);
-        } else if (downloading) {
-            ui.setIconColor(UI.ICON_DOWNLOADING);
-        } else {
-            ui.setIconColor(UI.ICON_CONNECTED);
-        }
-    }
-
-    @Override
-    public void downloadProgress(long totalQueued, long totalDownloaded, double rate) {
-        String message;
-
-        rateTracker.addRate(rate);
-
-        message = String.format("Queued %s - Downloaded %s (%.0f%%) - Rate %s/s",
-                PVR.humanReadableSize(totalQueued),
-                PVR.humanReadableSize(totalDownloaded),
-                totalQueued > 0
-                        ? (totalDownloaded / (double) totalQueued) * 100.0
-                        : 0,
-                PVR.humanReadableSize((long) rateTracker.getRate())
-        );
-
-        ui.setStatus(message);
-        ui.setTrayIconToolTip(message);
-    }
-
-    @Override
-    public void downloadCompleted(QueueItem item) {
-        if (preferences.getBoolean(Main.KEY_MESSAGE_ON_COMPLETE, true)) {
-            String message = String.format("%s has downloaded to %s/%s.ts", item.getTarget().getTitle(), item.getLocalPath(), item.getLocalFilename());
-            ui.showPopupMessage("Download Completed", message, TrayIcon.MessageType.INFO);
-        }
-    }
-
-    @Override
-    public void onDeviceFound() {
-        connected = true;
-    }
-
-    @Override
-    public void onDeviceLost() {
-        connected = false;
-    }
-
     public boolean askYesNoQuestion(String question) {
         if (ui != null) {
             return ui.askYesNoQuestion(question);
         } else {
             log.warn("Asking question [{}] but no UI.", question);
             return false;
-        }
-    }
-
-    public boolean isSavingPaths() {
-        return preferences.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
-    }
-
-    private Map<String, String> getSavedPaths() {
-        final Map<String, String> result = new HashMap<>();
-
-        if (isSavingPaths()) {
-            int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-            for (int i = 0; i < count; i += 1) {
-                String remotePath = preferences.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
-                String localPath = preferences.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
-                if (remotePath != null && localPath != null) {
-                    result.put(remotePath, localPath);
-                }
-            }
-        }
-        return result;
-    }
-
-    private void clearSavedPaths() {
-        int count = preferences.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-        for (int i = 0; i < count; i += 1) {
-            preferences.remove(KEY_SAVE_DOWNLOAD_REMOTE + i);
-            preferences.remove(KEY_SAVE_DOWNLOAD_LOCAL + i);
-        }
-        preferences.remove(KEY_SAVE_DOWNLOAD_COUNT);
-    }
-
-    private void savePaths() {
-        List<QueueItem> queue = downloader.getQueue();
-
-        int count = 0;
-
-        for (QueueItem item : queue) {
-            PVRFile file = item.getTarget();
-            if (item.getState() == State.Downloading || item.getState() == State.Paused || item.getState() == State.Queued) {
-                preferences.put(KEY_SAVE_DOWNLOAD_LOCAL + count, item.getLocalPath().getPath());
-                preferences.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
-                count += 1;
-            }
-        }
-        preferences.putInt(KEY_SAVE_DOWNLOAD_COUNT, count);
-    }
-
-    @Override
-    public void onScanStart(ScanType type) {
-        // do nothing
-
-    }
-
-    @Override
-    public void onScanProgress(ScanType type, long total, long completed) {
-        // Does nothing
-    }
-
-    @Override
-    public void onScanComplete(ScanType type) {
-
-        switch (type) {
-            case upnp:
-                scanning += 1;
-                break;
-            case ftp:
-                scanning += 1;
-                break;
-            default:
-                log.warn("Unknown browsing type: {}", type);
-                break;
-        }
-
-        if (scanning == 2) {
-            pvr.treeWalk(new PVR.TreeWalker() {
-                @Override
-                public void action(PVRItem item) {
-                    if (item.isFile()) {
-                        PVRFile file = (PVRFile) item;
-                        String remotePath = file.getRemotePath();
-                        if (savedPaths.containsKey(remotePath)) {
-                            downloader.add(file, savedPaths.get(remotePath));
-                        }
-                    }
-                }
-            });
         }
     }
 

@@ -81,6 +81,19 @@ public abstract class PVRItem implements Comparable<PVRItem> {
         return this.remotePath.equals(other.remotePath) && this.remoteFilename.equals(other.remoteFilename);
     }
 
+    @Override
+    public String toString() {
+        return new StringBuilder()
+                .append("{")
+                .append(remotePath)
+                .append("/")
+                .append(remoteFilename)
+                .append(":")
+                .append(isFile() ? " file" : " folder")
+                .append("}")
+                .toString();
+    }
+
     /**
      * Returns true if this is a PVRFile.
      *
@@ -139,11 +152,6 @@ public abstract class PVRItem implements Comparable<PVRItem> {
      */
     public TreePath getTreePath() {
         return treePath;
-    }
-
-    @Override
-    public String toString() {
-        return remoteFilename;
     }
 
 }

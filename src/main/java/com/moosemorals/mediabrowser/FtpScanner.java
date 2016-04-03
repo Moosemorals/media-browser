@@ -81,7 +81,7 @@ public class FtpScanner implements Runnable {
         if (ftpRunning.compareAndSet(false, true)) {
             ftpThread = new Thread(this, "FTP");
             ftpThread.start();
-            notifyBrowseListeners(DeviceListener.ScanType.ftp, true);
+            notifyScanListeners(DeviceListener.ScanType.ftp, true);
         }
     }
 
@@ -93,7 +93,7 @@ public class FtpScanner implements Runnable {
             log.error("FTP problem: {}", ex.getMessage(), ex);
             stop();
         } finally {
-            notifyBrowseListeners(DeviceListener.ScanType.ftp, false);
+            notifyScanListeners(DeviceListener.ScanType.ftp, false);
             ftpRunning.set(false);
         }
     }
@@ -202,28 +202,35 @@ public class FtpScanner implements Runnable {
             List<PVRFolder> queue = new LinkedList<>();
             queue.add((PVRFolder) pvr.getRoot());
 
+            int total = 0;
+            int checked = 0;
+
             while (!queue.isEmpty() && !ftpThread.isInterrupted()) {
                 PVRFolder directory = queue.remove(0);
                 if (!ftp.changeWorkingDirectory(FTP_ROOT + directory.getRemotePath())) {
                     throw new IOException("Can't change FTP directory to " + FTP_ROOT + directory.getRemotePath());
                 }
-                for (FTPFile f : ftp.listFiles()) {
+
+                FTPFile[] fileList = ftp.listFiles();
+                total += fileList.length;
+                for (FTPFile f : fileList) {
                     if (f.getName().equals(".") || f.getName().equals("..")) {
                         // skip entries for this directory and parent directory
+                        total -= 1;
                         continue;
                     }
                     if (f.isDirectory()) {
                         PVRFolder next = pvr.addFolder(directory, f.getName());
-                        queue.add(0, next);
                         pvr.updateItem(next);
-                        // Do directories first
-
+                        queue.add(next);
                     } else if (f.isFile() && f.getName().endsWith(".ts")) {
                         PVRFile file = pvr.addFile(directory, f.getName());
                         file.setSize(f.getSize());
                         updateFromHMT(file);
                         pvr.updateItem(file);
                     }
+                    checked += 1;
+                    notifyScanListeners(DeviceListener.ScanType.ftp, total, checked);
                 }
             }
             disconnect();
@@ -280,7 +287,7 @@ public class FtpScanner implements Runnable {
         }
     }
 
-    private void notifyBrowseListeners(DeviceListener.ScanType type, boolean startStop) {
+    private void notifyScanListeners(DeviceListener.ScanType type, boolean startStop) {
         synchronized (deviceListener) {
             for (DeviceListener l : deviceListener) {
                 if (startStop) {
@@ -288,6 +295,14 @@ public class FtpScanner implements Runnable {
                 } else {
                     l.onScanComplete(type);
                 }
+            }
+        }
+    }
+
+    private void notifyScanListeners(DeviceListener.ScanType type, int total, int completed) {
+        synchronized (deviceListener) {
+            for (DeviceListener l : deviceListener) {
+                l.onScanProgress(type, total, completed);
             }
         }
     }
