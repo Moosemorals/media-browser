@@ -250,20 +250,23 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         log.debug("Can queue {}", target);
 
         synchronized (queue) {
-            for (QueueItem item : queue) {
-                if (item.getTarget().equals(target)) {
-                    item.checkTarget();
+            QueueItem item = null;
+            for (QueueItem i : queue) {
+                if (i.getTarget().equals(target)) {
                     log.debug("already queued {}", target);
-                    notifyListDataListeners();
-                    notifyStatusListeners();
-                    return false;
+                    item = i;
+                    break;
                 }
             }
 
-            QueueItem item = createQueueItem(target, localPath);
-            item.setState(QueueItem.State.Queued);
+            if (item == null) {
+                item = createQueueItem(target, localPath);
+                item.setState(QueueItem.State.Queued);
+                queue.add(item);
+            }
+
             item.checkTarget();
-            queue.add(item);
+
             queue.notifyAll();
         }
 
@@ -353,7 +356,12 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     public void remove(List<QueueItem> items) {
 
         synchronized (queue) {
-            queue.removeAll(items);
+            for (Iterator<QueueItem> it = queue.iterator(); it.hasNext();) {
+                QueueItem i = it.next();
+                if (items.contains(i)) {
+                    it.remove();
+                }
+            }
             queue.notifyAll();
         }
 
