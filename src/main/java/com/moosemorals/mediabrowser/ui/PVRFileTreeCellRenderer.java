@@ -98,8 +98,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
         int Xoffset = (HD_ICON.getIconWidth() - leaf.getIconWidth()) / 2;
         int Yoffset = (HD_ICON.getIconHeight() - leaf.getIconHeight()) / 2;
 
-        leaf.paintIcon(this, g, Xoffset, Yoffset);
-
+        //   leaf.paintIcon(this, g, Xoffset, Yoffset);
         g.dispose();
         return new ImageIcon(i);
     }
@@ -166,7 +165,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
             if (!file.isDlnaScanned()) {
                 float[] colorComponents = text.getForeground().getRGBComponents(null);
-                text.setForeground(new Color(colorComponents[0], colorComponents[1], colorComponents[2], 0.5f));
+                text.setForeground(new Color(colorComponents[0], colorComponents[1], colorComponents[2], 0.25f));
             }
         } else {
             PVRFolder folder = (PVRFolder) item;
@@ -199,6 +198,14 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             select = BorderFactory.createLineBorder(Color.black);
         } else {
             select = BorderFactory.createEmptyBorder(1, 1, 1, 1);
+        }
+
+        JTree.DropLocation dropLocation = tree.getDropLocation();
+        if (dropLocation != null
+                && dropLocation.getChildIndex() == -1
+                && tree.getRowForPath(dropLocation.getPath()) == row) {
+
+            select = BorderFactory.createLineBorder(Color.blue);
         }
 
         setBorder(BorderFactory.createCompoundBorder(padding, select));

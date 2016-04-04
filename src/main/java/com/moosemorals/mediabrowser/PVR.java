@@ -109,7 +109,7 @@ public class PVR implements TreeModel, DeviceListener {
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
-    private final PVRFolder rootFolder = new PVRFolder(null, "/", "");
+    private final PVRFolder rootFolder = new PVRFolder(null, "/", "Humax HDR FOX-T2");
     private final AtomicBoolean running;
     private final DlnaScanner dlnaClient;
     private final Preferences prefs;
@@ -126,7 +126,7 @@ public class PVR implements TreeModel, DeviceListener {
             savedPaths = getSavedPaths();
             clearSavedPaths();
         } else {
-            savedPaths = null;
+            savedPaths = new HashMap<>();
         }
 
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {

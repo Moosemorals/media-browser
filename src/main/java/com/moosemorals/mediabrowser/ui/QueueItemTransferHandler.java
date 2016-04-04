@@ -26,6 +26,8 @@ package com.moosemorals.mediabrowser.ui;
 import com.moosemorals.mediabrowser.DownloadManager;
 import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
 import com.moosemorals.mediabrowser.PVRFile;
+import com.moosemorals.mediabrowser.PVRFolder;
+import com.moosemorals.mediabrowser.PVRItem;
 import java.awt.Component;
 import java.awt.Point;
 import java.awt.Rectangle;
@@ -59,15 +61,16 @@ class QueueItemTransferHandler extends TransferHandler {
 
         Component component = info.getComponent();
         if (component instanceof JList) {
-            JList<QueueItem> list = (JList<QueueItem>) component;
-
-            Point dropPoint = info.getDropLocation().getDropPoint();
-            int row = list.locationToIndex(dropPoint);
-
-            DownloadManager dlManager = (DownloadManager) list.getModel();
 
             try {
                 List<QueueItem> files = (List<QueueItem>) info.getTransferable().getTransferData(QueueItemTransferable.QueueItemFlavor);
+
+                JList<QueueItem> list = (JList<QueueItem>) component;
+
+                Point dropPoint = info.getDropLocation().getDropPoint();
+                int row = list.locationToIndex(dropPoint);
+
+                DownloadManager dlManager = (DownloadManager) list.getModel();
 
                 if (info.getDropAction() == MOVE) {
                     dlManager.moveFiles(row, files);
@@ -93,6 +96,28 @@ class QueueItemTransferHandler extends TransferHandler {
                 log.warn("Can't do transfer: {}", ex.getMessage(), ex);
                 return false;
             }
+        } else if (component instanceof JTree) {
+
+            try {
+                List<QueueItem> files = (List<QueueItem>) info.getTransferable().getTransferData(QueueItemTransferable.QueueItemFlavor);
+                JTree tree = (JTree) component;
+                JTree.DropLocation dropLocation = (JTree.DropLocation) info.getDropLocation();
+
+                PVRFolder target;
+                if (dropLocation != null) {
+                    target = (PVRFolder) dropLocation.getPath().getLastPathComponent();
+                } else {
+                    return false;
+                }
+
+                log.debug("Drop: {}", target);
+
+                return true;
+            } catch (UnsupportedFlavorException | IOException ex) {
+                log.warn("Can't do transfer: {}", ex.getMessage(), ex);
+                return false;
+            }
+
         }
         log.warn("Target not a list");
         return false;
@@ -149,7 +174,32 @@ class QueueItemTransferHandler extends TransferHandler {
 
     @Override
     public boolean canImport(TransferSupport info) {
-        return info.isDataFlavorSupported(QueueItemTransferable.QueueItemFlavor);
+        if (!info.isDrop()) {
+            return false;
+        }
+        if (!info.isDataFlavorSupported(QueueItemTransferable.QueueItemFlavor)) {
+            return false;
+        }
+
+        if (info.getComponent() instanceof JTree) {
+            JTree tree = (JTree) info.getComponent();
+            // Can only drop into a file or a gap
+            JTree.DropLocation dl = (JTree.DropLocation) info.getDropLocation();
+
+            TreePath p = dl.getPath();
+            PVRItem target;
+            if (p != null) {
+                target = (PVRItem) p.getLastPathComponent();
+            } else {
+                return false;
+            }
+
+            if (!target.isFolder()) {
+                return false;
+            }
+
+        }
+        return true;
     }
 
 }

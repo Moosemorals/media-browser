@@ -166,7 +166,6 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
 
-        actionQueue.setEnabled(false);
         actionRemoveLock.setEnabled(false);
         actionRemoveSelected.setEnabled(false);
         actionChooseDownloadPath.setEnabled(false);
@@ -388,11 +387,11 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         displayTree.setLargeModel(true);
         displayTree.setModel(pvr);
         displayTree.setCellRenderer(new PVRFileTreeCellRenderer());
-        displayTree.setRootVisible(false);
+        displayTree.setRootVisible(true);
         displayTree.setShowsRootHandles(true);
         displayTree.setDragEnabled(true);
         displayTree.setTransferHandler(new QueueItemTransferHandler());
-        displayTree.setDropTarget(null);
+        displayTree.setDropMode(DropMode.ON);
 
         displayTree.addMouseListener(new MouseAdapter() {
             @Override
@@ -452,7 +451,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         displayTree.addTreeSelectionListener(new TreeSelectionListener() {
             @Override
             public void valueChanged(TreeSelectionEvent e) {
-                actionQueue.setEnabled(false);
+
                 actionRemoveLock.setEnabled(false);
                 TreePath[] selectionPaths = displayTree.getSelectionPaths();
                 if (selectionPaths == null) {
@@ -461,11 +460,9 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
                 for (TreePath p : selectionPaths) {
                     if (((PVRItem) p.getLastPathComponent()).isFile()) {
                         PVRFile file = (PVRFile) p.getLastPathComponent();
-
                         if (file.isLocked()) {
                             actionRemoveLock.setEnabled(true);
-                        } else if (file.isQueueable()) {
-                            actionQueue.setEnabled(true);
+                            return;
                         }
                     }
                 }
