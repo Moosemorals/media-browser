@@ -229,16 +229,16 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
-    public void treeWalk(TreeWalker walker) {
-        treeWalk(rootFolder, walker);
+    public void treeWalk(TreeWalker walker, boolean update) {
+        treeWalk(rootFolder, walker, update);
     }
 
-    private void treeWalk(PVRFolder target, TreeWalker walker) {
+    private void treeWalk(PVRFolder target, TreeWalker walker, boolean update) {
 
         for (PVRItem child : target.children) {
             walker.action(child);
             if (child.isFolder()) {
-                treeWalk((PVRFolder) child, walker);
+                treeWalk((PVRFolder) child, walker, update);
             }
         }
 
@@ -249,7 +249,9 @@ public class PVR implements TreeModel, DeviceListener {
             changed[i] = target.children.get(i);
         }
 
-        notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
+        if (update) {
+            notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
+        }
     }
 
     public void unlockFile(List<PVRFile> files) throws IOException {
@@ -380,7 +382,7 @@ public class PVR implements TreeModel, DeviceListener {
                     file.setDlna(false);
                 }
             }
-        });
+        }, true);
     }
 
     @Override
@@ -401,6 +403,7 @@ public class PVR implements TreeModel, DeviceListener {
             notifyTreeNodeChanged(new TreeModelEvent(this, item.getParent().getTreePath(), new int[]{item.getParent().getChildIndex(item)}, new Object[]{item}));
             item = item.getParent();
         }
+        notifyTreeNodeChanged(new TreeModelEvent(this, item.getTreePath(), null, null));
     }
 
     @Override
