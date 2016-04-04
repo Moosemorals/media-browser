@@ -40,6 +40,8 @@ public abstract class PVRItem implements Comparable<PVRItem> {
     protected final String remotePath;
     protected final PVRFolder parent;
     protected final TreePath treePath;
+    boolean dlna = false;
+    boolean ftp = false;
 
     @SuppressWarnings(value = "LeakingThisInConstructor")
     protected PVRItem(PVRFolder parent, String remotePath, String remoteFilename) {
@@ -160,6 +162,37 @@ public abstract class PVRItem implements Comparable<PVRItem> {
      */
     public TreePath getTreePath() {
         return treePath;
+    }
+
+    /**
+     * Has been seen by DLNA
+     *
+     * @return true if has been seen.
+     */
+    public boolean isDlnaScanned() {
+        return dlna;
+    }
+
+    /**
+     * Has been seen by FTP
+     *
+     * @return true if seen by FTP
+     */
+    public boolean isFtpScanned() {
+        return ftp;
+    }
+
+    /**
+     * Set if has been seen by dlna
+     *
+     * @param dlna
+     */
+    void setDlnaScanned(boolean dlna) {
+        this.dlna = dlna;
+    }
+
+    void setFtpScanned(boolean ftp) {
+        this.ftp = ftp;
     }
 
 }

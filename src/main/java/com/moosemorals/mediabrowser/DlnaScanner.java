@@ -187,6 +187,7 @@ public class DlnaScanner implements Runnable {
 
             for (Container c : containers) {
                 PVRFolder folder = pvr.addFolder(parent, c.getTitle());
+                folder.setDlnaScanned(true);
                 pvr.updateItem(folder);
                 synchronized (queue) {
                     queue.add(new DeviceBrowse(service, c.getId(), folder));
@@ -199,7 +200,7 @@ public class DlnaScanner implements Runnable {
             for (Item i : items) {
                 PVRFile file = pvr.addFile(parent, i.getTitle());
 
-                file.setDlna(true);
+                file.setDlnaScanned(true);
 
                 Res res = i.getFirstResource();
                 if (res != null) {

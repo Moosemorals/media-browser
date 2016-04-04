@@ -289,6 +289,7 @@ public class FtpScanner implements Runnable {
                     }
                     if (f.isDirectory()) {
                         PVRFolder next = pvr.addFolder(directory, f.getName());
+                        next.setFtpScanned(true);
                         pvr.updateItem(next);
                         queue.add(next);
                     } else if (f.isFile() && f.getName().endsWith(".ts")) {
@@ -317,7 +318,7 @@ public class FtpScanner implements Runnable {
             file.setHighDef(hmt.isHighDef());
             file.setLocked(hmt.isLocked());
             file.setChannelName(hmt.getChannelName());
-            file.setFtp(true);
+            file.setFtpScanned(true);
         }
     }
 

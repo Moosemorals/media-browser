@@ -109,7 +109,7 @@ public class PVR implements TreeModel, DeviceListener {
 
     private final Logger log = LoggerFactory.getLogger(PVR.class);
     private final Set<TreeModelListener> treeModelListeners = new HashSet<>();
-    private final PVRFolder rootFolder = new PVRFolder(null, "/", "Humax HDR FOX-T2");
+    private final PVRFolder rootFolder;
     private final AtomicBoolean running;
     private final DlnaScanner dlnaClient;
     private final Preferences prefs;
@@ -117,6 +117,12 @@ public class PVR implements TreeModel, DeviceListener {
     private final Map<String, String> savedPaths;
 
     PVR(Preferences prefs) {
+        rootFolder = new PVRFolder(null, "/", "Humax HDR FOX-T2");
+
+        // OK, this isn't strictly true, but we'll just have to cope.
+        rootFolder.setFtpScanned(true);
+        rootFolder.setDlnaScanned(true);
+
         this.prefs = prefs;
         dlnaClient = new DlnaScanner(this);
         running = new AtomicBoolean(false);
@@ -379,7 +385,7 @@ public class PVR implements TreeModel, DeviceListener {
             public void action(PVRItem item) {
                 if (item.isFile()) {
                     PVRFile file = (PVRFile) item;
-                    file.setDlna(false);
+                    file.setDlnaScanned(false);
                 }
             }
         }, true);

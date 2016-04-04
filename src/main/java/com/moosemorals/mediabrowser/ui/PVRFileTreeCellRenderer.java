@@ -126,6 +126,7 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
     @Override
     public Component getTreeCellRendererComponent(JTree tree, Object value, boolean isSelected, boolean isExpanded, boolean leaf, int row, boolean hasFocus) {
 
+        PVRItem item = (PVRItem) value;
         if (isSelected) {
             setBackground(UIManager.getColor("Tree.selectionBackground"));
             text.setForeground(UIManager.getColor("Tree.selectionForeground"));
@@ -134,7 +135,11 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
             text.setForeground(UIManager.getColor("Tree.textForeground"));
         }
 
-        PVRItem item = (PVRItem) value;
+        if (!(item.isDlnaScanned() && item.isFtpScanned())) {
+            float[] colorComponents = text.getForeground().getRGBComponents(null);
+            text.setForeground(new Color(colorComponents[0], colorComponents[1], colorComponents[2], 0.25f));
+        }
+
         if (item.isFile()) {
             PVRFile file = (PVRFile) item;
 
@@ -163,10 +168,6 @@ class PVRFileTreeCellRenderer extends PVRCellRenderer implements TreeCellRendere
 
             text.setText(title.toString());
 
-            if (!file.isDlnaScanned()) {
-                float[] colorComponents = text.getForeground().getRGBComponents(null);
-                text.setForeground(new Color(colorComponents[0], colorComponents[1], colorComponents[2], 0.25f));
-            }
         } else {
             PVRFolder folder = (PVRFolder) item;
 

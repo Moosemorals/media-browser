@@ -36,8 +36,6 @@ public class PVRFile extends PVRItem {
 
     private final Logger log = LoggerFactory.getLogger(PVRFile.class);
 
-    boolean dlna = false;
-    boolean ftp = false;
     long size = -1;
 
     String remoteURL = null;
@@ -271,36 +269,6 @@ public class PVRFile extends PVRItem {
         this.channelName = channelName;
     }
 
-    /**
-     * Has been seen by DLNA
-     *
-     * @return true if has been seen.
-     */
-    public boolean isDlnaScanned() {
-        return dlna;
-    }
-
-    /**
-     * Set if has been seen by dlna
-     *
-     * @param dlna
-     */
-    void setDlna(boolean dlna) {
-        this.dlna = dlna;
-    }
-
-    /**
-     * Has been seen by FTP
-     *
-     * @return true if seen by FTP
-     */
-    public boolean isFtpScanned() {
-        return ftp;
-    }
-
-    void setFtp(boolean ftp) {
-        this.ftp = ftp;
-    }
 
     @Override
     public String toString() {
