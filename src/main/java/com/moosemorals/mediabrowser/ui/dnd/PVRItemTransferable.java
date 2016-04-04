@@ -21,9 +21,9 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-package com.moosemorals.mediabrowser.ui;
+package com.moosemorals.mediabrowser.ui.dnd;
 
-import com.moosemorals.mediabrowser.DownloadManager;
+import com.moosemorals.mediabrowser.PVRItem;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
@@ -40,26 +40,26 @@ import org.slf4j.LoggerFactory;
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
  */
-class QueueItemTransferable implements Transferable {
+public class PVRItemTransferable implements Transferable {
 
-    static final DataFlavor QueueItemFlavor = new DataFlavor(DownloadManager.QueueItem.class, "java/x-com-moosemorals-mediabrowser-QueueItem");
+    static final DataFlavor PVRItemFlavor = new DataFlavor(PVRItem.class, "java/x-com-moosemorals-mediabrowser-PVRItem");
 
-    private final Logger log = LoggerFactory.getLogger(QueueItemTransferable.class);
+    private final Logger log = LoggerFactory.getLogger(PVRItemTransferable.class);
 
-    List<DownloadManager.QueueItem> items;
+    List<PVRItem> items;
 
-    QueueItemTransferable(List<DownloadManager.QueueItem> item) {
+    PVRItemTransferable(List<PVRItem> item) {
         this.items = item;
     }
 
     @Override
     public DataFlavor[] getTransferDataFlavors() {
-        return new DataFlavor[]{QueueItemFlavor};
+        return new DataFlavor[]{PVRItemFlavor};
     }
 
     @Override
     public boolean isDataFlavorSupported(DataFlavor flavor) {
-        return QueueItemFlavor.equals(flavor);
+        return PVRItemFlavor.equals(flavor);
     }
 
     @Override

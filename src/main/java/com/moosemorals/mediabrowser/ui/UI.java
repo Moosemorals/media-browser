@@ -32,6 +32,8 @@ import com.moosemorals.mediabrowser.PVR;
 import com.moosemorals.mediabrowser.PVRFile;
 import com.moosemorals.mediabrowser.PVRItem;
 import com.moosemorals.mediabrowser.RateTracker;
+import com.moosemorals.mediabrowser.ui.dnd.ListTransferHandler;
+import com.moosemorals.mediabrowser.ui.dnd.TreeTransferHandler;
 import java.awt.AWTException;
 import java.awt.BorderLayout;
 import java.awt.Dimension;
@@ -326,7 +328,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         downloadList.setCellRenderer(new QueueItemListCellRenderer());
         downloadList.setDragEnabled(true);
         downloadList.setDropMode(DropMode.INSERT);
-        downloadList.setTransferHandler(new QueueItemTransferHandler());
+        downloadList.setTransferHandler(new ListTransferHandler(downloader));
 
         downloadList.addMouseListener(new MouseAdapter() {
 
@@ -390,7 +392,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         displayTree.setRootVisible(true);
         displayTree.setShowsRootHandles(true);
         displayTree.setDragEnabled(true);
-        displayTree.setTransferHandler(new QueueItemTransferHandler());
+        displayTree.setTransferHandler(new TreeTransferHandler(pvr));
         displayTree.setDropMode(DropMode.ON);
 
         displayTree.addMouseListener(new MouseAdapter() {
