@@ -84,6 +84,8 @@ public class PVRFolder extends PVRItem {
     int addChild(PVRItem child) {
         synchronized (children) {
             children.add(child);
+            child.setParent(this);
+            child.setTreePath(treePath.pathByAddingChild(child));
             Collections.sort(children);
             return children.indexOf(child);
         }
@@ -104,6 +106,12 @@ public class PVRFolder extends PVRItem {
     public int getChildIndex(PVRItem child) {
         synchronized (children) {
             return children.indexOf(child);
+        }
+    }
+
+    public void removeChild(PVRItem child) {
+        synchronized (children) {
+            children.remove(child);
         }
     }
 

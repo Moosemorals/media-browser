@@ -37,9 +37,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
     private final Logger log = LoggerFactory.getLogger(PVRItem.class);
 
     protected String remoteFilename;
-    protected final String remotePath;
-    protected final PVRFolder parent;
-    protected final TreePath treePath;
+    protected String remotePath;
+    protected PVRFolder parent;
+    protected TreePath treePath;
+    protected long lastScanned;
     boolean dlna = false;
     boolean ftp = false;
 
@@ -54,6 +55,7 @@ public abstract class PVRItem implements Comparable<PVRItem> {
             System.arraycopy(parentPath, 0, myPath, 0, parentPath.length);
             myPath[myPath.length - 1] = this;
             treePath = new TreePath(myPath);
+            lastScanned = System.currentTimeMillis();
         } else {
             // root node;
             treePath = new TreePath(this);
@@ -145,6 +147,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
         return remotePath;
     }
 
+    void setRemotePath(String remotePath) {
+        this.remotePath = remotePath;
+    }
+
     /**
      * Get parent Folder. Will return null for the root folder.
      *
@@ -152,6 +158,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
      */
     public PVRFolder getParent() {
         return parent;
+    }
+
+    void setParent(PVRFolder parent) {
+        this.parent = parent;
     }
 
     /**
@@ -162,6 +172,10 @@ public abstract class PVRItem implements Comparable<PVRItem> {
      */
     public TreePath getTreePath() {
         return treePath;
+    }
+
+    void setTreePath(TreePath path) {
+        this.treePath = path;
     }
 
     /**
@@ -195,4 +209,11 @@ public abstract class PVRItem implements Comparable<PVRItem> {
         this.ftp = ftp;
     }
 
+    public long getLastScanned() {
+        return lastScanned;
+    }
+
+    void setLastScanned(long lastScanned) {
+        this.lastScanned = lastScanned;
+    }
 }

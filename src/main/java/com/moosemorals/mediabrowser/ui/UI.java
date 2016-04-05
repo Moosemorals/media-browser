@@ -87,7 +87,6 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     public static final String ACTION_UNLOCK = "lock";
     public static final String ACTION_CHOOSE_DEFAULT = "choose_default";
     public static final String ACTION_CHOOSE = "choose";
-    public static final String ACTION_RENAME = "rename";
     public static final String ACTION_RESCAN = "rescan";
     public static final String ACTION_REMOVE = "remove";
     public static final String ACTION_QUIT = "quit";
@@ -124,7 +123,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     private boolean connected = false;
 
     private final Action actionAbout, actionRescan, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
-            actionChooseDownloadPath, actionRemoveSelected, actionRename, actionQuit, actionRestore, actionSetMinimiseToTray,
+            actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
             actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
 
     public UI(Main m) {
@@ -154,7 +153,6 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionChooseDownloadPath = new LocalAction(main, "Set download folder", ACTION_CHOOSE);
         actionQuit = new LocalAction(main, "Exit", ACTION_QUIT);
         actionQueue = new LocalAction(main, "Queue selected", ACTION_QUEUE);
-        actionRename = new LocalAction(main, "Rename remote file", ACTION_RENAME);
         actionRescan = new LocalAction(main, "Trigger rescan", ACTION_RESCAN);
         actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_UNLOCK);
         actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);

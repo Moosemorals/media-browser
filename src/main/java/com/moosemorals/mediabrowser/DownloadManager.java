@@ -447,8 +447,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             index = queue.indexOf(item);
         }
         if (index == -1) {
-            // probably shouldn't happen
-            log.error("Not notifying listeners of an item that isn't queued: {}", item);
+            // Happens a lot more than I was expecting.
             return;
         }
 

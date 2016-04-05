@@ -84,6 +84,7 @@ public class DlnaScanner implements Runnable {
     };
     private Thread dlnaThread = null;
     private String remoteHostname = null;
+    private Service service = null;
 
     public DlnaScanner(PVR pvr) {
         this.pvr = pvr;
@@ -96,11 +97,18 @@ public class DlnaScanner implements Runnable {
         upnpService.getControlPoint().search(new STAllHeader());
     }
 
-    void startBrowse() {
-        if (running.compareAndSet(false, true)) {
+    void startScan() {
+        if (service != null && running.compareAndSet(false, true)) {
+
             dlnaThread = new Thread(this, "DLNA");
             dlnaThread.start();
             notifyBrowseListeners(DeviceListener.ScanType.dlna, true);
+            synchronized (queue) {
+                queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
+                queue.notifyAll();
+            }
+        } else if (service == null) {
+            log.warn("Can't start scanning DLNA, no service");
         }
     }
 
@@ -113,6 +121,7 @@ public class DlnaScanner implements Runnable {
                     while (queue.isEmpty()) {
                         queue.wait();
                     }
+
                     next = queue.remove(0);
                 }
                 upnpService.getControlPoint().execute(next);
@@ -152,13 +161,9 @@ public class DlnaScanner implements Runnable {
 
     private void onConnect(RemoteDevice device) {
         remoteHostname = device.getIdentity().getDescriptorURL().getHost();
-        Service service = device.findService(new UDAServiceType("ContentDirectory"));
-        if (service != null) {
-            synchronized (queue) {
-                queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
-                queue.notifyAll();
-            }
-        }
+
+        service = device.findService(new UDAServiceType("ContentDirectory"));
+
         notifyConnectionListeners(true);
     }
 
@@ -220,6 +225,7 @@ public class DlnaScanner implements Runnable {
 
         @Override
         public void failure(ActionInvocation invocation, UpnpResponse operation, String defaultMsg) {
+            log.error("Scan failure of some type");
             synchronized (flag) {
                 flag.notifyAll();
             }

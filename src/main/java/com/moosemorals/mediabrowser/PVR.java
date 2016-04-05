@@ -34,6 +34,9 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.prefs.PreferenceChangeEvent;
 import java.util.prefs.PreferenceChangeListener;
@@ -113,6 +116,8 @@ public class PVR implements TreeModel, DeviceListener {
     private final AtomicBoolean running;
     private final DlnaScanner dlnaClient;
     private final Preferences prefs;
+    private final ScheduledThreadPoolExecutor scheduler;
+    private ScheduledFuture<?> scanTask;
     private FtpScanner ftpClient;
     private final Map<String, String> savedPaths;
 
@@ -122,6 +127,10 @@ public class PVR implements TreeModel, DeviceListener {
         // OK, this isn't strictly true, but we'll just have to cope.
         rootFolder.setFtpScanned(true);
         rootFolder.setDlnaScanned(true);
+
+        scheduler = new ScheduledThreadPoolExecutor(1);
+        scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        scheduler.setRemoveOnCancelPolicy(true);
 
         this.prefs = prefs;
         dlnaClient = new DlnaScanner(this);
@@ -220,6 +229,7 @@ public class PVR implements TreeModel, DeviceListener {
     public void stop() {
         if (running.compareAndSet(true, false)) {
             log.debug("Stopping");
+            scheduler.shutdown();
             dlnaClient.stop();
             if (ftpClient != null) {
                 ftpClient.stop();
@@ -266,10 +276,39 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
-    public void rename(List<PVRFile> files) throws IOException {
+    public void moveToFolder(List<PVRFile> files, PVRFolder destination) throws IOException {
         if (ftpClient != null) {
-            ftpClient.renameFile(files);
+            //    ftpClient.moveToFolder(files, destination);
+
+            for (PVRFile file : files) {
+                remove(file);
+                destination.addChild(file);
+            }
+
+            notifyTreeStructureUpdate(new TreeModelEvent(this, destination.getTreePath()));
+
         }
+    }
+
+    private void remove(PVRItem item) {
+        PVRFolder parent = item.getParent();
+        int index = parent.getChildIndex(item);
+
+        item.getParent().removeChild(item);
+
+        notifyTreeNodeRemoved(new TreeModelEvent(this, parent.getTreePath(), new int[]{index}, new Object[]{item}));
+    }
+
+    private void removeStaleItems(final long age) {
+        final long now = System.currentTimeMillis();
+        treeWalk(new TreeWalker() {
+            @Override
+            public void action(PVRItem item) {
+                if (now - item.getLastScanned() > age) {
+                    remove(item);
+                }
+            }
+        }, true);
     }
 
     /**
@@ -321,6 +360,19 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
+    void notifyTreeNodeRemoved(final TreeModelEvent e) {
+        EventQueue.invokeLater(new Runnable() {
+            @Override
+            public void run() {
+                synchronized (treeModelListeners) {
+                    for (final TreeModelListener l : treeModelListeners) {
+                        l.treeNodesRemoved(e);
+                    }
+                }
+            }
+        });
+    }
+
     void notifyTreeNodeInserted(final TreeModelEvent e) {
         EventQueue.invokeLater(new Runnable() {
             @Override
@@ -368,12 +420,25 @@ public class PVR implements TreeModel, DeviceListener {
         if (ftpClient == null) {
             ftpClient = new FtpScanner(this, dlnaClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
-            ftpClient.start();
+
         }
+
+        scanTask = scheduler.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                log.debug("Scheduled scan");
+                if (ftpClient != null) {
+                    ftpClient.start();
+                }
+            }
+        }, 0, 1, TimeUnit.MINUTES);
     }
 
     @Override
     public void onDeviceLost() {
+        if (scanTask != null) {
+            scanTask.cancel(true);
+        }
         log.info("Disconnected from device");
         notifyConnectionListners(false);
         if (ftpClient != null) {
@@ -405,6 +470,8 @@ public class PVR implements TreeModel, DeviceListener {
             }
         }
 
+        item.setLastScanned(System.currentTimeMillis());
+
         while (!item.equals(rootFolder)) {
             notifyTreeNodeChanged(new TreeModelEvent(this, item.getParent().getTreePath(), new int[]{item.getParent().getChildIndex(item)}, new Object[]{item}));
             item = item.getParent();
@@ -421,7 +488,9 @@ public class PVR implements TreeModel, DeviceListener {
     public void onScanComplete(ScanType type) {
         notifyScanListeners(type, false);
         if (running.get() && type == ScanType.ftp) {
-            dlnaClient.startBrowse();
+            dlnaClient.startScan();
+        } else if (running.get() && type == ScanType.dlna) {
+            removeStaleItems(5 * 60 * 1000);
         }
     }
 

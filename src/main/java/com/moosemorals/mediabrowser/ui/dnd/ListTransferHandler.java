@@ -26,7 +26,6 @@ package com.moosemorals.mediabrowser.ui.dnd;
 import com.moosemorals.mediabrowser.DownloadManager;
 import com.moosemorals.mediabrowser.DownloadManager.QueueItem;
 import com.moosemorals.mediabrowser.PVRFile;
-import com.moosemorals.mediabrowser.PVRItem;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.datatransfer.Transferable;
@@ -74,12 +73,12 @@ public class ListTransferHandler extends TransferHandler {
                 files = (List<QueueItem>) info.getTransferable().getTransferData(QueueItemTransferable.QueueItemFlavor);
                 dm.moveFiles(row, files);
                 return true;
-            } else if (info.isDataFlavorSupported(PVRItemTransferable.PVRItemFlavor)) {
+            } else if (info.isDataFlavorSupported(PVRFileTransferable.PVRFileFlavor)) {
                 files = new ArrayList<>();
 
-                for (PVRItem item : (List<PVRItem>) info.getTransferable().getTransferData(PVRItemTransferable.PVRItemFlavor)) {
-                    if (item.isQueueable()) {
-                        QueueItem queueItem = dm.createQueueItem((PVRFile) item, dm.getDownloadPath().getPath());
+                for (PVRFile file : (List<PVRFile>) info.getTransferable().getTransferData(PVRFileTransferable.PVRFileFlavor)) {
+                    if (file.isQueueable()) {
+                        QueueItem queueItem = dm.createQueueItem((PVRFile) file, dm.getDownloadPath().getPath());
                         queueItem.checkTarget();
 
                         files.add(queueItem);
@@ -143,7 +142,7 @@ public class ListTransferHandler extends TransferHandler {
             return false;
         }
 
-        return info.isDataFlavorSupported(PVRItemTransferable.PVRItemFlavor)
+        return info.isDataFlavorSupported(PVRFileTransferable.PVRFileFlavor)
                 || info.isDataFlavorSupported(QueueItemTransferable.QueueItemFlavor);
     }
 

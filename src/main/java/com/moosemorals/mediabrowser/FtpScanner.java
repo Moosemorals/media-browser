@@ -211,13 +211,33 @@ public class FtpScanner implements Runnable {
 
     }
 
-    public void renameFile(List<PVRFile> targets) throws IOException {
+    public void moveToFolder(List<PVRFile> files, PVRFolder destination) throws IOException {
         synchronized (ftp) {
             boolean connected = connect();
 
-            for (PVRFile target : targets) {
+            for (PVRFile target : files) {
                 if (!ftp.changeWorkingDirectory(FTP_ROOT + target.getParent().getRemotePath())) {
                     throw new IOException("Can't change FTP directory to " + FTP_ROOT + target.getParent().getRemotePath());
+                }
+
+                String basename = FilenameUtils.getBaseName(target.getRemoteFilename());
+
+                for (FTPFile f : ftp.listFiles()) {
+                    String oldName = f.getName();
+                    if (basename.equals(FilenameUtils.getBaseName(oldName))) {
+
+                        String newName = FTP_ROOT + destination.getRemotePath() + oldName;
+
+                        log.debug("Moving {} to {} ", oldName, newName);
+
+                        if (!ftp.rename(oldName, newName)) {
+                            throw new IOException("Can't rename " + target.getRemoteFilename());
+                        }
+
+                        if (FilenameUtils.getExtension(oldName).equals("ts")) {
+                            target.setRemoteFilename(newName);
+                        }
+                    }
                 }
 
                 pvr.updateItem(target);

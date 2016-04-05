@@ -26,7 +26,6 @@ package com.moosemorals.mediabrowser.ui.dnd;
 import com.moosemorals.mediabrowser.PVR;
 import com.moosemorals.mediabrowser.PVRFile;
 import com.moosemorals.mediabrowser.PVRFolder;
-import com.moosemorals.mediabrowser.PVRItem;
 import java.awt.datatransfer.Transferable;
 import java.awt.datatransfer.UnsupportedFlavorException;
 import java.io.IOException;
@@ -42,7 +41,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Part of the Drag and Drop infrastructure.
  *
- * Trees can import/export lists of PVRItems (and by import, I mean move
+ * Trees can import/export lists of PVRFiles (and by import, I mean move
  * internally)
  *
  * @author Osric Wilkinson (osric@fluffypeople.com)
@@ -66,7 +65,7 @@ public class TreeTransferHandler extends TransferHandler {
         if (info.getComponent() instanceof JTree) {
 
             try {
-                List<PVRItem> files = (List<PVRItem>) info.getTransferable().getTransferData(PVRItemTransferable.PVRItemFlavor);
+                List<PVRFile> files = (List<PVRFile>) info.getTransferable().getTransferData(PVRFileTransferable.PVRFileFlavor);
                 JTree.DropLocation dropLocation = (JTree.DropLocation) info.getDropLocation();
 
                 PVRFolder target;
@@ -76,7 +75,7 @@ public class TreeTransferHandler extends TransferHandler {
                     return false;
                 }
 
-                log.debug("Moving {} to {}", files, target);
+                pvr.moveToFolder(files, target);
 
                 return true;
             } catch (UnsupportedFlavorException | IOException ex) {
@@ -92,7 +91,7 @@ public class TreeTransferHandler extends TransferHandler {
     @Override
     protected Transferable createTransferable(JComponent source) {
         if (source instanceof JTree) {
-            List<PVRItem> files = new ArrayList<>();
+            List<PVRFile> files = new ArrayList<>();
             TreePath[] selectionPaths = ((JTree) source).getSelectionPaths();
             if (selectionPaths == null) {
                 return null;
@@ -108,7 +107,7 @@ public class TreeTransferHandler extends TransferHandler {
             ((JTree) source).clearSelection();
 
             if (files.size() > 0) {
-                return new PVRItemTransferable(files);
+                return new PVRFileTransferable(files);
             } else {
                 log.debug("Nothing to transfer");
                 return null;
@@ -130,7 +129,7 @@ public class TreeTransferHandler extends TransferHandler {
             return false;
         }
 
-        if (!info.isDataFlavorSupported(PVRItemTransferable.PVRItemFlavor)) {
+        if (!info.isDataFlavorSupported(PVRFileTransferable.PVRFileFlavor)) {
             return false;
         }
 

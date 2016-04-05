@@ -213,17 +213,6 @@ public class Main implements Runnable, ActionListener {
                     ui.showWindow();
                 }
                 break;
-            case UI.ACTION_RENAME:
-
-                treeSelected = ui.getTreeSelected();
-                if (treeSelected != null && !treeSelected.isEmpty()) {
-                    try {
-                        pvr.rename(treeSelected);
-                    } catch (IOException ex) {
-                        log.error("Can't rename remote: {}", ex.getMessage(), ex);
-                    }
-                }
-                break;
             default:
                 log.warn("Unknown action {}, ignoring", cmd);
                 break;
