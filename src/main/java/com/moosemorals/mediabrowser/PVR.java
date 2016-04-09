@@ -251,22 +251,24 @@ public class PVR implements TreeModel, DeviceListener {
 
     private void treeWalk(PVRFolder target, TreeWalker walker, boolean update) {
 
-        for (PVRItem child : target.children) {
-            walker.action(child);
-            if (child.isFolder()) {
-                treeWalk((PVRFolder) child, walker, update);
+        synchronized (target.children) {
+            for (PVRItem child : target.children) {
+                walker.action(child);
+                if (child.isFolder()) {
+                    treeWalk((PVRFolder) child, walker, update);
+                }
             }
-        }
 
-        int[] indexes = new int[target.children.size()];
-        Object[] changed = new Object[target.children.size()];
-        for (int i = 0; i < indexes.length; i += 1) {
-            indexes[i] = i;
-            changed[i] = target.children.get(i);
-        }
+            int[] indexes = new int[target.children.size()];
+            Object[] changed = new Object[target.children.size()];
+            for (int i = 0; i < indexes.length; i += 1) {
+                indexes[i] = i;
+                changed[i] = target.children.get(i);
+            }
 
-        if (update) {
-            notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
+            if (update) {
+                notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
+            }
         }
     }
 
