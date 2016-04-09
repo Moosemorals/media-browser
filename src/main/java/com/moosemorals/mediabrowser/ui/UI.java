@@ -175,7 +175,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
         window = new JFrame("Media Browser");
 
-        window.setIconImages(icons.get(ICON_CONNECTED));
+        window.setIconImages(icons.get(ICON_DISCONNECTED));
 
         window.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
 
@@ -479,7 +479,10 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         }
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
+        horizontalSplitPane.setResizeWeight(0.8);
+
         verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, infoBox);
+        verticalSplitPane.setResizeWeight(1);
 
         horizontalSplitPane.addPropertyChangeListener(JSplitPane.DIVIDER_LOCATION_PROPERTY, new PropertyChangeListener() {
             @Override
