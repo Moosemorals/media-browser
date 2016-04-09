@@ -36,16 +36,13 @@
     <url>https://moosemorals.github.com/media-browserr</url>
 
     <distributionManagement>
-
         <site>
             <id>github</id>
             <name>Github</name>
             <url>scm:git:git@github.com:Moosemorals/media-browser.git</url>
         </site>
-
     </distributionManagement>
-    
-    
+        
     <repositories>
         <repository>
             <id>4thline-repo</id>
@@ -126,13 +123,7 @@
                             </classPath>
                             <jre>
                                 <minVersion>1.7.0</minVersion>
-                            </jre>
-                            <splash>
-                                <file>src/main/resources/images/splash.bmp</file>
-                                <waitForWindow>true</waitForWindow>
-                                <timeout>60</timeout>
-                                <timeoutErr>true</timeoutErr>
-                            </splash>
+                            </jre>                            
                         </configuration>
                     </execution>
                 </executions>
