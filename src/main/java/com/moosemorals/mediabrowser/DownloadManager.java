@@ -181,6 +181,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 notifyStatusListeners();
 
                 if (!prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false) || !areDownloadsAvailible()) {
+                    log.debug("Stopping downloads : Auto download {} areAvailible {}", prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false), areDownloadsAvailible());
                     stop();
                     return;
                 }

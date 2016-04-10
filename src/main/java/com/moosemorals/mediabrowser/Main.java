@@ -81,8 +81,23 @@ public class Main implements Runnable, ActionListener {
             log.error("Can't change look and feel", ex);
         }
 
-        new Main(Preferences.userNodeForPackage(Main.class)).start();
+        Preferences prefs = Preferences.userNodeForPackage(Main.class);
 
+        // Set some defaults
+        if (prefs.get(KEY_AUTO_DOWNLOAD, null) == null) {
+            prefs.putBoolean(KEY_AUTO_DOWNLOAD, true);
+        }
+        if (prefs.get(KEY_MINIMISE_TO_TRAY, null) == null) {
+            prefs.putBoolean(KEY_MINIMISE_TO_TRAY, false);
+        }
+        if (prefs.get(KEY_FRAME_KNOWN, null) == null) {
+            prefs.putBoolean(KEY_FRAME_KNOWN, false);
+        }
+        if (prefs.get(KEY_SAVE_DOWNLOAD_LIST, null) == null) {
+            prefs.putBoolean(KEY_SAVE_DOWNLOAD_LIST, true);
+        }
+
+        new Main(prefs).start();
     }
 
     private static final Logger log = LoggerFactory.getLogger(Main.class);

@@ -156,7 +156,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
         actionRestore = new LocalAction(main, "Restore window", ACTION_RESTORE);
         actionStartStop = new LocalAction(main, "Start downloading", ACTION_START_STOP);
-        actionSetAutoDownload = new PreferenceAction(prefs, "Automaticaly download next", Main.KEY_AUTO_DOWNLOAD);
+        actionSetAutoDownload = new PreferenceAction(prefs, "Automatically download next", Main.KEY_AUTO_DOWNLOAD);
         actionSetMinimiseToTray = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
         actionSetShowMessageOnComplete = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
         actionSetSaveDownloadList = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
@@ -240,7 +240,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         menu.add(jCheckBoxMenuItem);
 
         jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetAutoDownload);
-        jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, true));
+        jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_AUTO_DOWNLOAD, false));
         menu.add(jCheckBoxMenuItem);
 
         jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetShowMessageOnComplete);
@@ -479,7 +479,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         }
 
         horizontalSplitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(displayTree), new JScrollPane(downloadList));
-        horizontalSplitPane.setResizeWeight(0.8);
+        horizontalSplitPane.setResizeWeight(0.5);
 
         verticalSplitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT, horizontalSplitPane, infoBox);
         verticalSplitPane.setResizeWeight(1);
@@ -830,18 +830,20 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     @Override
     public void onScanStart(ScanType type) {
         log.debug("Scan start {}", type);
-        statusProgress.setIndeterminate(true);
-        switch (type) {
-            case dlna:
-                setStatus("Scanning via DLNA");
-                break;
-            case ftp:
-                setStatus("Scanning via FTP");
+        if (!downloader.isDownloading()) {
+            statusProgress.setIndeterminate(true);
+            switch (type) {
+                case dlna:
+                    setStatus("Scanning via DLNA");
+                    break;
+                case ftp:
+                    setStatus("Scanning via FTP");
 
-                break;
-            default:
-                log.warn("Unknown browsing type: {}", type);
-                break;
+                    break;
+                default:
+                    log.warn("Unknown browsing type: {}", type);
+                    break;
+            }
         }
     }
 
@@ -853,8 +855,10 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     @Override
     public void onScanComplete(ScanType type) {
         log.debug("Scan complete {}", type);
-        statusProgress.setIndeterminate(false);
-        setStatus("Scan complete");
+        if (!downloader.isDownloading()) {
+            statusProgress.setIndeterminate(false);
+            setStatus("Scan complete");
+        }
         setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
         refresh();
     }
