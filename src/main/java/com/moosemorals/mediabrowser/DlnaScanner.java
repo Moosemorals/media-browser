@@ -55,6 +55,8 @@ public class DlnaScanner implements Runnable {
 
     private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
 
+    private static final long PAGE_SIZE = 50;
+
     private final Logger log = LoggerFactory.getLogger(DlnaScanner.class);
     private final PVR pvr;
     private final UpnpService upnpService;
@@ -104,7 +106,7 @@ public class DlnaScanner implements Runnable {
             dlnaThread.start();
             notifyBrowseListeners(DeviceListener.ScanType.dlna, true);
             synchronized (queue) {
-                queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot())));
+                queue.add(new DeviceBrowse(service, "0\\1\\2", ((PVRFolder) pvr.getRoot()), 0));
                 queue.notifyAll();
             }
         } else if (service == null) {
@@ -172,16 +174,20 @@ public class DlnaScanner implements Runnable {
     }
 
     /**
-     * Part of the Cing framework. This class implements the dlna device search
+     * Part of the Cling framework. This class implements the dlna device search
      * stuff.
      */
     private class DeviceBrowse extends Browse {
 
         private final PVRFolder parent;
         private final Service service;
+        private final String id;
+        private final int page;
 
-        DeviceBrowse(Service service, String id, PVRFolder parent) {
-            super(service, id, BrowseFlag.DIRECT_CHILDREN);
+        DeviceBrowse(Service service, String id, PVRFolder parent, int page) {
+            super(service, id, BrowseFlag.DIRECT_CHILDREN, CAPS_WILDCARD, page * PAGE_SIZE, PAGE_SIZE);
+            this.id = id;
+            this.page = page;
             this.parent = parent;
             this.service = service;
         }
@@ -195,7 +201,7 @@ public class DlnaScanner implements Runnable {
                 folder.setDlnaScanned(true);
                 pvr.updateItem(folder);
                 synchronized (queue) {
-                    queue.add(new DeviceBrowse(service, c.getId(), folder));
+                    queue.add(new DeviceBrowse(service, c.getId(), folder, 0));
                     queue.notifyAll();
                 }
 
@@ -213,6 +219,12 @@ public class DlnaScanner implements Runnable {
                 }
                 pvr.updateItem(file);
             }
+
+            if (items.size() + containers.size() == PAGE_SIZE) {
+                // Get next page
+                queue.add(new DeviceBrowse(service, id, parent, page + 1));
+            }
+
             synchronized (flag) {
                 flag.notifyAll();
             }

@@ -36,3 +36,6 @@ I may need to empty the directory first).
   * Testing
     I don't want to screw this one up. If I can make it a full on 
     
+
+* Check for files that have been downloaded
+

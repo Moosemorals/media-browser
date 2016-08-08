@@ -31,6 +31,7 @@ import java.awt.EventQueue;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -252,8 +253,9 @@ public class PVR implements TreeModel, DeviceListener {
     private void treeWalk(PVRFolder target, TreeWalker walker, boolean update) {
 
         synchronized (target.children) {
-            for (PVRItem child : target.children) {
-                walker.action(child);
+            for (Iterator<PVRItem> it = target.children.iterator(); it.hasNext();) {
+                PVRItem child = it.next();
+                walker.action(child, null);
                 if (child.isFolder()) {
                     treeWalk((PVRFolder) child, walker, update);
                 }
@@ -283,7 +285,9 @@ public class PVR implements TreeModel, DeviceListener {
             //    ftpClient.moveToFolder(files, destination);
 
             for (PVRFile file : files) {
-                remove(file);
+                PVRFolder parent = file.getParent();
+                int index = parent.getChildIndex(file);
+                notifyTreeNodeRemoved(new TreeModelEvent(this, parent.getTreePath(), new int[]{index}, new Object[]{file}));
                 destination.addChild(file);
             }
 
@@ -292,22 +296,18 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
-    private void remove(PVRItem item) {
-        PVRFolder parent = item.getParent();
-        int index = parent.getChildIndex(item);
-
-        item.getParent().removeChild(item);
-
-        notifyTreeNodeRemoved(new TreeModelEvent(this, parent.getTreePath(), new int[]{index}, new Object[]{item}));
-    }
-
     private void removeStaleItems(final long age) {
         final long now = System.currentTimeMillis();
         treeWalk(new TreeWalker() {
             @Override
-            public void action(PVRItem item) {
+            public void action(PVRItem item, Iterator it) {
                 if (now - item.getLastScanned() > age) {
-                    remove(item);
+                    PVRFolder parent = item.getParent();
+                    int index = parent.getChildIndex(item);
+
+                    it.remove();
+
+                    notifyTreeNodeRemoved(new TreeModelEvent(this, parent.getTreePath(), new int[]{index}, new Object[]{item}));
                 }
             }
         }, true);
@@ -449,7 +449,7 @@ public class PVR implements TreeModel, DeviceListener {
         }
         treeWalk(new TreeWalker() {
             @Override
-            public void action(PVRItem item) {
+            public void action(PVRItem item, Iterator it) {
                 if (item.isFile()) {
                     PVRFile file = (PVRFile) item;
                     file.setDlnaScanned(false);
@@ -592,6 +592,6 @@ public class PVR implements TreeModel, DeviceListener {
 
     public interface TreeWalker {
 
-        public void action(PVRItem item);
+        public void action(PVRItem item, Iterator it);
     }
 }
