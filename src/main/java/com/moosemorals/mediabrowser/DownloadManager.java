@@ -398,7 +398,13 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      * @return boolean true if the download path has been set.
      */
     public boolean isDownloadPathSet() {
-        return prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, null) != null;
+        String downloadPath = prefs.get(Main.KEY_DOWNLOAD_DIRECTORY, null);
+        if (downloadPath == null) {
+            return false;
+        }
+
+        File downloadFolder = new File(downloadPath);
+        return downloadFolder.isDirectory() && downloadFolder.canWrite();
     }
 
     /**
@@ -427,7 +433,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
         return false;
     }
-    
+
     public boolean shouldEnableDownloadButton() {
         synchronized (queue) {
             for (QueueItem i : queue) {
