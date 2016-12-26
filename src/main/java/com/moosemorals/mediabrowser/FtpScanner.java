@@ -175,7 +175,7 @@ public class FtpScanner implements Runnable {
 
     /**
      * Triggers a DLNA server rescan (on the PVR). Skips a lot of checks on the
-     * assumtion that its called from unlock only.
+     * assumption that its called from unlock only.
      *
      * @param target
      */

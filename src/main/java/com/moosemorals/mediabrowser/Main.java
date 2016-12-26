@@ -70,7 +70,7 @@ public class Main implements Runnable, ActionListener {
             }
         });
 
-        Thread.setDefaultUncaughtExceptionHandler(new ExceptionHandler());
+        Thread.setDefaultUncaughtExceptionHandler(new EmailUncaughtExceptionHandler());
 
         SLF4JBridgeHandler.removeHandlersForRootLogger();
         SLF4JBridgeHandler.install();
