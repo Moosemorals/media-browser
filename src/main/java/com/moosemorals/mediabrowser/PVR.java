@@ -120,7 +120,7 @@ public class PVR implements TreeModel, DeviceListener {
     private final ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> scanTask;
     private FtpScanner ftpClient;
-    private final List<SavedItem> savedPaths;
+    
 
     PVR(Preferences prefs) {
         rootFolder = new PVRFolder(null, "/", "Humax HDR FOX-T2");
@@ -137,22 +137,7 @@ public class PVR implements TreeModel, DeviceListener {
         dlnaClient = new DlnaScanner(this);
         running = new AtomicBoolean(false);
 
-        if (isSavingPaths()) {
-            log.debug("Loading saved paths");
-            savedPaths = getSavedPaths();
-            clearSavedPaths();
-        } else {
-            savedPaths = new ArrayList<>();
-        }
-
-        prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
-            @Override
-            public void preferenceChange(PreferenceChangeEvent evt) {
-                if (evt.getKey().equals(KEY_SAVE_DOWNLOAD_LIST) && evt.getNewValue().equals("false")) {
-                    clearSavedPaths();
-                }
-            }
-        });
+        
     }
 
     @Override
@@ -228,11 +213,6 @@ public class PVR implements TreeModel, DeviceListener {
 
             rootFolder.clearChildren();
             notifyTreeStructureUpdate(new TreeModelEvent(this, rootFolder.getTreePath()));
-
-            if (isSavingPaths()) {
-                log.debug("Saving paths");
-                savePaths();
-            }
         }
     }
 
@@ -437,15 +417,9 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     void updateItem(PVRItem item) {
-        if (item.isFile()) {
-            PVRFile remote = (PVRFile) item;            
-            for (SavedItem i : savedPaths) {
-                if (i.remotePath.equals(item.getRemotePath())) {
-                    DownloadManager.getInstance().add(remote, i.localPath, i.priority);
-                    break;
-                }
-            }
-        }
+        DownloadManager.getInstance().addIfSaved(item);
+            
+        
 
         item.setLastScanned(System.currentTimeMillis());
 
@@ -473,52 +447,6 @@ public class PVR implements TreeModel, DeviceListener {
 
     private final Set<DeviceListener> deviceListener = new HashSet<>();
 
-    private boolean isSavingPaths() {
-        return prefs.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
-    }
-
-    private List<SavedItem> getSavedPaths() {
-        final List<SavedItem> result = new LinkedList<>();
-
-        if (isSavingPaths()) {
-            int count = prefs.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-            for (int i = 0; i < count; i += 1) {
-                String remotePath = prefs.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
-                String localPath = prefs.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
-                if (remotePath != null && localPath != null) {
-                    result.add(new SavedItem(localPath, remotePath, i));                    
-                }
-            }
-        }
-        log.debug("Saved paths: {}", result);
-        return result;
-    }
-
-    private void clearSavedPaths() {
-        int count = prefs.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
-        for (int i = 0; i < count; i += 1) {
-            prefs.remove(KEY_SAVE_DOWNLOAD_REMOTE + i);
-            prefs.remove(KEY_SAVE_DOWNLOAD_LOCAL + i);
-        }
-        prefs.remove(KEY_SAVE_DOWNLOAD_COUNT);
-    }
-
-    private void savePaths() {
-        List<DownloadManager.QueueItem> queue = DownloadManager.getInstance().getQueue();
-
-        int count = 0;
-
-        for (DownloadManager.QueueItem item : queue) {
-            PVRFile file = item.getTarget();
-            if (item.getState() == DownloadManager.QueueItem.State.Downloading || item.getState() == DownloadManager.QueueItem.State.Paused || item.getState() == DownloadManager.QueueItem.State.Queued) {
-                log.debug("Saving {} {} {}", count, item.getLocalPath().getPath(), file.getRemotePath());
-                prefs.put(KEY_SAVE_DOWNLOAD_LOCAL + count, item.getLocalPath().getPath());
-                prefs.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
-                count += 1;
-            }
-        }
-        prefs.putInt(KEY_SAVE_DOWNLOAD_COUNT, count);
-    }
 
     public void addDeviceListener(DeviceListener l) {
         synchronized (deviceListener) {
@@ -570,16 +498,5 @@ public class PVR implements TreeModel, DeviceListener {
         public void action(PVRItem item, Iterator it);
     }
     
-    private static class SavedItem {
-        public final String localPath;
-        public final String remotePath;
-        public final int priority;
 
-        public SavedItem(String localPath, String remotePath, int index) {
-            this.localPath = localPath;
-            this.remotePath = remotePath;
-            this.priority = index;
-        }
-        
-    }
 }

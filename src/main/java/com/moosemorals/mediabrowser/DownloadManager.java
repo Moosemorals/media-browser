@@ -23,6 +23,10 @@
  */
 package com.moosemorals.mediabrowser;
 
+import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_COUNT;
+import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_LIST;
+import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_LOCAL;
+import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_REMOTE;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
@@ -45,6 +49,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.prefs.PreferenceChangeEvent;
+import java.util.prefs.PreferenceChangeListener;
 import java.util.prefs.Preferences;
 import javax.swing.ListModel;
 import javax.swing.SwingUtilities;
@@ -75,6 +81,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     private final Set<ListDataListener> listDataListeners;
     private final Set<DownloadStatusListener> statusListeners;
     private final MoveManager moveManager;
+    private final List<SavedItem> savedQueue;
 
     private Thread downloadThread;
 
@@ -89,6 +96,23 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         this.statusListeners = new HashSet<>();
         this.moveManager = new MoveManager(this);
         moveManager.start();
+
+        if (isSavingQueue()) {
+            log.debug("Loading saved paths");
+            savedQueue = getSavedQueue();
+            clearSavedQueue();
+        } else {
+            savedQueue = new ArrayList<>();
+        }
+
+        prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
+            @Override
+            public void preferenceChange(PreferenceChangeEvent evt) {
+                if (evt.getKey().equals(KEY_SAVE_DOWNLOAD_LIST) && evt.getNewValue().equals("false")) {
+                    clearSavedQueue();
+                }
+            }
+        });
     }
 
     public static DownloadManager getInstance() {
@@ -227,7 +251,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     /**
-     * Add a file to the queue. Returns true if the file was added succesfully,
+     * Add a file to the queue. Returns true if the file was added successfully,
      * false otherwise.
      *
      * <p>
@@ -240,10 +264,12 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      * @return
      */
     public boolean add(PVRFile target) {
-        return add(target, null, DEFAULT_PRIORITY);
+        boolean result = add(target, null, DEFAULT_PRIORITY);
+        saveQueue();
+        return result;
     }
 
-    public boolean add(PVRFile target, String localPath, int priority) {
+    private boolean add(PVRFile target, String localPath, int priority) {
         if (!target.isQueueable()) {
             return false;
         }
@@ -315,6 +341,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 queue.get(i).setPriority(i);
             }
 
+            saveQueue();
             queue.notifyAll();
         }
         notifyListDataListeners();
@@ -351,6 +378,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 queue.get(i).setPriority(i);
             }
 
+            saveQueue();
             queue.notifyAll();
         }
 
@@ -379,6 +407,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 queue.get(i).setPriority(i);
             }
 
+            saveQueue();
             queue.notifyAll();
         }
 
@@ -507,7 +536,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         });
     }
 
-    private void notifyDownloadStatusChanged(boolean status) {
+    private void notifyDownloadStatusChanged(boolean status) {        
         synchronized (statusListeners) {
             for (DownloadStatusListener dsl : statusListeners) {
                 dsl.onDownloadStatusChanged(status);
@@ -516,6 +545,7 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
     }
 
     private void notifyDownloadCompleted(QueueItem target) {
+        saveQueue();
         synchronized (statusListeners) {
             for (DownloadStatusListener dsl : statusListeners) {
                 dsl.onDownloadCompleted(target);
@@ -566,10 +596,74 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         return null;
     }
 
+    void addIfSaved(PVRItem item) {
+        if (item.isFile()) {
+            PVRFile remote = (PVRFile) item;
+            for (SavedItem i : savedQueue) {
+                if (i.remotePath.equals(item.getRemotePath())) {
+                    add(remote, i.localPath, i.priority);
+                }
+            }
+        } 
+    }
+
     private void sortQueue() {
         synchronized (queue) {
             Collections.sort(queue);
         }
+    }
+
+    private boolean isSavingQueue() {
+        return prefs.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
+    }
+
+    private List<SavedItem> getSavedQueue() {
+        final List<SavedItem> result = new LinkedList<>();
+
+        if (isSavingQueue()) {
+            int count = prefs.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
+            for (int i = 0; i < count; i += 1) {
+                String remotePath = prefs.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
+                String localPath = prefs.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
+                if (remotePath != null && localPath != null) {
+                    result.add(new SavedItem(localPath, remotePath, i));
+                }
+            }
+        }
+        log.debug("Saved paths: {}", result);
+        return result;
+    }
+
+    private void clearSavedQueue() {
+        int count = prefs.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
+        for (int i = 0; i < count; i += 1) {
+            prefs.remove(KEY_SAVE_DOWNLOAD_REMOTE + i);
+            prefs.remove(KEY_SAVE_DOWNLOAD_LOCAL + i);
+        }
+        prefs.remove(KEY_SAVE_DOWNLOAD_COUNT);
+    }
+
+    private void saveQueue() {
+        if (!isSavingQueue()) {
+            return;
+        }
+
+        clearSavedQueue();
+        int count = 0;
+        synchronized (queue) {
+            for (QueueItem item : queue) {
+                PVRFile file = item.getTarget();
+                if (item.getState() == QueueItem.State.Downloading
+                        || item.getState() == QueueItem.State.Paused
+                        || item.getState() == QueueItem.State.Queued) {
+                    log.debug("Saving {} {} {}", count, item.getLocalPath().getPath(), file.getRemotePath());
+                    prefs.put(KEY_SAVE_DOWNLOAD_LOCAL + count, item.getLocalPath().getPath());
+                    prefs.put(KEY_SAVE_DOWNLOAD_REMOTE + count, file.getRemotePath());
+                    count += 1;
+                }
+            }
+        }
+        prefs.putInt(KEY_SAVE_DOWNLOAD_COUNT, count);
     }
 
     public interface DownloadStatusListener {
@@ -1147,5 +1241,19 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 return Objects.equals(this.queueItem, other.queueItem);
             }
         }
+    }
+
+    private static class SavedItem {
+
+        public final String localPath;
+        public final String remotePath;
+        public final int priority;
+
+        public SavedItem(String localPath, String remotePath, int index) {
+            this.localPath = localPath;
+            this.remotePath = remotePath;
+            this.priority = index;
+        }
+
     }
 }
