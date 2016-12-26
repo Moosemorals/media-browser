@@ -162,16 +162,12 @@ public class PVR implements TreeModel, DeviceListener {
 
     @Override
     public Object getChild(Object parent, int index) {
-        synchronized (((PVRFolder) parent).children) {
-            return ((PVRFolder) parent).getChild(index);
-        }
+        return ((PVRFolder) parent).getChild(index);
     }
 
     @Override
     public int getChildCount(Object parent) {
-        synchronized (((PVRFolder) parent).children) {
-            return ((PVRFolder) parent).getChildCount();
-        }
+        return ((PVRFolder) parent).getChildCount();
     }
 
     @Override
@@ -185,15 +181,9 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     @Override
-    public int getIndexOfChild(Object parent, Object child) {
-        synchronized (((PVRFolder) parent).children) {
-            if (parent != null && parent instanceof PVRFolder && child != null && child instanceof PVRItem) {
-                for (int i = 0; i < ((PVRFolder) parent).getChildCount(); i += 1) {
-                    if ((child.equals(((PVRFolder) parent).getChild(i)))) {
-                        return i;
-                    }
-                }
-            }
+    public int getIndexOfChild(Object p, Object c) {
+        if (p != null && p instanceof PVRFolder && c != null && c instanceof PVRItem) {
+            return ((PVRFolder) p).getChildIndex((PVRItem) c);
         }
         return -1;
     }
@@ -247,31 +237,7 @@ public class PVR implements TreeModel, DeviceListener {
     }
 
     public void treeWalk(TreeWalker walker, boolean update) {
-        treeWalk(rootFolder, walker, update);
-    }
-
-    private void treeWalk(PVRFolder target, TreeWalker walker, boolean update) {
-
-        synchronized (target.children) {
-            for (Iterator<PVRItem> it = target.children.iterator(); it.hasNext();) {
-                PVRItem child = it.next();
-                walker.action(child, null);
-                if (child.isFolder()) {
-                    treeWalk((PVRFolder) child, walker, update);
-                }
-            }
-
-            int[] indexes = new int[target.children.size()];
-            Object[] changed = new Object[target.children.size()];
-            for (int i = 0; i < indexes.length; i += 1) {
-                indexes[i] = i;
-                changed[i] = target.children.get(i);
-            }
-
-            if (update) {
-                notifyTreeNodeChanged(new TreeModelEvent(PVR.this, target.getTreePath(), indexes, changed));
-            }
-        }
+        rootFolder.treeWalk(this, walker, update);
     }
 
     public void unlockFile(List<PVRFile> files) throws IOException {
@@ -296,6 +262,11 @@ public class PVR implements TreeModel, DeviceListener {
         }
     }
 
+    /**
+     * After a scan is completed, remove any items that no longer exist.
+     *
+     * @param age
+     */
     private void removeStaleItems(final long age) {
         final long now = System.currentTimeMillis();
         treeWalk(new TreeWalker() {
@@ -321,45 +292,42 @@ public class PVR implements TreeModel, DeviceListener {
      * @return {@link PVRFolder} either an existing Folder, or a new one.
      */
     PVRFolder addFolder(PVRFolder parent, String folderName) {
-        synchronized (parent.children) {
-            for (PVRItem child : parent.children) {
-                if (child.getRemoteFilename().equals(folderName)) {
-                    if (child.isFolder()) {
-                        return (PVRFolder) child;
-                    } else {
-                        throw new RuntimeException("Can't add file [" + folderName + "] to " + parent.getRemotePath() + ": Already exists as folder");
-                    }
-                }
+        PVRItem child = parent.getChild(folderName);
+
+        if (child != null) {
+            if (child instanceof PVRFolder) {
+                return (PVRFolder) child;
+            } else {
+                throw new RuntimeException("Can't add folder [" + folderName + "] to " + parent.getRemotePath() + ": Already exists as file");
             }
-
-            PVRFolder folder = new PVRFolder(parent, parent.getRemotePath() + folderName + "/", folderName);
-            parent.addChild(folder);
-
-            notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(folder)}, new Object[]{folder}));
-            notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
-            return folder;
         }
+
+        PVRFolder folder = new PVRFolder(parent, parent.getRemotePath() + folderName + "/", folderName);
+        parent.addChild(folder);
+
+        notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(folder)}, new Object[]{folder}));
+        notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
+        return folder;
     }
 
-    PVRFile addFile(PVRFolder parent, String filename) {
-        synchronized (parent.children) {
-            for (PVRItem child : parent.children) {
-                if (child.getRemoteFilename().equals(filename)) {
-                    if (child.isFile()) {
-                        return (PVRFile) child;
-                    } else {
-                        throw new RuntimeException("Can't add folder [" + filename + "] to " + parent.getRemotePath() + ": Already exists as file");
-                    }
-                }
+    PVRFile addFile(PVRFolder parent, String fileName) {
+        PVRItem child = parent.getChild(fileName);
+
+        if (child != null) {
+            if (child instanceof PVRFile) {
+                return (PVRFile) child;
+            } else {
+                throw new RuntimeException("Can't add file [" + fileName + "] to " + parent.getRemotePath() + ": Already exists as folder");
             }
-
-            PVRFile file = new PVRFile(parent, parent.getRemotePath() + filename, filename);
-            parent.addChild(file);
-
-            notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(file)}, new Object[]{file}));
-            notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
-            return file;
         }
+
+        PVRFile file = new PVRFile(parent, parent.getRemotePath() + fileName, fileName);
+        parent.addChild(file);
+
+        notifyTreeNodeInserted(new TreeModelEvent(this, parent.getTreePath(), new int[]{parent.getChildIndex(file)}, new Object[]{file}));
+        notifyTreeStructureUpdate(new TreeModelEvent(this, parent.getTreePath()));
+        return file;
+
     }
 
     void notifyTreeNodeRemoved(final TreeModelEvent e) {
@@ -422,18 +390,15 @@ public class PVR implements TreeModel, DeviceListener {
         if (ftpClient == null) {
             ftpClient = new FtpScanner(this, dlnaClient.getRemoteHostname());
             ftpClient.addDeviceListener(this);
-
         }
 
         scanTask = scheduler.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
                 log.debug("Scheduled scan");
-                if (ftpClient != null) {
-                    ftpClient.start();
-                }
+                triggerScan();
             }
-        }, 0, 1, TimeUnit.MINUTES);
+        }, 0, 5, TimeUnit.MINUTES);
     }
 
     @Override
@@ -461,6 +426,14 @@ public class PVR implements TreeModel, DeviceListener {
     @Override
     public void onScanStart(ScanType type) {
         notifyScanListeners(type, true);
+    }
+
+    public void triggerScan() {
+        if (ftpClient != null) {
+            ftpClient.start();
+        } else {
+            log.warn("No FTP client, not scanning");
+        }
     }
 
     void updateItem(PVRItem item) {

@@ -128,7 +128,7 @@ public class Main implements Runnable, ActionListener {
         ui = new UI(this);
         pvr.addDeviceListener(ui);
         downloader.addDownloadStatusListener(ui);
-        ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+        ui.setStartActionStatus(downloader.shouldEnableDownloadButton(), downloader.isDownloading());
         ui.showWindow();
     }
 
@@ -162,7 +162,6 @@ public class Main implements Runnable, ActionListener {
         }
 
         List<DownloadManager.QueueItem> listSelected;
-        List<PVRFile> treeSelected;
 
         switch (cmd) {
             case UI.ACTION_START_STOP:
@@ -180,7 +179,7 @@ public class Main implements Runnable, ActionListener {
                 for (PVRFile file : ui.getTreeSelected()) {
                     if (!file.isLocked()) {
                         if (downloader.add(file)) {
-                            ui.setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+                            ui.setStartActionStatus(downloader.shouldEnableDownloadButton(), downloader.isDownloading());
                         }
                     }
                 }
@@ -213,6 +212,8 @@ public class Main implements Runnable, ActionListener {
                     ui.showWindow();
                 }
                 break;
+            case UI.ACTION_SCAN:
+                pvr.triggerScan();
             case UI.ACTION_REMOVE:
                 downloader.remove(ui.getListSelected());
                 break;

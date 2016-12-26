@@ -23,10 +23,12 @@
  */
 package com.moosemorals.mediabrowser;
 
+import com.moosemorals.mediabrowser.PVR.TreeWalker;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import javax.swing.event.TreeModelEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +40,7 @@ public class PVRFolder extends PVRItem {
 
     private final Logger log = LoggerFactory.getLogger(PVRFolder.class);
 
-    final List<PVRItem> children;
+    private final List<PVRItem> children;
 
     protected PVRFolder(PVRFolder parent, String path, String filename) {
         super(parent, path, filename);
@@ -103,6 +105,17 @@ public class PVRFolder extends PVRItem {
         }
     }
 
+    public PVRItem getChild(String name) {
+        synchronized (children) {
+            for (PVRItem child : children) {
+                if (child.getRemoteFilename().equals(name)) {
+                    return child;
+                }
+            }
+        }
+        return null;
+    }
+
     public int getChildIndex(PVRItem child) {
         synchronized (children) {
             return children.indexOf(child);
@@ -137,6 +150,29 @@ public class PVRFolder extends PVRItem {
                     ((PVRFolder) item).clearChildren();
                 }
                 it.remove();
+            }
+        }
+    }
+
+    void treeWalk(PVR pvr, TreeWalker walker, boolean update) {
+        synchronized (children) {
+            for (Iterator<PVRItem> it = children.iterator(); it.hasNext();) {
+                PVRItem child = it.next();
+                walker.action(child, it);
+                if (child.isFolder()) {
+                    ((PVRFolder) child).treeWalk(pvr, walker, update);
+                }
+            }
+
+            int[] indexes = new int[children.size()];
+            Object[] changed = new Object[children.size()];
+            for (int i = 0; i < indexes.length; i += 1) {
+                indexes[i] = i;
+                changed[i] = children.get(i);
+            }
+
+            if (update) {
+                pvr.notifyTreeNodeChanged(new TreeModelEvent(pvr, getTreePath(), indexes, changed));
             }
         }
     }

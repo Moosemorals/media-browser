@@ -89,6 +89,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     public static final String ACTION_CHOOSE = "choose";
     public static final String ACTION_REMOVE = "remove";
     public static final String ACTION_QUIT = "quit";
+    public static final String ACTION_SCAN = "scan";
     public static final String ACTION_TRAY = "tray";
     public static final String ACTION_RESTORE = "restore";
 
@@ -123,7 +124,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
     private final Action actionAbout, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
-            actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete;
+            actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete, actionScan;
 
     public UI(Main m) {
 
@@ -155,6 +156,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionRemoveLock = new LocalAction(main, "Remove lock", ACTION_UNLOCK);
         actionRemoveSelected = new LocalAction(main, "Remove from queue", ACTION_REMOVE);
         actionRestore = new LocalAction(main, "Restore window", ACTION_RESTORE);
+        actionScan = new LocalAction(main, "Trigger Scan", ACTION_SCAN);
         actionStartStop = new LocalAction(main, "Start downloading", ACTION_START_STOP);
         actionSetAutoDownload = new PreferenceAction(prefs, "Automatically download next", Main.KEY_AUTO_DOWNLOAD);
         actionSetMinimiseToTray = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
@@ -219,6 +221,7 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         menu = new JMenu("File");
 
         menu.add(actionStartStop);
+        menu.add(actionScan);
         menu.addSeparator();
         menu.add(actionChooseDefaultDownloadPath);
         menu.addSeparator();
@@ -859,14 +862,14 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
             statusProgress.setIndeterminate(false);
             setStatus("Scan complete");
         }
-        setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+        setStartActionStatus(downloader.shouldEnableDownloadButton(), downloader.isDownloading());
         refresh();
     }
 
     @Override
     public void onDownloadStatusChanged(boolean downloading) {
         rateTracker.reset();
-        setStartActionStatus(downloader.areDownloadsAvailible(), downloader.isDownloading());
+        setStartActionStatus(downloader.shouldEnableDownloadButton(), downloader.isDownloading());
         if (!connected) {
             setIconColor(ICON_DISCONNECTED);
         } else if (downloading) {

@@ -417,10 +417,24 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      *
      * @return boolean true if there are downloads available, false otherwise.
      */
-    public boolean areDownloadsAvailible() {
+    private boolean areDownloadsAvailible() {
         synchronized (queue) {
             for (QueueItem i : queue) {
                 if (i.getState() == QueueItem.State.Queued || i.getState() == QueueItem.State.Paused || i.getState() == QueueItem.State.Moving) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    public boolean shouldEnableDownloadButton() {
+        synchronized (queue) {
+            for (QueueItem i : queue) {
+                if (i.getState() == QueueItem.State.Queued
+                        || i.getState() == QueueItem.State.Paused
+                        || i.getState() == QueueItem.State.Moving
+                        || i.getState() == QueueItem.State.Downloading) {
                     return true;
                 }
             }
