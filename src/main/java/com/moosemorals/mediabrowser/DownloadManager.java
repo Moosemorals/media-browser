@@ -62,7 +62,7 @@ import org.slf4j.LoggerFactory;
 public final class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
 
     public static final int DEFAULT_PRIORITY = Integer.MAX_VALUE;
-    
+
     private static final int BUFFER_SIZE = 1024 * 4; // bytes
     private static final int UPDATE_INTERVAL = 500; // miliseconds
     private static DownloadManager instance;
@@ -310,11 +310,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 queue.remove(f);
                 queue.add(row, f);
             }
-            
+
             for (int i = 0; i < queue.size(); i += 1) {
                 queue.get(i).setPriority(i);
             }
-            
+
             queue.notifyAll();
         }
         notifyListDataListeners();
@@ -346,11 +346,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
 
             queue.addAll(row, items);
-            
+
             for (int i = 0; i < queue.size(); i += 1) {
                 queue.get(i).setPriority(i);
             }
-            
+
             queue.notifyAll();
         }
 
@@ -374,11 +374,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     it.remove();
                 }
             }
-            
+
             for (int i = 0; i < queue.size(); i += 1) {
                 queue.get(i).setPriority(i);
             }
-            
+
             queue.notifyAll();
         }
 
@@ -565,11 +565,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
         return null;
     }
-    
-    private void sortQueue() {        
+
+    private void sortQueue() {
         synchronized (queue) {
-            Collections.sort(queue);            
-        }        
+            Collections.sort(queue);
+        }
     }
 
     public interface DownloadStatusListener {
@@ -630,9 +630,9 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
 
         public void setPriority(int priority) {
-            this.priorty = priority;            
+            this.priorty = priority;
         }
-        
+
         public PVRFile getTarget() {
             return target;
         }

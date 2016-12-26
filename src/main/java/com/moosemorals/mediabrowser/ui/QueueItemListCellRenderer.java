@@ -29,6 +29,7 @@ import com.moosemorals.mediabrowser.PVRFile;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
+import java.awt.Rectangle;
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
 import javax.swing.JLabel;
@@ -37,6 +38,7 @@ import javax.swing.JProgressBar;
 import javax.swing.ListCellRenderer;
 import javax.swing.UIManager;
 import javax.swing.border.Border;
+import javax.swing.border.EmptyBorder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -50,11 +52,17 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
     static final Dimension PROGRESS_SIZE = new Dimension(120, 20);
     private final Logger log = LoggerFactory.getLogger(QueueItemListCellRenderer.class);
 
+    private static final Border noFocusBorder = new EmptyBorder(1, 1, 1, 1);
+    private static final Border padding = BorderFactory.createEmptyBorder(1, 0, 1, 0);
+
     private final JProgressBar progress;
     private final JLabel text;
 
     QueueItemListCellRenderer() {
         super();
+
+        //  setOpaque(true);
+        setBorder(noFocusBorder);
 
         progress = new JProgressBar();
 
@@ -73,18 +81,48 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
 
         group.setHorizontalGroup(
                 group.createSequentialGroup()
-                .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addComponent(text)
+                        .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .addComponent(text)
         );
         group.setVerticalGroup(
                 group.createParallelGroup()
-                .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-                .addComponent(text)
+                        .addComponent(progress, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .addComponent(text)
         );
     }
 
     @Override
     public Component getListCellRendererComponent(JList<? extends QueueItem> list, QueueItem item, int index, boolean isSelected, boolean hasFocus) {
+
+        setComponentOrientation(list.getComponentOrientation());
+
+        Color bg = null;
+        Color fg = null;
+
+        JList.DropLocation dropLocation = list.getDropLocation();
+        if (dropLocation != null
+                && !dropLocation.isInsert()
+                && dropLocation.getIndex() == index) {
+
+            bg = UIManager.getColor("List.dropCellBackground");
+            fg = UIManager.getColor("List.dropCellForeground");
+
+            isSelected = true;
+        }
+
+        if (isSelected) {
+            setBackground(bg == null ? list.getSelectionBackground() : bg);
+            text.setForeground(fg == null ? list.getSelectionForeground() : fg);
+        } else {
+            setBackground(list.getBackground());
+            text.setForeground(list.getForeground());
+        }
+
+        setEnabled(list.isEnabled());
+        setFont(list.getFont());
+
+        
+        
 
         PVRFile file = item.getTarget();
 
@@ -138,24 +176,21 @@ class QueueItemListCellRenderer extends PVRCellRenderer implements ListCellRende
 
         text.setText(title);
 
-        Border padding = BorderFactory.createEmptyBorder(1, 0, 1, 0);
+        
 
-        Border select;
+        Border select = null;
         if (hasFocus) {
-            select = BorderFactory.createLineBorder(Color.black);
+            if (isSelected) {
+                select = UIManager.getBorder("List.focusSelectedCellHighlightBorder");
+            }
+            if (select == null) {
+                select = UIManager.getBorder("List.focusCellHighlightBorder");
+            }
         } else {
-            select = BorderFactory.createEmptyBorder(1, 1, 1, 1);
+            select = noFocusBorder;
         }
 
         setBorder(BorderFactory.createCompoundBorder(padding, select));
-
-        if (isSelected) {
-            setBackground(UIManager.getColor("List.selectionBackground"));
-            text.setForeground(UIManager.getColor("List.selectionForeground"));
-        } else {
-            setBackground(UIManager.getColor("List.textBackground"));
-            text.setForeground(UIManager.getColor("List.textForeground"));
-        }
 
         return this;
     }
