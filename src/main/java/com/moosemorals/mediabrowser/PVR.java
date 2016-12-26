@@ -29,11 +29,11 @@ import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_LOCAL;
 import static com.moosemorals.mediabrowser.Main.KEY_SAVE_DOWNLOAD_REMOTE;
 import java.awt.EventQueue;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -120,7 +120,7 @@ public class PVR implements TreeModel, DeviceListener {
     private final ScheduledThreadPoolExecutor scheduler;
     private ScheduledFuture<?> scanTask;
     private FtpScanner ftpClient;
-    private final Map<String, String> savedPaths;
+    private final List<SavedItem> savedPaths;
 
     PVR(Preferences prefs) {
         rootFolder = new PVRFolder(null, "/", "Humax HDR FOX-T2");
@@ -142,7 +142,7 @@ public class PVR implements TreeModel, DeviceListener {
             savedPaths = getSavedPaths();
             clearSavedPaths();
         } else {
-            savedPaths = new HashMap<>();
+            savedPaths = new ArrayList<>();
         }
 
         prefs.addPreferenceChangeListener(new PreferenceChangeListener() {
@@ -438,10 +438,12 @@ public class PVR implements TreeModel, DeviceListener {
 
     void updateItem(PVRItem item) {
         if (item.isFile()) {
-            PVRFile file = (PVRFile) item;
-            String remotePath = file.getRemotePath();
-            if (savedPaths.containsKey(item.getRemotePath())) {
-                DownloadManager.getInstance().add(file, savedPaths.get(remotePath));
+            PVRFile remote = (PVRFile) item;            
+            for (SavedItem i : savedPaths) {
+                if (i.remotePath.equals(item.getRemotePath())) {
+                    DownloadManager.getInstance().add(remote, i.localPath, i.priority);
+                    break;
+                }
             }
         }
 
@@ -475,8 +477,8 @@ public class PVR implements TreeModel, DeviceListener {
         return prefs.getBoolean(KEY_SAVE_DOWNLOAD_LIST, false);
     }
 
-    private Map<String, String> getSavedPaths() {
-        final Map<String, String> result = new HashMap<>();
+    private List<SavedItem> getSavedPaths() {
+        final List<SavedItem> result = new LinkedList<>();
 
         if (isSavingPaths()) {
             int count = prefs.getInt(KEY_SAVE_DOWNLOAD_COUNT, -1);
@@ -484,7 +486,7 @@ public class PVR implements TreeModel, DeviceListener {
                 String remotePath = prefs.get(KEY_SAVE_DOWNLOAD_REMOTE + i, null);
                 String localPath = prefs.get(KEY_SAVE_DOWNLOAD_LOCAL + i, null);
                 if (remotePath != null && localPath != null) {
-                    result.put(remotePath, localPath);
+                    result.add(new SavedItem(localPath, remotePath, i));                    
                 }
             }
         }
@@ -566,5 +568,18 @@ public class PVR implements TreeModel, DeviceListener {
     public interface TreeWalker {
 
         public void action(PVRItem item, Iterator it);
+    }
+    
+    private static class SavedItem {
+        public final String localPath;
+        public final String remotePath;
+        public final int priority;
+
+        public SavedItem(String localPath, String remotePath, int index) {
+            this.localPath = localPath;
+            this.remotePath = remotePath;
+            this.priority = index;
+        }
+        
     }
 }

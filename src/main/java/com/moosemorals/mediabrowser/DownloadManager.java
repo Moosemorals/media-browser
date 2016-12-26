@@ -37,6 +37,7 @@ import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -60,6 +61,8 @@ import org.slf4j.LoggerFactory;
  */
 public final class DownloadManager implements ListModel<DownloadManager.QueueItem>, Runnable {
 
+    public static final int DEFAULT_PRIORITY = Integer.MAX_VALUE;
+    
     private static final int BUFFER_SIZE = 1024 * 4; // bytes
     private static final int UPDATE_INTERVAL = 500; // miliseconds
     private static DownloadManager instance;
@@ -237,10 +240,10 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
      * @return
      */
     public boolean add(PVRFile target) {
-        return add(target, null);
+        return add(target, null, DEFAULT_PRIORITY);
     }
 
-    public boolean add(PVRFile target, String localPath) {
+    public boolean add(PVRFile target, String localPath, int priority) {
         if (!target.isQueueable()) {
             return false;
         }
@@ -257,7 +260,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             if (item == null) {
                 item = createQueueItem(target, localPath);
                 item.setState(QueueItem.State.Queued);
+                item.setPriority(priority);
                 queue.add(item);
+                if (priority != DEFAULT_PRIORITY) {
+                    sortQueue();
+                }
             }
 
             item.checkTarget();
@@ -303,6 +310,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                 queue.remove(f);
                 queue.add(row, f);
             }
+            
+            for (int i = 0; i < queue.size(); i += 1) {
+                queue.get(i).setPriority(i);
+            }
+            
             queue.notifyAll();
         }
         notifyListDataListeners();
@@ -334,6 +346,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
 
             queue.addAll(row, items);
+            
+            for (int i = 0; i < queue.size(); i += 1) {
+                queue.get(i).setPriority(i);
+            }
+            
             queue.notifyAll();
         }
 
@@ -357,6 +374,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
                     it.remove();
                 }
             }
+            
+            for (int i = 0; i < queue.size(); i += 1) {
+                queue.get(i).setPriority(i);
+            }
+            
             queue.notifyAll();
         }
 
@@ -543,6 +565,12 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         }
         return null;
     }
+    
+    private void sortQueue() {        
+        synchronized (queue) {
+            Collections.sort(queue);            
+        }        
+    }
 
     public interface DownloadStatusListener {
 
@@ -570,13 +598,15 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
         public void onDownloadCompleted(QueueItem target);
     }
 
-    public static class QueueItem {
+    public static class QueueItem implements Comparable<QueueItem> {
 
         private final Logger log = LoggerFactory.getLogger(QueueItem.class);
         private final AtomicBoolean running;
         private final DownloadManager parent;
         private final PVRFile target;
 
+        // Lower priority is higher
+        private int priorty = DEFAULT_PRIORITY;
         private float moveProgress = 0;
         private long downloaded = -1;
         private File localPath = null;
@@ -599,6 +629,10 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
         }
 
+        public void setPriority(int priority) {
+            this.priorty = priority;            
+        }
+        
         public PVRFile getTarget() {
             return target;
         }
@@ -906,6 +940,11 @@ public final class DownloadManager implements ListModel<DownloadManager.QueueIte
             }
             final QueueItem other = (QueueItem) obj;
             return target.equals(other.target);
+        }
+
+        @Override
+        public int compareTo(QueueItem other) {
+            return this.priorty - other.priorty;
         }
 
         /**
