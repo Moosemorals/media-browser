@@ -171,9 +171,8 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionSetMinimiseToTray = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
         actionSetShowMessageOnComplete = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
         actionSetSaveDownloadList = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
-        actionFontBigger = new LocalAction(main, "Increase font size", ACTION_FONT_BIGGER, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, ActionEvent.CTRL_MASK));
-        actionFontSmaller = new LocalAction(main, "Decrease font size", ACTION_FONT_SMALLER, KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, ActionEvent.CTRL_MASK));
-
+        actionFontBigger = new LocalAction(main, "Increase font size", ACTION_FONT_BIGGER, KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, ActionEvent.CTRL_MASK));
+        actionFontSmaller = new LocalAction(main, "Decrease font size", ACTION_FONT_SMALLER, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, ActionEvent.CTRL_MASK));
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
