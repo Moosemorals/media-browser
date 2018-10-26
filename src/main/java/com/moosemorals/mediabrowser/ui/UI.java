@@ -42,11 +42,16 @@ import java.awt.FontFormatException;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Insets;
+import java.awt.KeyEventDispatcher;
+import java.awt.KeyboardFocusManager;
 import java.awt.Rectangle;
 import java.awt.SystemTray;
 import java.awt.TrayIcon;
+import java.awt.event.ActionEvent;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.KeyAdapter;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -57,6 +62,7 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -70,6 +76,7 @@ import javax.swing.event.ListSelectionEvent;
 import javax.swing.event.ListSelectionListener;
 import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
+import javax.swing.plaf.FontUIResource;
 import javax.swing.tree.TreePath;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -92,6 +99,8 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
     public static final String ACTION_SCAN = "scan";
     public static final String ACTION_TRAY = "tray";
     public static final String ACTION_RESTORE = "restore";
+    public static final String ACTION_FONT_BIGGER = "font-bigger";
+    public static final String ACTION_FONT_SMALLER = "font-smaller";
 
     public static final String ICON_CONNECTED = "Blue";
     public static final String ICON_DISCONNECTED = "Grey";
@@ -124,10 +133,10 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
     private final Action actionAbout, actionStartStop, actionQueue, actionRemoveLock, actionChooseDefaultDownloadPath,
             actionChooseDownloadPath, actionRemoveSelected, actionQuit, actionRestore, actionSetMinimiseToTray,
-            actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete, actionScan;
+            actionSetAutoDownload, actionSetSaveDownloadList, actionSetShowMessageOnComplete, actionScan,
+            actionFontBigger, actionFontSmaller;
 
     public UI(Main m) {
-
         this.main = m;
 
         rateTracker = new RateTracker(15);
@@ -162,6 +171,9 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         actionSetMinimiseToTray = new PreferenceAction(prefs, "Minimise to tray", Main.KEY_MINIMISE_TO_TRAY);
         actionSetShowMessageOnComplete = new PreferenceAction(prefs, "Show completed notification", Main.KEY_MESSAGE_ON_COMPLETE);
         actionSetSaveDownloadList = new PreferenceAction(prefs, "Save download queue", Main.KEY_SAVE_DOWNLOAD_LIST);
+        actionFontBigger = new LocalAction(main, "Increase font size", ACTION_FONT_BIGGER, KeyStroke.getKeyStroke(KeyEvent.VK_MINUS, ActionEvent.CTRL_MASK));
+        actionFontSmaller = new LocalAction(main, "Decrease font size", ACTION_FONT_SMALLER, KeyStroke.getKeyStroke(KeyEvent.VK_EQUALS, ActionEvent.CTRL_MASK));
+
 
         pvr = main.getPVR();
         downloader = main.getDownloadManager();
@@ -199,7 +211,6 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
                 prefs.putInt(Main.KEY_FRAME_HEIGHT, bounds.height);
             }
         });
-
         window.addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -214,6 +225,24 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
             }
 
         });
+
+/*
+        KeyboardFocusManager
+            .getCurrentKeyboardFocusManager()
+            .addKeyEventDispatcher(new KeyEventDispatcher(){
+            
+                @Override
+                public boolean dispatchKeyEvent(KeyEvent event) {
+                    log.debug("Got a key event {} {}", KeyEvent.getKeyModifiersText(event.getModifiers()), KeyEvent.getKeyText(event.getKeyCode()));
+                    if (event.getKeyCode() == KeyEvent.VK_MINUS && event.getModifiers() == KeyEvent.CTRL_MASK) {
+                        changeFont(-1f);
+                    } else if (event.getKeyCode() == KeyEvent.VK_EQUALS && event.getModifiers() == KeyEvent.CTRL_MASK) {
+                        changeFont(1f);
+                    }
+                    return false; 
+                }
+            });
+*/
 
         JMenuBar menuBar = new JMenuBar();
 
@@ -253,6 +282,11 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
         jCheckBoxMenuItem = new JCheckBoxMenuItem(actionSetSaveDownloadList);
         jCheckBoxMenuItem.setState(prefs.getBoolean(Main.KEY_SAVE_DOWNLOAD_LIST, false));
         menu.add(jCheckBoxMenuItem);
+
+        menu.addSeparator();
+
+        menu.add(actionFontBigger);
+        menu.add(actionFontSmaller);
 
         menuBar.add(menu);
 
@@ -943,5 +977,17 @@ public class UI implements DeviceListener, DownloadManager.DownloadStatusListene
 
             return String.format("%d %s%s", eta, name, eta != 1 ? "s" : "");
         }
+    }
+
+    public void changeFont(float delta) {
+        for (Enumeration keys = UIManager.getDefaults().keys(); keys.hasMoreElements(); ) {
+            Object key = keys.nextElement();
+            Object value =  UIManager.get(key);
+            if (value instanceof FontUIResource) {
+                FontUIResource f = (FontUIResource)value;
+                UIManager.put(key, new FontUIResource(f.deriveFont(f.getSize() + delta)));
+            }
+        }
+        SwingUtilities.updateComponentTreeUI(window);
     }
 }

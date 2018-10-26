@@ -229,6 +229,12 @@ public class Main implements Runnable, ActionListener {
                     ui.showWindow();
                 }
                 break;
+            case UI.ACTION_FONT_BIGGER:
+                ui.changeFont(1f);
+                break;
+            case UI.ACTION_FONT_SMALLER:
+                ui.changeFont(-1f);
+                break;
             default:
                 log.warn("Unknown action {}, ignoring", cmd);
                 break;
