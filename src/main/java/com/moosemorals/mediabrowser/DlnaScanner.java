@@ -53,7 +53,8 @@ import org.slf4j.LoggerFactory;
  */
 public class DlnaScanner implements Runnable {
 
-    private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
+    //private static final String DEVICE_NAME = "HUMAX HDR-FOX T2 Undefine";
+    private static final String DEVICE_NAME = "HUMAX HDR-2000T Undefine";
 
     private static final long PAGE_SIZE = 50;
 

@@ -1,0 +1,152 @@
+# Copied from https://web.archive.org/web/20140704090635/https://myhumax.org/wiki/index.php?title=Humax_PVR_File_Formats
+# since the original has fallen off the net.
+
+
+Humax PVR File Formats
+Contents
+
+    1 HDR-FOX T2
+        1.1 HMT
+    2 FOXSAT HDR
+        2.1 HMT
+
+HDR-FOX T2
+HMT
+
+Offset Size      Content        Description
+------ -------   ---------------------------------------------------------------------------------
+0x0000 2 bytes   17 01          HDR FOX T2 HMT file identifier
+0x0080 string    512 bytes max. Directory containing recording e.g. "/mnt/hd2/My Video/"
+0x017F string    512 bytes max. Recording file name "Quantum of Solace_20110326_2103"
+0x0280 4 bytes   4D 0E 00 00    Start Date/Time (Epoch format) 32-bit byte swapped
+0x0284 4 bytes   63 15 00 00    End Date/Time (Epoch format) 32-bit byte swapped
+0x0288 4 bytes   81 23 00 00
+0x028C 1 byte    02             Recording 00=zero length, 02=valid, 03=scrambled, 04=failed
+0x028D 1 byte    08             Status 00=new, 08=played, 40=?
+0x028E 1 byte    02
+0x0290 1 byte    00             Failed recording code, 05=loss of signal
+0x0294 4 bytes   3B 0E 00 00    Stop/Resume marker (Epoch format) 32-bit byte swapped
+0x029A string    512 bytes max. Recording title in media list
+0x03DC 1 byte    00             Copy protection 00=Enc, 04=no Enc flag
+0x03E0 3 bytes   FF 00 15       Guidance FF0015=no, 010115=yes, 00FF15=yes
+0x03E3 string    77 bytes max.  Guidance description
+0x0458 1 byte    00             Channel number
+0x045C 1 byte    15             String header byte
+0x045D string    10 bytes max.  Channel name
+0x0468 2 bytes   23 01
+0x046A 2 bytes   10 40
+0x0498 1 bytes   01             Definition 01=SD, 02=HD
+0x04BC 1 byte    01             Definition 01=SD, 02=HD
+0x04C4 1 byte    FF             Marker
+0x04F8 4 bytes   4D 0E 00 00    Start Date/Time (Epoch format) 32-bit byte swapped
+0x04FC 4 bytes   16 07 00 00    Length (Epoch format) 32-bit byte swapped
+0x0514 1 byte    10             Genre: 10=movie, 20=news & factual, 30=entertainment, etc.
+0x0516 1 byte    10
+0x0517 string    255 bytes max. Recording title in i-plate
+0x0616 1 byte    15             String header byte
+0x0617 string    255 bytes max. Recording synopsis in i-plate
+0x073B 1 byte    FF             Marker
+0x073D 4 byte    string         Language?
+0x0741 1 byte    15             Marker
+0x0798 128 bytes                End marker
+                                50 FE 67 CC 99 6D 32 B6 DA 09 37 E9 9B AF EC 60
+                                D9 A4 DA DA 08 92 23 9F 6B 8B 3D 76 80 E1 56 74
+                                A7 88 19 58 3F 03 08 E7 A6 BF 36 B1 38 6A BF 23
+                                C6 D3 41 6D 29 16 5C 6F CB 8E 51 A2 27 BA 99 4E
+                                D7 D7 A5 39 BE 3D 85 AF 37 C5 62 14 FC EC 10 6E
+                                03 32 92 D8 FA 2D E7 2B 68 FE D0 2E C2 E8 BA 8E
+                                FD 16 C9 7D CF 92 DE 71 BA 71 F9 E0 CB 52 A3 F9
+                                9E FF 8E CD 09 59 C4 F1 27 71 0F 48 AB 9B 0B 30
+
+File analysis by son_t
+First published 4th Jan 2012
+Last update 5th Jan 2012
+
+Disclaimer : The above is for information only. It is not complete, and there may be inaccuracies.
+
+FOXSAT HDR
+HMT
+
+Humax Foxsat HDR .hmt file (freesat mode)
+=========================================
+
+Offset    Size      Content
+------    -----     ---------------------------------- Header Block, Size 4100 bytes  ---------------------------------------------
+0x0000    5 byte    0x0000000101    Never changes.
+0x0005    2 bytes   0x0000          This value is linked somehow to the last played position.
+0x0007    6 bytes   0x010000000000  Never changes.
+0x000D    2 byte    0x0000          Same value as in offset 0x0005 always repeated
+0x0011    2 byte    0x0000          Channel Number.
+0x0019    4 byte    0x00000000      Recording start date & time. (Epoch format).
+0x001D    4 byte    0x00000000      Recording end date & time. (Epoch format).
+0x0021    string    512 byte max.   Recording file name and path e.g. "/media/sda1/My_Video_20090703_1015"
+0x0221    1 byte    0x15            String header byte.
+0x0222    string    255 byte max.   Program name for media list.
+0x0321    String    33 byte max.    Channel Name for i-Plate and detailed program information.
+0x0343    3 bytes   0x106937        String header bytes.
+0x0346    string    9 byte max.     Channel name for media list.
+0x0366    1 byte    0x50            Freesat mode=0x50,  Non-Freesat mode=0x40,
+0x0367    1 byte    0x00            New & Locked flags 0x00=Unlocked & New, 0x20=Unlocked & Viewed, 0x80=Locked & New, 0xA0=Locked & Viewed
+0x0368    1 byte    0x00            HD & Encoded flags 0x00=Not Enc, 0x10=Enc, 0x80=HD & Not Enc, 0x90=HD & Enc.
+0x0369    1 byte    0x00            Copy Once flag 0x21=Can't copy again, 0x00=No copy restrictions.
+0x040D    1 byte    0x00            0x1F=yes_subs    0xFF= no_subs
+0x040E    1 byte    0x00            Audio type & subtitles flag 0x0Z=MPEG1, 0x1Z=AC3. (for selected stream). Z=7 Subs yes, Z=6 Subs no
+0x040F    2 byte    0x0000          ???
+0x0417    2 byte    0x0000          TS Common Menu ID.
+0x0419    2 byte    0x0000          TS Menu Menu ID
+0x041B    2 byte    0x0000          TS Video PID.
+0x041D    2 byte    0x0000          TS Audio PID. (selected stream)
+0x041F    2 byte    0x0000          TS Video PID repeated.
+0x0421    2 byte    0x0000          ???
+0x0423    2 byte    0x2000          TS Teletext PID, or 0x2000 if none.
+0x042D    1 byte    0x00            Video stream type 0x00=SD. 0x01=HD.
+0x1003    1 byte    0x00            Number of EPG Blocks following
+
+---------------------------------------------------- EPG Block, Size 544 bytes -----------------------------------------------
+0x0000    2 bytes   0x0000          Magic number.
+0x0002    2 bytes   0x0000          Always zero.
+0x0004    4 byte    0x00000000      Program scheduled start date & time. (Epoch format).
+0x0008    2 bytes   0x0000          Always zero.
+0x000A    2 byte    0x0000          Program scheduled duration. (seconds).
+0x000C    1 byte    0x04            ???
+0x000D    1 bytes   0x00            Always zero.
+0x000E    1 byte    0x01            ???
+0x000F    5 bytes   0x0000000000    Always zero.
+0x0014    1 byte    0x15            String header byte.
+0x0015    string    52 byte max.    Program Name for i-Plate & detailed program info.
+0x0114    1 byte    0x15            String header byte.
+0x0115    string    255 byte max.   Detailed program information text.
+0x0216    1 byte    0x00            'Guide' flag. 0x00=Guide Off, 0x01=Guide On
+
+-------------------------------------------------- Guide block, Size variable (dependant on string length) -------------------
+0x0000    2 bytes   0x0000          Always zero.
+0x0002    2 byte    0x0000          Number of bytes immediately following which make up the guide block.
+0x0004    2 bytes   0x0000          Always zeroes.
+0x0006    2 byte    0x0000          Same value as in offset 0x0002 always repeated.
+0x000B    1 byte    0x01            Always 0x01.
+0x000C    string    0x656E67        "eng".  Language for guide text.
+0x000F    3 bytes   0x000000        Always zero.
+0x0012    2 bytes   0x0000          Number of bytes immediately following which makes up the remainder of the guide block.
+0x0014    1 byte    0x15            String header byte.
+0x0015    string    256 byte max.   Guide Information text.
+------------------------------------------------------------------------------------------------------------------------------
+
+Notes
+-----
+An .HMT file always contains the minimum of a header block plus one EPG block.
+More EPG blocks will be added if the recording spans two or more programs.
+Guide blocks are appended to their corresponding EPG block.
+Strings lengths in all blocks are inclusive of a null byte terminator.
+Epoch format date & times are derived from the number of seconds since 1st January 1970.
+
+The above information applies to freesat mode .hmt files only.
+Non-freesat .hmt files have some slight differences with the string headers in the header block.
+They never have a guide block, but always have an additional block containing a host of stream information.
+
+As the aim is to build hmt files to support custom .ts stream imports, then the best option is to use the simpler freesat mode .hmt file as the template.
+
+File analysis by raydon
+First published 8th Aug 2009
+Last update 6th Sept 2009
+
+Disclaimer : The above is for information only. It is not complete, and there may be inaccuracies.
