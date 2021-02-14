@@ -1,0 +1,9 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="media-browser" type="Application" factoryName="Application">
+    <option name="MAIN_CLASS_NAME" value="com.moosemorals.mediabrowser.Main" />
+    <module name="media-broswer" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
